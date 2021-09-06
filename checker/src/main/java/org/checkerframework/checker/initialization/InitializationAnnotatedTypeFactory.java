@@ -12,25 +12,7 @@ import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
-import java.lang.annotation.Annotation;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.Modifier;
-import javax.lang.model.element.Name;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.Types;
+
 import org.checkerframework.checker.initialization.qual.FBCBottom;
 import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.initialization.qual.NotOnlyInitialized;
@@ -59,6 +41,27 @@ import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.Pair;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.lang.annotation.Annotation;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.Modifier;
+import javax.lang.model.element.Name;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Types;
 
 /**
  * The annotated type factory for the freedom-before-commitment type-system. The
@@ -166,12 +169,26 @@ public abstract class InitializationAnnotatedTypeFactory<
     }
 
     /**
-     * Returns the annotation that makes up the invariant of this commitment type system, such as
-     * {@code @NonNull}.
+     * Returns the annotation on {@code type} that makes up an invariant in this commitment type
+     * system, such as {@code @NonNull}, or {@code null} if {@code type} contains no invariant.
      *
-     * @return the invariant annotation for this type system
+     * @param type of field that might have invariant annotation
+     * @param fieldElement the field element, which can be used to check annotations on the
+     *     declaration
+     * @return the invariant annotation for this type system, or {@code null}
      */
-    public abstract AnnotationMirror getFieldInvariantAnnotation();
+    public abstract AnnotationMirror getFieldInvariantAnnotation(
+            AnnotatedTypeMirror type, VariableElement fieldElement);
+
+    /**
+     * Returns {@code true} if and only if {@code anno} makes up an invariant in this commitment
+     * type system.
+     *
+     * @param anno an annotation
+     * @return {@code true} if and only if {@code anno} makes up an invariant in this commitment
+     *     type system.
+     */
+    public abstract boolean isFieldInvariantAnnotation(AnnotationMirror anno);
 
     /**
      * Returns whether or not {@code field} has the invariant annotation.
@@ -679,10 +696,6 @@ public abstract class InitializationAnnotatedTypeFactory<
             AnnotatedTypeMirror receiverType,
             AnnotatedTypeMirror fieldAnnotations,
             Element element) {
-        // not necessary for primitive fields
-        if (TypesUtils.isPrimitive(type.getUnderlyingType())) {
-            return;
-        }
         // not necessary if there is an explicit UnknownInitialization
         // annotation on the field
         if (AnnotationUtils.containsSameByName(

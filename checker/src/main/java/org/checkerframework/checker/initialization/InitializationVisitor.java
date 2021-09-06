@@ -11,17 +11,7 @@ import com.sun.source.tree.Tree;
 import com.sun.source.tree.Tree.Kind;
 import com.sun.source.tree.TypeCastTree;
 import com.sun.source.tree.VariableTree;
-import java.lang.annotation.Annotation;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.StringJoiner;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.VariableElement;
+
 import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
 import org.checkerframework.checker.nullness.NullnessChecker;
 import org.checkerframework.common.basetype.BaseTypeChecker;
@@ -42,6 +32,19 @@ import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.Pair;
 import org.checkerframework.javacutil.TreeUtils;
+
+import java.lang.annotation.Annotation;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.StringJoiner;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.VariableElement;
 
 /**
  * The visitor for the freedom-before-commitment type-system. The freedom-before-commitment
@@ -175,13 +178,19 @@ public class InitializationVisitor<
             AnnotationMirror necessaryAnnotation,
             AnnotationMirror inferredAnnotation,
             CFAbstractStore<?, ?> store) {
-        // also use the information about initialized fields to check contracts
-        final AnnotationMirror invariantAnno = atypeFactory.getFieldInvariantAnnotation();
-
-        if (!atypeFactory.getQualifierHierarchy().isSubtype(invariantAnno, necessaryAnnotation)
-                || !(expr instanceof FieldAccess)) {
+        if (!(expr instanceof FieldAccess)) {
             return super.checkContract(expr, necessaryAnnotation, inferredAnnotation, store);
+        } else {
+            FieldAccess fa = (FieldAccess) expr;
+            VariableElement field = fa.getField();
+            AnnotatedTypeMirror type = atypeFactory.getAnnotatedType(field);
+            AnnotationMirror inv = atypeFactory.getFieldInvariantAnnotation(type, field);
+            if (inv == null
+                    || !atypeFactory.getQualifierHierarchy().isSubtype(inv, necessaryAnnotation)) {
+                return super.checkContract(expr, necessaryAnnotation, inferredAnnotation, store);
+            }
         }
+
         if (expr.containsUnknown()) {
             return false;
         }
@@ -191,11 +200,11 @@ public class InitializationVisitor<
             @SuppressWarnings("unchecked")
             Store s = (Store) store;
             if (s.isFieldInitialized(fa.getField())) {
-                AnnotatedTypeMirror fieldType = atypeFactory.getAnnotatedType(fa.getField());
+                VariableElement field = fa.getField();
+                AnnotatedTypeMirror fieldType = atypeFactory.getAnnotatedType(field);
+                AnnotationMirror inv = atypeFactory.getFieldInvariantAnnotation(fieldType, field);
                 // is this an invariant-field?
-                if (AnnotationUtils.containsSame(fieldType.getAnnotations(), invariantAnno)) {
-                    return true;
-                }
+                return inv != null;
             }
         } else {
             @SuppressWarnings("unchecked")
@@ -220,13 +229,12 @@ public class InitializationVisitor<
                 }
             }
 
-            AnnotatedTypeMirror fieldType = atypeFactory.getAnnotatedType(fa.getField());
+            VariableElement field = fa.getField();
+            AnnotatedTypeMirror fieldType = atypeFactory.getAnnotatedType(field);
+            AnnotationMirror inv = atypeFactory.getFieldInvariantAnnotation(fieldType, field);
             // The receiver is fully initialized and the field type
             // has the invariant type.
-            if (isReceiverInitialized
-                    && AnnotationUtils.containsSame(fieldType.getAnnotations(), invariantAnno)) {
-                return true;
-            }
+            return isReceiverInitialized && inv != null;
         }
         return super.checkContract(expr, necessaryAnnotation, inferredAnnotation, store);
     }

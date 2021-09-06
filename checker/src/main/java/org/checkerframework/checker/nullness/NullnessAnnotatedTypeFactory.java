@@ -16,19 +16,7 @@ import com.sun.source.tree.TypeCastTree;
 import com.sun.source.tree.UnaryTree;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
-import java.lang.annotation.Annotation;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeMirror;
+
 import org.checkerframework.checker.initialization.InitializationAnnotatedTypeFactory;
 import org.checkerframework.checker.initialization.qual.FBCBottom;
 import org.checkerframework.checker.initialization.qual.Initialized;
@@ -68,6 +56,21 @@ import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.Pair;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.lang.annotation.Annotation;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeMirror;
 
 /** The annotated type factory for the nullness type-system. */
 public class NullnessAnnotatedTypeFactory
@@ -570,8 +573,18 @@ public class NullnessAnnotatedTypeFactory
     }
 
     @Override
-    public AnnotationMirror getFieldInvariantAnnotation() {
-        return NONNULL;
+    public AnnotationMirror getFieldInvariantAnnotation(
+            AnnotatedTypeMirror type, VariableElement fieldElement) {
+        if (type.hasAnnotation(NONNULL)) {
+            return NONNULL;
+        } else {
+            return null;
+        }
+    }
+
+    @Override
+    public boolean isFieldInvariantAnnotation(AnnotationMirror anno) {
+        return getQualifierHierarchy().isSubtype(anno, NONNULL);
     }
 
     /**
@@ -585,10 +598,19 @@ public class NullnessAnnotatedTypeFactory
     @Override
     protected boolean hasFieldInvariantAnnotation(
             AnnotatedTypeMirror type, VariableElement fieldElement) {
-        AnnotationMirror invariant = getFieldInvariantAnnotation();
+        AnnotationMirror invariant = NONNULL;
         Set<AnnotationMirror> lowerBounds =
                 AnnotatedTypes.findEffectiveLowerBoundAnnotations(qualHierarchy, type);
         return AnnotationUtils.containsSame(lowerBounds, invariant);
+    }
+
+    @Override
+    public void postAsMemberOf(
+            AnnotatedTypeMirror type, AnnotatedTypeMirror owner, Element element) {
+        // not necessary for primitive fields
+        if (!TypesUtils.isPrimitive(type.getUnderlyingType())) {
+            super.postAsMemberOf(type, owner, element);
+        }
     }
 
     @Override

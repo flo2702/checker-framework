@@ -4,15 +4,7 @@ import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.tools.javac.code.Symbol;
-import java.util.ArrayList;
-import java.util.List;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.ElementFilter;
+
 import org.checkerframework.dataflow.analysis.RegularTransferResult;
 import org.checkerframework.dataflow.analysis.TransferInput;
 import org.checkerframework.dataflow.analysis.TransferResult;
@@ -29,6 +21,17 @@ import org.checkerframework.framework.flow.CFAbstractValue;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.javacutil.TreeUtils;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.ElementFilter;
 
 /**
  * A transfer function that extends {@link CFAbstractTransfer} and tracks {@link
@@ -173,12 +176,12 @@ public class InitializationTransfer<
         assert !result.containsTwoStores();
         S store = result.getRegularStore();
         if (store.isFieldInitialized(n.getElement()) && n.getReceiver() instanceof ThisNode) {
-            AnnotatedTypeMirror fieldAnno =
-                    analysis.getTypeFactory().getAnnotatedType(n.getElement());
+            VariableElement field = n.getElement();
+            AnnotatedTypeMirror fieldAnno = analysis.getTypeFactory().getAnnotatedType(field);
+            AnnotationMirror inv = atypeFactory.getFieldInvariantAnnotation(fieldAnno, field);
             // Only if the field has the type system's invariant annotation,
             // such as @NonNull.
-            if (fieldAnno.hasAnnotation(atypeFactory.getFieldInvariantAnnotation())) {
-                AnnotationMirror inv = atypeFactory.getFieldInvariantAnnotation();
+            if (inv != null) {
                 V oldResultValue = result.getResultValue();
                 V refinedResultValue =
                         analysis.createSingleAnnotationValue(
