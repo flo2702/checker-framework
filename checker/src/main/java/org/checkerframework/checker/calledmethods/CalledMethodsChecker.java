@@ -90,11 +90,10 @@ public class CalledMethodsChecker extends AccumulationChecker {
     }
 
     @Override
-    protected LinkedHashSet<Class<? extends BaseTypeChecker>> getImmediateSubcheckerClasses() {
-        LinkedHashSet<Class<? extends BaseTypeChecker>> checkers =
-                super.getImmediateSubcheckerClasses();
+    protected LinkedHashSet<BaseTypeChecker> getImmediateSubcheckers() {
+        LinkedHashSet<BaseTypeChecker> checkers = super.getImmediateSubcheckers();
         if (!isReturnsReceiverDisabled()) {
-            checkers.add(ReturnsReceiverChecker.class);
+            checkers.add(new ReturnsReceiverChecker());
         }
         // BaseTypeChecker#hasOption calls this method (so that all subcheckers' options are
         // considered), so the processingEnvironment must be checked for options directly.
@@ -102,7 +101,7 @@ public class CalledMethodsChecker extends AccumulationChecker {
                 || this.processingEnv
                         .getOptions()
                         .containsKey(this.getClass().getSimpleName() + "_" + USE_VALUE_CHECKER)) {
-            checkers.add(ValueChecker.class);
+            checkers.add(new ValueChecker());
         }
         return checkers;
     }

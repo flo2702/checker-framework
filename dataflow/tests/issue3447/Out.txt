@@ -1,0 +1,133 @@
+2 -> 3 EACH_TO_EACH
+3 -> 4 EACH_TO_EACH
+4 -> 5 EACH_TO_EACH
+4 -> 1 OutOfMemoryError
+4 -> 15 NegativeArraySizeException
+5 -> 6 EACH_TO_EACH
+15 -> 0 EACH_TO_EACH
+6 -> 7 EACH_TO_EACH
+6 -> 15 NullPointerException
+7 -> 8 EACH_TO_EACH
+8 -> 10 EACH_TO_EACH
+8 -> 15 ArrayIndexOutOfBoundsException
+10 -> 12 EACH_TO_EACH
+10 -> 15 NullPointerException
+12 -> 13 EACH_TO_EACH
+12 -> 15 Throwable
+12 -> 1 Throwable
+13 -> 0 EACH_TO_EACH
+
+2:
+Process order: 1
+AnalysisResult#1
+Before:   live variables = none
+~~~~~~~~~
+<entry>
+
+3:
+Process order: 2
+AnalysisResult#3
+Before:   live variables = none
+~~~~~~~~~
+marker (start of try statement #0)   [ Marker ]
+marker (start of try block #0)   [ Marker ]
+myNumbers   [ VariableDeclaration ]
+1   [ IntegerLiteral ]
+~~~~~~~~~
+TransferInput#32
+After:   live variables = none
+
+4:
+Process order: 3
+AnalysisResult#5
+Before:   live variables = none
+~~~~~~~~~
+new int[] = {1}   [ ArrayCreation ]
+
+5:
+Process order: 4
+AnalysisResult#7
+Before:   live variables = none
+~~~~~~~~~
+myNumbers = new int[] = {1}   [ Assignment ]
+System   [ ClassName ]
+System.out   [ FieldAccess ]
+~~~~~~~~~
+TransferInput#25
+After:   live variables = none
+
+1:
+Process order: 11
+AnalysisResult#9
+Before:   live variables = none
+~~~~~~~~~
+<exceptional-exit>
+
+15:
+Process order: 12
+AnalysisResult#11
+Before:   live variables = none
+~~~~~~~~~
+marker (start of catch block for Exception #0)   [ Marker ]
+e   [ VariableDeclaration ]
+marker (end of catch block for Exception #0)   [ Marker ]
+~~~~~~~~~
+TransferInput#3
+After:   live variables = none
+
+6:
+Process order: 5
+AnalysisResult#13
+Before:   live variables = none
+~~~~~~~~~
+System.out.println   [ MethodAccess ]
+
+0:
+Process order: 13
+AnalysisResult#15
+Before:   live variables = none
+~~~~~~~~~
+<exit>
+
+7:
+Process order: 6
+AnalysisResult#17
+Before:   live variables = none
+~~~~~~~~~
+myNumbers   [ LocalVariable ]
+1   [ IntegerLiteral ]
+myNumbers[1]   [ ArrayAccess ]
+~~~~~~~~~
+TransferInput#18
+After:   live variables = none
+
+8:
+Process order: 7
+AnalysisResult#19
+Before:   live variables = none
+~~~~~~~~~
+myNumbers[1]   [ ArrayAccess ]
+
+10:
+Process order: 8
+AnalysisResult#21
+Before:   live variables = none
+~~~~~~~~~
+myNumbers[1]   [ ArrayAccess ]
+
+12:
+Process order: 9
+AnalysisResult#23
+Before:   live variables = none
+~~~~~~~~~
+System.out.println(myNumbers[1])   [ MethodInvocation ]
+
+13:
+Process order: 10
+AnalysisResult#25
+Before:   live variables = none
+~~~~~~~~~
+marker (end of try block #0)   [ Marker ]
+~~~~~~~~~
+TransferInput#2
+After:   live variables = none

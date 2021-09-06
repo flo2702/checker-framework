@@ -75,10 +75,9 @@ public class NullnessChecker extends InitializationChecker {
     */
 
     @Override
-    protected LinkedHashSet<Class<? extends BaseTypeChecker>> getImmediateSubcheckerClasses() {
-        LinkedHashSet<Class<? extends BaseTypeChecker>> checkers =
-                super.getImmediateSubcheckerClasses();
-        checkers.add(KeyForSubchecker.class);
+    protected LinkedHashSet<BaseTypeChecker> getImmediateSubcheckers() {
+        LinkedHashSet<BaseTypeChecker> checkers = super.getImmediateSubcheckers();
+        checkers.add(new KeyForSubchecker());
         return checkers;
     }
 

@@ -26,10 +26,9 @@ import org.checkerframework.framework.qual.RelevantJavaTypes;
 public class SignednessChecker extends BaseTypeChecker {
 
     @Override
-    protected LinkedHashSet<Class<? extends BaseTypeChecker>> getImmediateSubcheckerClasses() {
-        LinkedHashSet<Class<? extends BaseTypeChecker>> checkers =
-                super.getImmediateSubcheckerClasses();
-        checkers.add(ValueChecker.class);
+    protected LinkedHashSet<BaseTypeChecker> getImmediateSubcheckers() {
+        LinkedHashSet<BaseTypeChecker> checkers = super.getImmediateSubcheckers();
+        checkers.add(new ValueChecker());
         return checkers;
     }
 }
