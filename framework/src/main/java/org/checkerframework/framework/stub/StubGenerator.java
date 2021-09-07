@@ -5,11 +5,20 @@ import com.sun.tools.javac.main.Option;
 import com.sun.tools.javac.processing.JavacProcessingEnvironment;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.Options;
+
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.javacutil.ElementUtils;
+import org.checkerframework.javacutil.SystemUtil;
+import org.checkerframework.javacutil.TypesUtils;
+import org.plumelib.util.CollectionsPlume;
+import org.plumelib.util.StringsPlume;
+
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.StringTokenizer;
+
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
@@ -22,16 +31,12 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
-import org.checkerframework.javacutil.ElementUtils;
-import org.checkerframework.javacutil.SystemUtil;
-import org.checkerframework.javacutil.TypesUtils;
-import org.plumelib.util.StringsPlume;
 
 /**
  * Generates a stub file from a single class or an entire package.
  *
- * <p>A stub file can be used to add annotations to methods of classes, that are only available in
- * binary or the source of which cannot be edited.
+ * <p>TODO: StubGenerator needs to be reimplemented, because it no longer works due to changes in
+ * JDK 9.
  *
  * @checker_framework.manual #stub Using stub classes
  */
@@ -167,10 +172,14 @@ public class StubGenerator {
         printClass(typeElement, null);
     }
 
-    /** helper method that outputs the index for the provided class. */
-    private void printClass(TypeElement typeElement, String outerClass) {
-        List<TypeElement> innerClass = new ArrayList<>();
-
+    /**
+     * Helper method that prints the stub file for the provided class.
+     *
+     * @param typeElement the class to output
+     * @param outerClass the outer class of the class, or null if {@code typeElement} is a top-level
+     *     class
+     */
+    private void printClass(TypeElement typeElement, @Nullable String outerClass) {
         indent();
 
         List<? extends AnnotationMirror> teannos = typeElement.getAnnotationMirrors();
@@ -212,10 +221,9 @@ public class StubGenerator {
         if (!typeElement.getInterfaces().isEmpty()) {
             final boolean isInterface = typeElement.getKind() == ElementKind.INTERFACE;
             out.print(isInterface ? " extends " : " implements ");
-            List<String> ls = new ArrayList<>();
-            for (TypeMirror itf : typeElement.getInterfaces()) {
-                ls.add(formatType(itf));
-            }
+            List<String> ls =
+                    CollectionsPlume.mapList(
+                            StubGenerator::formatType, typeElement.getInterfaces());
             out.print(formatList(ls));
         }
 
@@ -224,6 +232,9 @@ public class StubGenerator {
 
         currentIndention = currentIndention + INDENTION;
 
+        // Inner classes, which the stub generator prints later.
+        List<TypeElement> innerClass = new ArrayList<>();
+        // side-effects innerClass
         printTypeMembers(typeElement.getEnclosedElements(), innerClass);
 
         currentIndention = tempIndention;
@@ -353,10 +364,8 @@ public class StubGenerator {
 
         if (!method.getThrownTypes().isEmpty()) {
             out.print(" throws ");
-            List<String> ltt = new ArrayList<>();
-            for (TypeMirror tt : method.getThrownTypes()) {
-                ltt.add(formatType(tt));
-            }
+            List<String> ltt =
+                    CollectionsPlume.mapList(StubGenerator::formatType, method.getThrownTypes());
             out.print(formatList(ltt));
         }
         out.println(';');
@@ -384,8 +393,13 @@ public class StubGenerator {
                 || element.getModifiers().contains(Modifier.PROTECTED);
     }
 
-    /** Outputs the simple name of the type. */
-    private String formatType(TypeMirror typeRep) {
+    /**
+     * Returns the simple name of the type.
+     *
+     * @param typeRep a type
+     * @return the simple name of the type
+     */
+    private static String formatType(TypeMirror typeRep) {
         StringTokenizer tokenizer = new StringTokenizer(typeRep.toString(), "()<>[], ", true);
         StringBuilder sb = new StringBuilder();
 

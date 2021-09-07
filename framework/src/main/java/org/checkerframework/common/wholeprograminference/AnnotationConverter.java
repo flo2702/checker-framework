@@ -1,24 +1,15 @@
 package org.checkerframework.common.wholeprograminference;
 
 import com.sun.tools.javac.code.Type.ArrayType;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.AnnotationValue;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Name;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeMirror;
+
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.TypesUtils;
 import org.plumelib.reflection.Signatures;
+import org.plumelib.util.CollectionsPlume;
+
 import scenelib.annotations.Annotation;
 import scenelib.annotations.el.AnnotationDef;
 import scenelib.annotations.field.AnnotationFieldType;
@@ -27,6 +18,18 @@ import scenelib.annotations.field.BasicAFT;
 import scenelib.annotations.field.ClassTokenAFT;
 import scenelib.annotations.field.EnumAFT;
 import scenelib.annotations.field.ScalarAFT;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.AnnotationValue;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeMirror;
 
 /**
  * This class contains static methods that convert between {@link scenelib.annotations.Annotation}
@@ -41,7 +44,7 @@ public class AnnotationConverter {
      * @param am the AnnotationMirror
      * @return the Annotation
      */
-    protected static Annotation annotationMirrorToAnnotation(AnnotationMirror am) {
+    public static Annotation annotationMirrorToAnnotation(AnnotationMirror am) {
         @SuppressWarnings("signature:argument.type.incompatible") // TODO: bug for inner classes
         AnnotationDef def =
                 new AnnotationDef(
@@ -49,7 +52,7 @@ public class AnnotationConverter {
                         String.format(
                                 "annotationMirrorToAnnotation %s [%s] keyset=%s",
                                 am, am.getClass(), am.getElementValues().keySet()));
-        Map<String, AnnotationFieldType> fieldTypes = new HashMap<>();
+        Map<String, AnnotationFieldType> fieldTypes = new HashMap<>(am.getElementValues().size());
         // Handling cases where there are fields in annotations.
         for (ExecutableElement ee : am.getElementValues().keySet()) {
             AnnotationFieldType aft = getAnnotationFieldType(ee);
@@ -59,24 +62,20 @@ public class AnnotationConverter {
 
         // Now, we handle the values of those types below
         Map<? extends ExecutableElement, ? extends AnnotationValue> values = am.getElementValues();
-        Map<String, Object> newValues = new HashMap<>();
+        Map<String, Object> newValues = new HashMap<>(values.size());
         for (ExecutableElement ee : values.keySet()) {
             Object value = values.get(ee).getValue();
             if (value instanceof List) {
+                // If we have a List here, then it is a List of AnnotationValue.
+                // Convert each AnnotationValue to its respective Java type.
                 @SuppressWarnings("unchecked")
-                List<Object> valueList = (List<Object>) value;
-                List<Object> newList = new ArrayList<>();
-                // If we have a List here, then it is a List of AnnotatedValue.
-                // Converting each AnnotatedValue to its respective Java type:
-                for (Object o : valueList) {
-                    newList.add(((AnnotationValue) o).getValue());
-                }
-                value = newList;
+                List<AnnotationValue> valueList = (List<AnnotationValue>) value;
+                value = CollectionsPlume.mapList(AnnotationValue::getValue, valueList);
             } else if (value instanceof TypeMirror) {
                 try {
                     value = Class.forName(TypesUtils.binaryName((TypeMirror) value));
                 } catch (ClassNotFoundException e) {
-                    throw new BugInCF(String.format("value = %s [%s]", value, value.getClass()), e);
+                    throw new BugInCF(e, "value = %s [%s]", value, value.getClass());
                 }
             }
             newValues.put(ee.getSimpleName().toString(), value);
@@ -147,14 +146,14 @@ public class AnnotationConverter {
                 return new ArrayAFT((ScalarAFT) componentAFT);
 
             case DECLARED:
-                Name className = TypesUtils.getQualifiedName((DeclaredType) tm);
-                if (className.contentEquals("java.lang.String")) {
+                String className = TypesUtils.getQualifiedName((DeclaredType) tm);
+                if (className.equals("java.lang.String")) {
                     return BasicAFT.forType(String.class);
-                } else if (className.contentEquals("java.lang.Class")) {
+                } else if (className.equals("java.lang.Class")) {
                     return ClassTokenAFT.ctaft;
                 } else {
                     // This must be an enum constant.
-                    return new EnumAFT(className.toString());
+                    return new EnumAFT(className);
                 }
 
             default:

@@ -2,11 +2,12 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 public class Issue400 {
-    // :: error: (initialization.fields.uninitialized)
     final class YYPair<T, V> {
+        // :: error: (initialization.field.uninitialized)
         T first;
+        // :: error: (initialization.field.uninitialized)
         V second;
-    };
+    }
 
     class YY {
         public Collection<YYPair<String, String>> getX() {

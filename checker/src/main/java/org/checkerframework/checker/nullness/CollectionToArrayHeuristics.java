@@ -5,14 +5,7 @@ import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.NewArrayTree;
 import com.sun.source.tree.Tree;
-import java.util.Collection;
-import java.util.List;
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
+
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.value.qual.ArrayLen;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
@@ -23,6 +16,16 @@ import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.TreeUtils;
+
+import java.util.Collection;
+import java.util.List;
+
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
 
 /**
  * Determines the nullness type of calls to {@link java.util.Collection#toArray()}.
@@ -40,14 +43,17 @@ public class CollectionToArrayHeuristics {
     /** The type factory. */
     private final NullnessAnnotatedTypeFactory atypeFactory;
 
+    /** Whether to trust {@code @ArrayLen(0)} annotations. */
+    private final boolean trustArrayLenZero;
+
+    /** The Collection type. */
+    private final AnnotatedDeclaredType collectionType;
     /** The Collection.toArray(T[]) method. */
     private final ExecutableElement collectionToArrayE;
     /** The Collection.size() method. */
     private final ExecutableElement size;
-    /** The Collection type. */
-    private final AnnotatedDeclaredType collectionType;
-    /** Whether to trust {@code @ArrayLen(0)} annotations. */
-    private final boolean trustArrayLenZero;
+    /** The ArrayLen.value field/element. */
+    private final ExecutableElement arrayLenValueElement;
 
     /**
      * Create a CollectionToArrayHeuristics.
@@ -61,17 +67,12 @@ public class CollectionToArrayHeuristics {
         this.checker = checker;
         this.atypeFactory = factory;
 
-        this.collectionToArrayE =
-                TreeUtils.getMethod(
-                        java.util.Collection.class.getCanonicalName(),
-                        "toArray",
-                        processingEnv,
-                        "T[]");
-        this.size =
-                TreeUtils.getMethod(
-                        java.util.Collection.class.getCanonicalName(), "size", 0, processingEnv);
         this.collectionType =
                 factory.fromElement(ElementUtils.getTypeElement(processingEnv, Collection.class));
+        this.collectionToArrayE =
+                TreeUtils.getMethod("java.util.Collection", "toArray", processingEnv, "T[]");
+        this.size = TreeUtils.getMethod("java.util.Collection", "size", 0, processingEnv);
+        this.arrayLenValueElement = TreeUtils.getMethod(ArrayLen.class, "value", 0, processingEnv);
 
         this.trustArrayLenZero =
                 checker.getLintOption(
@@ -178,10 +179,10 @@ public class CollectionToArrayHeuristics {
             if (t.getKind() == TypeKind.ARRAY) {
                 List<? extends AnnotationMirror> ams = t.getAnnotationMirrors();
                 for (AnnotationMirror am : ams) {
-                    if (AnnotationUtils.areSameByClass(am, ArrayLen.class)) {
+                    if (atypeFactory.areSameByClass(am, ArrayLen.class)) {
                         List<Integer> lens =
                                 AnnotationUtils.getElementValueArray(
-                                        am, "value", Integer.class, false);
+                                        am, arrayLenValueElement, Integer.class);
                         if (lens.size() == 1 && lens.get(0) == 0) {
                             return true;
                         }

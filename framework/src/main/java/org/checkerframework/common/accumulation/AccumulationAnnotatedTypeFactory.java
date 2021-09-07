@@ -7,16 +7,7 @@ import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.UnaryExpr;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.MethodInvocationTree;
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.StringJoiner;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.util.Elements;
+
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.common.accumulation.AccumulationChecker.AliasAnalysis;
@@ -25,7 +16,6 @@ import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.returnsreceiver.ReturnsReceiverAnnotatedTypeFactory;
 import org.checkerframework.common.returnsreceiver.ReturnsReceiverChecker;
 import org.checkerframework.common.returnsreceiver.qual.This;
-import org.checkerframework.common.value.ValueCheckerUtils;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
 import org.checkerframework.framework.type.ElementQualifierHierarchy;
@@ -38,6 +28,18 @@ import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypeSystemError;
 import org.checkerframework.javacutil.UserError;
+import org.plumelib.util.CollectionsPlume;
+
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.StringJoiner;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.util.Elements;
 
 /**
  * An annotated type factory for an accumulation checker.
@@ -200,7 +202,7 @@ public abstract class AccumulationAnnotatedTypeFactory extends BaseAnnotatedType
      */
     public AnnotationMirror createAccumulatorAnnotation(List<String> values) {
         AnnotationBuilder builder = new AnnotationBuilder(processingEnv, accumulator);
-        builder.setValue("value", ValueCheckerUtils.removeDuplicates(values));
+        builder.setValue("value", CollectionsPlume.withoutDuplicates(values));
         return builder.build();
     }
 
@@ -245,7 +247,7 @@ public abstract class AccumulationAnnotatedTypeFactory extends BaseAnnotatedType
      * @return true if the annotation mirror is an instance of this factory's accumulator annotation
      */
     public boolean isAccumulatorAnnotation(AnnotationMirror anm) {
-        return AnnotationUtils.areSameByClass(anm, accumulator);
+        return areSameByClass(anm, accumulator);
     }
 
     @Override
@@ -320,9 +322,10 @@ public abstract class AccumulationAnnotatedTypeFactory extends BaseAnnotatedType
         if (!isAccumulatorAnnotation(anno)) {
             throw new BugInCF(anno + " isn't an accumulator annotation");
         }
-        List<String> values = ValueCheckerUtils.getValueOfAnnotationWithStringArgument(anno);
+        List<String> values =
+                AnnotationUtils.getElementValueArrayOrNull(anno, "value", String.class, false);
         if (values == null) {
-            return new ArrayList<>(0);
+            return Collections.emptyList();
         } else {
             return values;
         }
@@ -415,7 +418,7 @@ public abstract class AccumulationAnnotatedTypeFactory extends BaseAnnotatedType
             if (a2Val.containsAll(a1Val)) {
                 return a2;
             }
-            a1Val.addAll(a2Val);
+            a1Val.addAll(a2Val); // union
             return createAccumulatorAnnotation(a1Val);
         }
 
@@ -461,7 +464,7 @@ public abstract class AccumulationAnnotatedTypeFactory extends BaseAnnotatedType
             if (a2Val.containsAll(a1Val)) {
                 return a1;
             }
-            a1Val.retainAll(a2Val);
+            a1Val.retainAll(a2Val); // intersection
             return createAccumulatorAnnotation(a1Val);
         }
 
@@ -478,9 +481,9 @@ public abstract class AccumulationAnnotatedTypeFactory extends BaseAnnotatedType
                 if (isPolymorphicQualifier(superAnno)) {
                     return true;
                 } else {
-                    // Use this slightly more expensive conversion here because
-                    // this is a rare code path and it's simpler to read than
-                    // checking for both predicate and non-predicate forms of top.
+                    // Use this slightly more expensive conversion here because this is a rare code
+                    // path and it's simpler to read than checking for both predicate and
+                    // non-predicate forms of top.
                     return "".equals(convertToPredicate(superAnno));
                 }
             } else if (isPolymorphicQualifier(superAnno)) {
@@ -572,7 +575,7 @@ public abstract class AccumulationAnnotatedTypeFactory extends BaseAnnotatedType
         try {
             expression = StaticJavaParser.parseExpression(pred);
         } catch (ParseProblemException p) {
-            throw new UserError("unparseable predicate: " + pred + ". Parse exception: " + p);
+            throw new UserError("unparsable predicate: " + pred + ". Parse exception: " + p);
         }
         return evaluateBooleanExpression(expression, trueVariables);
     }
@@ -639,11 +642,9 @@ public abstract class AccumulationAnnotatedTypeFactory extends BaseAnnotatedType
         if (AnnotationUtils.areSame(anno, bottom)) {
             return "false";
         } else if (isPredicate(anno)) {
-            if (AnnotationUtils.hasElementValue(anno, "value")) {
-                return AnnotationUtils.getElementValue(anno, "value", String.class, false);
-            } else {
-                return "";
-            }
+            String result =
+                    AnnotationUtils.getElementValueOrNull(anno, "value", String.class, false);
+            return result == null ? "" : result;
         } else if (isAccumulatorAnnotation(anno)) {
             List<String> values = getAccumulatedValues(anno);
             StringJoiner sj = new StringJoiner(" && ");
@@ -663,6 +664,6 @@ public abstract class AccumulationAnnotatedTypeFactory extends BaseAnnotatedType
      * @return true if anno is a predicate annotation
      */
     protected boolean isPredicate(AnnotationMirror anno) {
-        return predicate != null && AnnotationUtils.areSameByClass(anno, predicate);
+        return predicate != null && areSameByClass(anno, predicate);
     }
 }

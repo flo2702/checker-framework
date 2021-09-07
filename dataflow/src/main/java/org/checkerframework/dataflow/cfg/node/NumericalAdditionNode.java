@@ -1,9 +1,11 @@
 package org.checkerframework.dataflow.cfg.node;
 
 import com.sun.source.tree.BinaryTree;
-import com.sun.source.tree.Tree.Kind;
-import java.util.Objects;
+import com.sun.source.tree.Tree;
+
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import java.util.Objects;
 
 /**
  * A node for the numerical addition:
@@ -14,9 +16,16 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  */
 public class NumericalAdditionNode extends BinaryOperationNode {
 
+    /**
+     * Constructs a {@link NumericalAdditionNode}.
+     *
+     * @param tree the binary tree
+     * @param left the left operand
+     * @param right the right operand
+     */
     public NumericalAdditionNode(BinaryTree tree, Node left, Node right) {
         super(tree, left, right);
-        assert tree.getKind() == Kind.PLUS || tree.getKind() == Kind.PLUS_ASSIGNMENT;
+        assert tree.getKind() == Tree.Kind.PLUS || tree.getKind() == Tree.Kind.PLUS_ASSIGNMENT;
     }
 
     @Override

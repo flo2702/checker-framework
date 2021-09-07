@@ -1,5 +1,13 @@
 package org.checkerframework.framework.test;
 
+import org.checkerframework.checker.initialization.qual.UnknownInitialization;
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.checker.nullness.qual.RequiresNonNull;
+import org.checkerframework.checker.signature.qual.BinaryName;
+import org.checkerframework.javacutil.BugInCF;
+import org.checkerframework.javacutil.SystemUtil;
+import org.plumelib.util.StringsPlume;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -9,13 +17,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.checkerframework.checker.initialization.qual.UnknownInitialization;
-import org.checkerframework.checker.nullness.qual.Nullable;
-import org.checkerframework.checker.nullness.qual.RequiresNonNull;
-import org.checkerframework.checker.signature.qual.BinaryName;
-import org.checkerframework.javacutil.BugInCF;
-import org.checkerframework.javacutil.SystemUtil;
-import org.plumelib.util.StringsPlume;
 
 /**
  * Used to create an instance of TestConfiguration. TestConfigurationBuilder is fluent: it returns
@@ -86,7 +87,7 @@ public class TestConfigurationBuilder {
      *
      * @param testSourcePath the path to the Checker test file sources, usually this is the
      *     directory of Checker's tests
-     * @param testFile a single test java file to compile
+     * @param testFile a single test Java file to compile
      * @param processor a single checker to include in the processors field
      * @param options the options to the compiler/processors
      * @param shouldEmitDebugInfo whether or not debug information should be emitted
@@ -441,15 +442,14 @@ public class TestConfigurationBuilder {
     /**
      * Returns a list that first has the items from parameter list then the items from iterable.
      *
+     * @param <T> the type of the elements in the resulting list
+     * @param list a list
+     * @param iterable an iterable
      * @return a list that first has the items from parameter list then the items from iterable
      */
     private static <T> List<T> catListAndIterable(
-            final List<T> list, final Iterable<? extends T> iterable) {
-        final List<T> newList = new ArrayList<>();
-
-        for (T listObject : list) {
-            newList.add(listObject);
-        }
+            final List<? extends T> list, final Iterable<? extends T> iterable) {
+        final List<T> newList = new ArrayList<>(list);
 
         for (T iterObject : iterable) {
             newList.add(iterObject);

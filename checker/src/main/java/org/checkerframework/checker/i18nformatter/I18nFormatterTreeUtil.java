@@ -5,8 +5,37 @@ import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.TypeCastTree;
 import com.sun.source.util.SimpleTreeVisitor;
+
+import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
+import org.checkerframework.checker.formatter.FormatterTreeUtil.InvocationType;
+import org.checkerframework.checker.formatter.FormatterTreeUtil.Result;
+import org.checkerframework.checker.i18nformatter.qual.I18nChecksFormat;
+import org.checkerframework.checker.i18nformatter.qual.I18nConversionCategory;
+import org.checkerframework.checker.i18nformatter.qual.I18nFormat;
+import org.checkerframework.checker.i18nformatter.qual.I18nFormatFor;
+import org.checkerframework.checker.i18nformatter.qual.I18nInvalidFormat;
+import org.checkerframework.checker.i18nformatter.qual.I18nMakeFormat;
+import org.checkerframework.checker.i18nformatter.qual.I18nValidFormat;
+import org.checkerframework.checker.i18nformatter.util.I18nFormatUtil;
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.checker.signature.qual.BinaryName;
+import org.checkerframework.common.basetype.BaseTypeChecker;
+import org.checkerframework.dataflow.cfg.node.ArrayCreationNode;
+import org.checkerframework.dataflow.cfg.node.FieldAccessNode;
+import org.checkerframework.dataflow.cfg.node.MethodInvocationNode;
+import org.checkerframework.dataflow.cfg.node.Node;
+import org.checkerframework.dataflow.cfg.node.StringLiteralNode;
+import org.checkerframework.framework.type.AnnotatedTypeFactory;
+import org.checkerframework.framework.type.AnnotatedTypeMirror;
+import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
+import org.checkerframework.framework.util.JavaExpressionParseUtil;
+import org.checkerframework.javacutil.AnnotationBuilder;
+import org.checkerframework.javacutil.AnnotationUtils;
+import org.checkerframework.javacutil.TreeUtils;
+
 import java.util.List;
 import java.util.Map;
+
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ExecutableElement;
@@ -18,35 +47,8 @@ import javax.lang.model.type.NullType;
 import javax.lang.model.type.PrimitiveType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.SimpleElementVisitor7;
-import javax.lang.model.util.SimpleTypeVisitor7;
-import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
-import org.checkerframework.checker.formatter.FormatterTreeUtil.InvocationType;
-import org.checkerframework.checker.formatter.FormatterTreeUtil.Result;
-import org.checkerframework.checker.i18nformatter.qual.I18nChecksFormat;
-import org.checkerframework.checker.i18nformatter.qual.I18nConversionCategory;
-import org.checkerframework.checker.i18nformatter.qual.I18nFormat;
-import org.checkerframework.checker.i18nformatter.qual.I18nFormatFor;
-import org.checkerframework.checker.i18nformatter.qual.I18nInvalidFormat;
-import org.checkerframework.checker.i18nformatter.qual.I18nMakeFormat;
-import org.checkerframework.checker.i18nformatter.qual.I18nValidFormat;
-import org.checkerframework.checker.signature.qual.BinaryName;
-import org.checkerframework.common.basetype.BaseTypeChecker;
-import org.checkerframework.dataflow.cfg.node.ArrayCreationNode;
-import org.checkerframework.dataflow.cfg.node.FieldAccessNode;
-import org.checkerframework.dataflow.cfg.node.MethodInvocationNode;
-import org.checkerframework.dataflow.cfg.node.Node;
-import org.checkerframework.dataflow.cfg.node.StringLiteralNode;
-import org.checkerframework.dataflow.expression.JavaExpression;
-import org.checkerframework.framework.type.AnnotatedTypeFactory;
-import org.checkerframework.framework.type.AnnotatedTypeMirror;
-import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
-import org.checkerframework.framework.util.JavaExpressionParseUtil;
-import org.checkerframework.framework.util.JavaExpressionParseUtil.JavaExpressionContext;
-import org.checkerframework.framework.util.JavaExpressionParseUtil.JavaExpressionParseException;
-import org.checkerframework.javacutil.AnnotationBuilder;
-import org.checkerframework.javacutil.AnnotationUtils;
-import org.checkerframework.javacutil.TreeUtils;
+import javax.lang.model.util.SimpleElementVisitor8;
+import javax.lang.model.util.SimpleTypeVisitor8;
 
 /**
  * This class provides a collection of utilities to ease working with syntax trees that have
@@ -55,12 +57,31 @@ import org.checkerframework.javacutil.TreeUtils;
  * @checker_framework.manual #i18n-formatter-checker Internationalization Format String Checker
  */
 public class I18nFormatterTreeUtil {
+    /** The checker. */
     public final BaseTypeChecker checker;
+    /** The processing environment. */
     public final ProcessingEnvironment processingEnv;
 
+    /** The value() element/field of an @I18nFormat annotation. */
+    protected final ExecutableElement i18nFormatValueElement;
+    /** The value() element/field of an @I18nFormatFor annotation. */
+    protected final ExecutableElement i18nFormatForValueElement;
+    /** The value() element/field of an @I18nInvalidFormat annotation. */
+    protected final ExecutableElement i18nInvalidFormatValueElement;
+
+    /**
+     * Creates a new I18nFormatterTreeUtil.
+     *
+     * @param checker the checker
+     */
     public I18nFormatterTreeUtil(BaseTypeChecker checker) {
         this.checker = checker;
         this.processingEnv = checker.getProcessingEnvironment();
+        i18nFormatValueElement = TreeUtils.getMethod(I18nFormat.class, "value", 0, processingEnv);
+        i18nFormatForValueElement =
+                TreeUtils.getMethod(I18nFormatFor.class, "value", 0, processingEnv);
+        i18nInvalidFormatValueElement =
+                TreeUtils.getMethod(I18nInvalidFormat.class, "value", 0, processingEnv);
     }
 
     /** Describe the format annotation type. */
@@ -93,11 +114,36 @@ public class I18nFormatterTreeUtil {
     }
 
     /**
+     * Gets the value() element/field out of an I18nInvalidFormat annotation.
+     *
+     * @param anno an I18nInvalidFormat annotation
+     * @return its value() element/field, or null if it does not have one
+     */
+    /*package-visible*/
+    @Nullable String getI18nInvalidFormatValue(AnnotationMirror anno) {
+        return AnnotationUtils.getElementValue(
+                anno, i18nInvalidFormatValueElement, String.class, null);
+    }
+
+    /**
+     * Gets the value() element/field out of an I18NFormatFor annotation.
+     *
+     * @param anno an I18NFormatFor annotation
+     * @return its value() element/field
+     */
+    /*package-visible*/ String getI18nFormatForValue(AnnotationMirror anno) {
+        return AnnotationUtils.getElementValue(anno, i18nFormatForValueElement, String.class);
+    }
+
+    /**
      * Takes a syntax tree element that represents a {@link I18nInvalidFormat} annotation, and
      * returns its value.
+     *
+     * @param anno an I18nInvalidFormat annotation
+     * @return its value() element/field, within double-quotes
      */
     public String invalidFormatAnnotationToErrorMessage(AnnotationMirror anno) {
-        return "\"" + AnnotationUtils.getElementValue(anno, "value", String.class, true) + "\"";
+        return "\"" + getI18nInvalidFormatValue(anno) + "\"";
     }
 
     /**
@@ -113,14 +159,14 @@ public class I18nFormatterTreeUtil {
     }
 
     /**
-     * Takes a syntax tree element that represents a {@link I18nFormat} annotation, and returns its
-     * value.
+     * Takes an {@code @}{@link I18nFormat} annotation, and returns its {@code value} element
+     *
+     * @param anno an {@code @}{@link I18nFormat} annotation
+     * @return the {@code @}{@link I18nFormat} annotation's {@code value} element
      */
     public I18nConversionCategory[] formatAnnotationToCategories(AnnotationMirror anno) {
-        List<I18nConversionCategory> list =
-                AnnotationUtils.getElementValueEnumArray(
-                        anno, "value", I18nConversionCategory.class, false);
-        return list.toArray(new I18nConversionCategory[] {});
+        return AnnotationUtils.getElementValueEnumArray(
+                anno, i18nFormatValueElement, I18nConversionCategory.class);
     }
 
     /**
@@ -219,17 +265,23 @@ public class I18nFormatterTreeUtil {
         return ret;
     }
 
-    /** Returns an I18nFormatCall instance, only if FormatFor is called. Otherwise, returns null. */
-    public I18nFormatCall createFormatForCall(
-            MethodInvocationTree tree,
-            MethodInvocationNode node,
-            I18nFormatterAnnotatedTypeFactory atypeFactory) {
+    /**
+     * Returns an I18nFormatCall instance, only if there is an {@code @I18nFormatFor} annotation.
+     * Otherwise, returns null.
+     *
+     * @param tree method invocation tree
+     * @param atypeFactory type factory
+     * @return an I18nFormatCall instance, only if there is an {@code @I18nFormatFor} annotation.
+     *     Otherwise, returns null.
+     */
+    public @Nullable I18nFormatCall createFormatForCall(
+            MethodInvocationTree tree, I18nFormatterAnnotatedTypeFactory atypeFactory) {
         ExecutableElement method = TreeUtils.elementFromUse(tree);
         AnnotatedExecutableType methodAnno = atypeFactory.getAnnotatedType(method);
         for (AnnotatedTypeMirror paramType : methodAnno.getParameterTypes()) {
             // find @FormatFor
             if (paramType.getAnnotation(I18nFormatFor.class) != null) {
-                return atypeFactory.treeUtil.new I18nFormatCall(tree, node, atypeFactory);
+                return atypeFactory.treeUtil.new I18nFormatCall(tree, atypeFactory);
             }
         }
         return null;
@@ -253,19 +305,23 @@ public class I18nFormatterTreeUtil {
         /** Extra description for error messages. */
         private String invalidMessage;
 
+        /** The type of the format string formal parameter. */
         private AnnotatedTypeMirror formatAnno;
 
-        public I18nFormatCall(
-                MethodInvocationTree tree,
-                MethodInvocationNode node,
-                AnnotatedTypeFactory atypeFactory) {
+        /**
+         * Creates an {@code I18nFormatCall} for the given method invocation tree.
+         *
+         * @param tree method invocation tree
+         * @param atypeFactory type factory
+         */
+        public I18nFormatCall(MethodInvocationTree tree, AnnotatedTypeFactory atypeFactory) {
             this.tree = tree;
             this.atypeFactory = atypeFactory;
             List<? extends ExpressionTree> theargs = tree.getArguments();
             this.args = null;
             ExecutableElement method = TreeUtils.elementFromUse(tree);
             AnnotatedExecutableType methodAnno = atypeFactory.getAnnotatedType(method);
-            initialCheck(theargs, method, node, methodAnno);
+            initialCheck(theargs, method, methodAnno);
         }
 
         /**
@@ -285,14 +341,17 @@ public class I18nFormatterTreeUtil {
         /**
          * This method checks the validity of the FormatFor. If it is valid, this.args will be set
          * to the correct parameter arguments. Otherwise, it will be still null.
+         *
+         * @param theargs arguments to the format method call
+         * @param method the ExecutableElement of the format method
+         * @param methodAnno annotated type of {@code method}
          */
         private void initialCheck(
                 List<? extends ExpressionTree> theargs,
                 ExecutableElement method,
-                MethodInvocationNode node,
                 AnnotatedExecutableType methodAnno) {
+            // paramIndex is a 0-based index
             int paramIndex = -1;
-            JavaExpression paramArg = null;
             int i = 0;
             for (AnnotatedTypeMirror paramType : methodAnno.getParameterTypes()) {
                 if (paramType.getAnnotation(I18nFormatFor.class) != null) {
@@ -303,28 +362,16 @@ public class I18nFormatterTreeUtil {
                         // Invalid FormatFor invocation
                         return;
                     }
-                    JavaExpressionContext flowExprContext =
-                            JavaExpressionContext.buildContextForMethodUse(
-                                    node, checker.getContext());
+
                     String formatforArg =
-                            AnnotationUtils.getElementValue(
-                                    paramType.getAnnotation(I18nFormatFor.class),
-                                    "value",
-                                    String.class,
-                                    false);
-                    if (flowExprContext != null) {
-                        try {
-                            paramArg =
-                                    JavaExpressionParseUtil.parse(
-                                            formatforArg,
-                                            flowExprContext,
-                                            atypeFactory.getPath(tree),
-                                            true);
-                            paramIndex = flowExprContext.arguments.indexOf(paramArg);
-                        } catch (JavaExpressionParseException e) {
-                            // report errors here
-                            checker.reportError(tree, "i18nformat.invalid.formatfor");
-                        }
+                            getI18nFormatForValue(paramType.getAnnotation(I18nFormatFor.class));
+
+                    paramIndex = JavaExpressionParseUtil.parameterIndex(formatforArg);
+                    if (paramIndex == -1) {
+                        // report errors here
+                        checker.reportError(tree, "i18nformat.invalid.formatfor");
+                    } else {
+                        paramIndex--;
                     }
                     break;
                 }
@@ -353,8 +400,7 @@ public class I18nFormatterTreeUtil {
                     invalidMessage = "(is a @I18nFormat annotation missing?)";
                     AnnotationMirror inv = formatAnno.getAnnotation(I18nInvalidFormat.class);
                     if (inv != null) {
-                        invalidMessage =
-                                AnnotationUtils.getElementValue(inv, "value", String.class, true);
+                        invalidMessage = getI18nInvalidFormatValue(inv);
                     }
                 }
             } else {
@@ -387,7 +433,7 @@ public class I18nFormatterTreeUtil {
                 // figure out if argType is an array
                 type =
                         argType.accept(
-                                new SimpleTypeVisitor7<InvocationType, Class<Void>>() {
+                                new SimpleTypeVisitor8<InvocationType, Class<Void>>() {
                                     @Override
                                     protected InvocationType defaultAction(
                                             TypeMirror e, Class<Void> p) {
@@ -481,7 +527,7 @@ public class I18nFormatterTreeUtil {
 
     /** Converts a TypeMirror to a Class. */
     private static class TypeMirrorToClassVisitor
-            extends SimpleTypeVisitor7<Class<? extends Object>, Class<Void>> {
+            extends SimpleTypeVisitor8<Class<? extends Object>, Class<Void>> {
         @Override
         public Class<? extends Object> visitPrimitive(PrimitiveType t, Class<Void> v) {
             switch (t.getKind()) {
@@ -510,7 +556,7 @@ public class I18nFormatterTreeUtil {
         public Class<? extends Object> visitDeclared(DeclaredType dt, Class<Void> v) {
             return dt.asElement()
                     .accept(
-                            new SimpleElementVisitor7<Class<? extends Object>, Class<Void>>() {
+                            new SimpleElementVisitor8<Class<? extends Object>, Class<Void>>() {
                                 @Override
                                 public Class<? extends Object> visitType(
                                         TypeElement e, Class<Void> v) {

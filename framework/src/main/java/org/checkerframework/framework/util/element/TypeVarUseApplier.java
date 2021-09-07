@@ -5,13 +5,7 @@ import com.sun.tools.javac.code.Symbol.MethodSymbol;
 import com.sun.tools.javac.code.Symbol.VarSymbol;
 import com.sun.tools.javac.code.TargetType;
 import com.sun.tools.javac.code.TypeAnnotationPosition;
-import java.util.ArrayList;
-import java.util.List;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeParameterElement;
-import javax.lang.model.type.TypeKind;
+
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedArrayType;
@@ -19,6 +13,16 @@ import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedTypeVari
 import org.checkerframework.framework.type.ElementAnnotationApplier;
 import org.checkerframework.framework.util.element.ElementAnnotationUtil.UnexpectedAnnotationLocationException;
 import org.checkerframework.javacutil.BugInCF;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeParameterElement;
+import javax.lang.model.type.TypeKind;
 
 /** Apply annotations to the use of a type parameter declaration. */
 public class TypeVarUseApplier {
@@ -259,11 +263,10 @@ public class TypeVarUseApplier {
 
         final MethodSymbol enclosingMethod = (MethodSymbol) enclosingElement;
 
-        final List<Attribute.TypeCompound> result = new ArrayList<>();
         if (enclosingMethod.getKind() != ElementKind.CONSTRUCTOR
                 && enclosingMethod.getKind() != ElementKind.METHOD) {
             // Initializer blocks don't have parameters, so there is nothing to do.
-            return result;
+            return Collections.emptyList();
         }
 
         // TODO: for the parameter in a lambda expression, the enclosingMethod isn't
@@ -272,6 +275,7 @@ public class TypeVarUseApplier {
         final int paramIndex = enclosingMethod.getParameters().indexOf(paramElem);
         final List<Attribute.TypeCompound> annotations = enclosingMethod.getRawTypeAttributes();
 
+        final List<Attribute.TypeCompound> result = new ArrayList<>();
         for (final Attribute.TypeCompound typeAnno : annotations) {
             if (typeAnno.position.type == TargetType.METHOD_FORMAL_PARAMETER) {
                 if (typeAnno.position.parameter_index == paramIndex) {

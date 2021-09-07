@@ -1,5 +1,6 @@
-import java.util.List;
 import org.checkerframework.checker.nullness.qual.*;
+
+import java.util.List;
 
 @org.checkerframework.framework.qual.DefaultQualifier(Nullable.class)
 public class JavaCopExplosion {
@@ -23,7 +24,7 @@ public class JavaCopExplosion {
         @NonNull String s = "Dan";
         String s2;
         s2 = null;
-        // :: warning: (known.nonnull)
+        // :: warning: (nulltest.redundant)
         if (s2 != null || s != null) {
             // :: error: (assignment.type.incompatible)
             s = s2;
@@ -33,14 +34,14 @@ public class JavaCopExplosion {
         s2 = args[0];
         // :: error: (dereference.of.nullable)
         System.out.println("Possibly cause null pointer with this: " + s2.length());
-        // :: warning: (known.nonnull)
+        // :: warning: (nulltest.redundant)
         if (s2 == null) {
             // do nothing
         } else {
             System.out.println("Can't cause null pointer here: " + s2.length());
             s = s2;
         }
-        // :: warning: (known.nonnull)
+        // :: warning: (nulltest.redundant)
         if (s == null ? s2 != null : s2 != null) {
             s = s2;
         }

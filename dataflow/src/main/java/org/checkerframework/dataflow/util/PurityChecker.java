@@ -9,12 +9,10 @@ import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.Tree;
+import com.sun.source.tree.UnaryTree;
 import com.sun.source.util.TreePath;
 import com.sun.source.util.TreePathScanner;
-import java.util.ArrayList;
-import java.util.EnumSet;
-import java.util.List;
-import javax.lang.model.element.Element;
+
 import org.checkerframework.dataflow.qual.Deterministic;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.Pure.Kind;
@@ -22,6 +20,12 @@ import org.checkerframework.dataflow.qual.SideEffectFree;
 import org.checkerframework.javacutil.AnnotationProvider;
 import org.checkerframework.javacutil.Pair;
 import org.checkerframework.javacutil.TreeUtils;
+
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.List;
+
+import javax.lang.model.element.Element;
 
 /**
  * A visitor that determines the purity (as defined by {@link
@@ -158,6 +162,17 @@ public class PurityChecker {
             kinds.remove(Kind.DETERMINISTIC);
             kinds.remove(Kind.SIDE_EFFECT_FREE);
         }
+
+        @Override
+        public String toString() {
+            return String.join(
+                    System.lineSeparator(),
+                    "PurityResult{",
+                    "  notSEF: " + notSEFreeReasons,
+                    "  notDet: " + notDetReasons,
+                    "  notBoth: " + notBothReasons,
+                    "}");
+        }
     }
 
     // TODO: It would be possible to improve efficiency by visiting fewer nodes.  This would require
@@ -206,7 +221,6 @@ public class PurityChecker {
 
         @Override
         public Void visitMethodInvocation(MethodInvocationTree node, Void ignore) {
-            assert TreeUtils.isUseOfElement(node) : "@AssumeAssertion(nullness): tree kind";
             Element elt = TreeUtils.elementFromUse(node);
             if (!PurityUtils.hasPurityAnnotation(annoProvider, elt)) {
                 purityResult.addNotBothReason(node, "call");
@@ -259,21 +273,20 @@ public class PurityChecker {
             //     * need to check every containing try statement, not just the nearest enclosing
             //       one.
 
-            // Object creation is usually prohibited, but permit "throw new SomeException();"
-            // if it is not contained within any try statement that has a catch clause.
-            // (There is no need to check the latter condition, because the Purity Checker
-            // forbids all catch statements.)
+            // Object creation is usually prohibited, but permit "throw new SomeException();" if it
+            // is not contained within any try statement that has a catch clause.  (There is no need
+            // to check the latter condition, because the Purity Checker forbids all catch
+            // statements.)
             Tree parent = getCurrentPath().getParentPath().getLeaf();
             boolean okThrowDeterministic = parent.getKind() == Tree.Kind.THROW;
 
-            assert TreeUtils.isUseOfElement(node) : "@AssumeAssertion(nullness): tree kind";
             Element ctorElement = TreeUtils.elementFromUse(node);
             boolean deterministic = assumeDeterministic || okThrowDeterministic;
             boolean sideEffectFree =
                     assumeSideEffectFree || PurityUtils.isSideEffectFree(annoProvider, ctorElement);
             // This does not use "addNotBothReason" because the reasons are different:  one is
-            // because the constructor is called at all, and the other is because the constuctor
-            // is not side-effect-free.
+            // because the constructor is called at all, and the other is because the constuctor is
+            // not side-effect-free.
             if (!deterministic) {
                 purityResult.addNotDetReason(node, "object.creation");
             }
@@ -292,6 +305,23 @@ public class PurityChecker {
             ExpressionTree variable = node.getVariable();
             assignmentCheck(variable);
             return super.visitAssignment(node, ignore);
+        }
+
+        @Override
+        public Void visitUnary(UnaryTree node, Void ignore) {
+            switch (node.getKind()) {
+                case POSTFIX_DECREMENT:
+                case POSTFIX_INCREMENT:
+                case PREFIX_DECREMENT:
+                case PREFIX_INCREMENT:
+                    ExpressionTree expression = node.getExpression();
+                    assignmentCheck(expression);
+                    break;
+                default:
+                    // Nothing to do
+                    break;
+            }
+            return super.visitUnary(node, ignore);
         }
 
         /**

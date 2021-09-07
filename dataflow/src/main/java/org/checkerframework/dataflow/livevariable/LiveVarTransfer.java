@@ -1,6 +1,5 @@
 package org.checkerframework.dataflow.livevariable;
 
-import java.util.List;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.analysis.BackwardTransferFunction;
 import org.checkerframework.dataflow.analysis.RegularTransferResult;
@@ -14,6 +13,8 @@ import org.checkerframework.dataflow.cfg.node.Node;
 import org.checkerframework.dataflow.cfg.node.ObjectCreationNode;
 import org.checkerframework.dataflow.cfg.node.ReturnNode;
 import org.checkerframework.dataflow.cfg.node.StringConcatenateAssignmentNode;
+
+import java.util.List;
 
 /** A live variable transfer function. */
 public class LiveVarTransfer
@@ -81,6 +82,19 @@ public class LiveVarTransfer
         LiveVarStore store = transferResult.getRegularStore();
         for (Node arg : n.getArguments()) {
             store.addUseInExpression(arg);
+        }
+        return transferResult;
+    }
+
+    @Override
+    public RegularTransferResult<LiveVarValue, LiveVarStore> visitReturn(
+            ReturnNode n, TransferInput<LiveVarValue, LiveVarStore> p) {
+        RegularTransferResult<LiveVarValue, LiveVarStore> transferResult =
+                (RegularTransferResult<LiveVarValue, LiveVarStore>) super.visitReturn(n, p);
+        Node result = n.getResult();
+        if (result != null) {
+            LiveVarStore store = transferResult.getRegularStore();
+            store.addUseInExpression(result);
         }
         return transferResult;
     }

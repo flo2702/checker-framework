@@ -1,12 +1,13 @@
 package org.checkerframework.dataflow.cfg.node;
 
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.Tree.Kind;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Objects;
+
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.javacutil.TreeUtils;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Objects;
 
 /**
  * A node for the string concatenation compound assignment:
@@ -16,13 +17,23 @@ import org.checkerframework.javacutil.TreeUtils;
  * </pre>
  */
 public class StringConcatenateAssignmentNode extends Node {
+    /** The entire tree of the assignment */
     protected final Tree tree;
+    /** The left-hand side of the assignment */
     protected final Node left;
+    /** The right-hand side of the assignment */
     protected final Node right;
 
+    /**
+     * Constructs an {@link StringConcatenateAssignmentNode}.
+     *
+     * @param tree the binary tree of the assignment
+     * @param left the left-hand side
+     * @param right the right-hand side
+     */
     public StringConcatenateAssignmentNode(Tree tree, Node left, Node right) {
         super(TreeUtils.typeOf(tree));
-        assert tree.getKind() == Kind.PLUS_ASSIGNMENT;
+        assert tree.getKind() == Tree.Kind.PLUS_ASSIGNMENT;
         this.tree = tree;
         this.left = left;
         this.right = right;
@@ -48,10 +59,7 @@ public class StringConcatenateAssignmentNode extends Node {
 
     @Override
     public Collection<Node> getOperands() {
-        ArrayList<Node> list = new ArrayList<>(2);
-        list.add(getLeftOperand());
-        list.add(getRightOperand());
-        return list;
+        return Arrays.asList(getLeftOperand(), getRightOperand());
     }
 
     @Override

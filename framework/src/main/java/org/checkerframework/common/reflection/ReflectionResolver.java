@@ -1,10 +1,14 @@
 package org.checkerframework.common.reflection;
 
 import com.sun.source.tree.MethodInvocationTree;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Method;
+
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeFactory.ParameterizedExecutableType;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Interface for reflection resolvers that handle reflective method calls such as {@link
@@ -15,6 +19,11 @@ import org.checkerframework.framework.type.AnnotatedTypeFactory.ParameterizedExe
 public interface ReflectionResolver {
     /** The "method name" of constructors. */
     public static final String INIT = "<init>";
+
+    /**
+     * A list containing just the "method name" of constructors. Clients must not modify this list.
+     */
+    public static final List<String> INIT_LIST = Collections.singletonList(INIT);
 
     /**
      * Determines whether the given tree represents a reflective method or constructor call.

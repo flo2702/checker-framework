@@ -2,15 +2,7 @@ package org.checkerframework.dataflow.cfg.visualize;
 
 import com.sun.source.tree.VariableTree;
 import com.sun.tools.javac.tree.JCTree;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.StringJoiner;
+
 import org.checkerframework.checker.nullness.qual.KeyFor;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.analysis.AbstractValue;
@@ -36,19 +28,31 @@ import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.UserError;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.StringJoiner;
+
 /** Generate a graph description in the DOT language of a control graph. */
-@SuppressWarnings("nullness:initialization.fields.uninitialized") // uses init method
 public class DOTCFGVisualizer<
                 V extends AbstractValue<V>, S extends Store<S>, T extends TransferFunction<V, S>>
         extends AbstractCFGVisualizer<V, S, T> {
 
     /** The output directory. */
+    @SuppressWarnings("nullness:initialization.field.uninitialized") // uses init method
     protected String outDir;
 
     /** The (optional) checker name. Used as a part of the name of the output dot file. */
     protected @Nullable String checkerName;
 
     /** Mapping from class/method representation to generated dot file. */
+    @SuppressWarnings("nullness:initialization.field.uninitialized") // uses init method
     protected Map<String, String> generated;
 
     /** Terminator for lines that are left-justified. */
@@ -61,7 +65,8 @@ public class DOTCFGVisualizer<
         this.outDir = (String) args.get("outdir");
         if (this.outDir == null) {
             throw new BugInCF(
-                    "outDir should never be null, provide it in args when calling DOTCFGVisualizer.init(args).");
+                    "outDir should never be null,"
+                            + " provide it in args when calling DOTCFGVisualizer.init(args).");
         }
         this.checkerName = (String) args.get("checkerName");
         this.generated = new HashMap<>();
@@ -88,10 +93,7 @@ public class DOTCFGVisualizer<
             throw new UserError("Error creating dot file (is the path valid?): " + dotFileName, e);
         }
 
-        Map<String, Object> res = new HashMap<>();
-        res.put("dotFileName", dotFileName);
-
-        return res;
+        return Collections.singletonMap("dotFileName", dotFileName);
     }
 
     @SuppressWarnings("keyfor:enhancedfor.type.incompatible")
@@ -132,6 +134,7 @@ public class DOTCFGVisualizer<
             } else {
                 sbDotNodes.append(strBlock).append("\"];");
             }
+            sbDotNodes.append(System.lineSeparator());
         }
         return sbDotNodes.toString();
     }
@@ -257,37 +260,37 @@ public class DOTCFGVisualizer<
 
     @Override
     protected String format(Object obj) {
-        return escapeDoubleQuotes(obj);
+        return escapeString(obj);
     }
 
     @Override
     public String visualizeStoreThisVal(V value) {
-        return storeEntryIndent + "this > " + value;
+        return storeEntryIndent + "this > " + escapeString(value);
     }
 
     @Override
     public String visualizeStoreLocalVar(LocalVariable localVar, V value) {
-        return storeEntryIndent + localVar + " > " + escapeDoubleQuotes(value);
+        return storeEntryIndent + localVar + " > " + escapeString(value);
     }
 
     @Override
     public String visualizeStoreFieldVal(FieldAccess fieldAccess, V value) {
-        return storeEntryIndent + fieldAccess + " > " + escapeDoubleQuotes(value);
+        return storeEntryIndent + fieldAccess + " > " + escapeString(value);
     }
 
     @Override
     public String visualizeStoreArrayVal(ArrayAccess arrayValue, V value) {
-        return storeEntryIndent + arrayValue + " > " + escapeDoubleQuotes(value);
+        return storeEntryIndent + arrayValue + " > " + escapeString(value);
     }
 
     @Override
     public String visualizeStoreMethodVals(MethodCall methodCall, V value) {
-        return storeEntryIndent + escapeDoubleQuotes(methodCall) + " > " + value;
+        return storeEntryIndent + escapeString(methodCall) + " > " + escapeString(value);
     }
 
     @Override
     public String visualizeStoreClassVals(ClassName className, V value) {
-        return storeEntryIndent + className + " > " + escapeDoubleQuotes(value);
+        return storeEntryIndent + className + " > " + escapeString(value);
     }
 
     @Override
@@ -296,13 +299,13 @@ public class DOTCFGVisualizer<
     }
 
     /**
-     * Escape the double quotes from the input String, replacing {@code "} by {@code \"}.
+     * Escape the input String.
      *
      * @param str the string to be escaped
      * @return the escaped version of the string
      */
-    private static String escapeDoubleQuotes(final String str) {
-        return str.replace("\"", "\\\"");
+    private static String escapeString(final String str) {
+        return str.replace("\"", "\\\"").replace("\r", "\\\\r").replace("\n", "\\\\n");
     }
 
     /**
@@ -311,8 +314,8 @@ public class DOTCFGVisualizer<
      * @param obj an object
      * @return an escaped version of the string representation of the object
      */
-    private static String escapeDoubleQuotes(final Object obj) {
-        return escapeDoubleQuotes(String.valueOf(obj));
+    private static String escapeString(final Object obj) {
+        return escapeString(String.valueOf(obj));
     }
 
     /**

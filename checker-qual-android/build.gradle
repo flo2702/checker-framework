@@ -1,6 +1,6 @@
 evaluationDependsOn(":checker-qual")
 
-task copySources(type: Copy, dependsOn: ':checker-qual:copySources') {
+task copySources(type: Copy) {
     description 'Copy checker-qual source to checker-qual-android'
 
     includeEmptyDirs = false
@@ -18,10 +18,12 @@ task copySources(type: Copy, dependsOn: ':checker-qual:copySources') {
     dirMode(0777)
 }
 
+sourcesJar.dependsOn(copySources)
+
 /**
 * Types annotated with runtime annotations are always kept in the main dex by the default Android Gradle plugin.
 * Using the standard Checker Framework annotations can lead to main dex overflows;
-* users of the Checker framework may find themselves unable to build their Android apps.
+* users of the Checker Framework may find themselves unable to build their Android apps.
 * By contrast, class-retention annotations are stripped out before packaging by all build systems as a convention.
 */
 task replaceAnnotations {
@@ -31,6 +33,7 @@ task replaceAnnotations {
         }
     }
 }
+
 replaceAnnotations.dependsOn copySources
 
 compileJava.dependsOn replaceAnnotations
@@ -39,17 +42,40 @@ clean {
     delete file('src')
 }
 
-task deployArtifactsToLocalRepo(dependsOn: jar) {
-    description "Deploys ${jar.archiveFileName.get()} to the local Maven repository"
-    doLast {
-        mvnDeployToLocalRepo(project, "${pomFiles}/checker-qual-android-pom.xml")
+apply from: rootProject.file("gradle-mvn-push.gradle")
+
+/** Adds information to the publication for uploading to Maven repositories. */
+final checkerQualAndroidPom(publication) {
+    sharedPublicationConfiguration(publication)
+    publication.from components.java
+    publication.pom {
+        name = 'Checker Qual Android'
+        description = 'checker-qual-android contains annotations (type qualifiers) that a programmer\n' +
+                        'writes to specify Java code for type-checking by the Checker Framework.\n' +
+                        '\n' +
+                        'The checker-qual-android artifact is identical to the checker-qual\n' +
+                        'artifact, except that in checker-qual-android annotations have classfile\n' +
+                        'retention.  The default Android Gradle plugin retains types annotated with\n' +
+                        'runtime annotations in the main dex, but strips out class-retention\n' +
+                        'annotations.\n'
+        licenses {
+            license {
+                name = 'The MIT License'
+                url = 'http://opensource.org/licenses/MIT'
+                distribution = 'repo'
+            }
+        }
     }
 }
 
-task deployArtifactsToSonatype {
-    description "Deploys ${jar.archiveFileName.get()} to the Sonatype repository"
-    dependsOn ('jar', 'sourcesJar', 'javadocJar')
-    doLast {
-        mvnSignAndDeployMultipleToSonatype(project, "${pomFiles}/checker-qual-android-pom.xml")
+publishing {
+    publications {
+        checkerQualAndroid(MavenPublication) {
+            checkerQualAndroidPom it
+        }
     }
+}
+
+signing {
+    sign publishing.publications.checkerQualAndroid
 }

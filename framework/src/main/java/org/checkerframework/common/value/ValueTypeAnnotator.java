@@ -1,18 +1,20 @@
 package org.checkerframework.common.value;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
 import org.checkerframework.common.value.util.Range;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.typeannotator.TypeAnnotator;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.TypeKindUtils;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
 
 /**
  * Performs pre-processing on annotations written by users, replacing illegal annotations by legal
@@ -70,12 +72,12 @@ class ValueTypeAnnotator extends TypeAnnotator {
         }
 
         if (AnnotationUtils.areSameByName(anno, ValueAnnotatedTypeFactory.INTVAL_NAME)) {
-            List<Long> values = ValueAnnotatedTypeFactory.getIntValues(anno);
+            List<Long> values = typeFactory.getIntValues(anno);
             if (values.size() > ValueAnnotatedTypeFactory.MAX_VALUES) {
                 atm.replaceAnnotation(typeFactory.createIntRangeAnnotation(Range.create(values)));
             }
         } else if (AnnotationUtils.areSameByName(anno, ValueAnnotatedTypeFactory.ARRAYLEN_NAME)) {
-            List<Integer> values = ValueAnnotatedTypeFactory.getArrayLength(anno);
+            List<Integer> values = typeFactory.getArrayLength(anno);
             if (values.isEmpty()) {
                 atm.replaceAnnotation(typeFactory.BOTTOMVAL);
             } else if (Collections.min(values) < 0) {
@@ -100,26 +102,24 @@ class ValueTypeAnnotator extends TypeAnnotator {
             long to = typeFactory.getToValueFromIntRange(atm);
 
             if (from > to) {
-                // from > to either indicates a user error when writing an
-                // annotation or an error in the checker's implementation -
-                // from should always be <= to. ValueVisitor#validateType will
-                // issue an error.
+                // `from > to` either indicates a user error when writing an annotation or an error
+                // in the checker's implementation. `-from` should always be <= to.
+                // ValueVisitor#validateType will issue an error.
                 atm.replaceAnnotation(typeFactory.BOTTOMVAL);
             } else {
-                // Always do a replacement of the annotation here so that
-                // the defaults calculated above are correctly added to the
-                // annotation (assuming the annotation is well-formed).
+                // Always do a replacement of the annotation here so that the defaults calculated
+                // above are correctly added to the annotation (assuming the annotation is
+                // well-formed).
                 atm.replaceAnnotation(typeFactory.createIntRangeAnnotation(from, to));
             }
         } else if (AnnotationUtils.areSameByName(
                 anno, ValueAnnotatedTypeFactory.ARRAYLENRANGE_NAME)) {
-            int from = AnnotationUtils.getElementValue(anno, "from", Integer.class, true);
-            int to = AnnotationUtils.getElementValue(anno, "to", Integer.class, true);
+            int from = typeFactory.getArrayLenRangeFromValue(anno);
+            int to = typeFactory.getArrayLenRangeToValue(anno);
             if (from > to) {
-                // from > to either indicates a user error when writing an
-                // annotation or an error in the checker's implementation -
-                // from should always be <= to. ValueVisitor#validateType will
-                // issue an error.
+                // `from > to` either indicates a user error when writing an annotation or an error
+                // in the checker's implementation `-from` should always be <= to.
+                // ValueVisitor#validateType will issue an error.
                 atm.replaceAnnotation(typeFactory.BOTTOMVAL);
             } else if (from < 0) {
                 // No array can have a length less than 0. Any time the type includes a from
@@ -129,7 +129,7 @@ class ValueTypeAnnotator extends TypeAnnotator {
         } else if (AnnotationUtils.areSameByName(anno, ValueAnnotatedTypeFactory.STRINGVAL_NAME)) {
             // The annotation is StringVal. If there are too many elements,
             // ArrayLen or ArrayLenRange is used.
-            List<String> values = ValueAnnotatedTypeFactory.getStringValues(anno);
+            List<String> values = typeFactory.getStringValues(anno);
 
             if (values.size() > ValueAnnotatedTypeFactory.MAX_VALUES) {
                 List<Integer> lengths = ValueCheckerUtils.getLengthsForStringValues(values);
@@ -140,7 +140,9 @@ class ValueTypeAnnotator extends TypeAnnotator {
                 anno, ValueAnnotatedTypeFactory.MATCHES_REGEX_NAME)) {
             // If the annotation contains an invalid regex, replace it with bottom. ValueVisitor
             // will issue a warning where the annotation was written.
-            List<String> regexes = ValueAnnotatedTypeFactory.getStringValues(anno);
+            List<String> regexes =
+                    AnnotationUtils.getElementValueArray(
+                            anno, typeFactory.matchesRegexValueElement, String.class);
             for (String regex : regexes) {
                 try {
                     Pattern.compile(regex);
@@ -151,8 +153,9 @@ class ValueTypeAnnotator extends TypeAnnotator {
             }
         } else {
             // In here the annotation is @*Val where (*) is not Int, String but other types
-            // (Double, etc).
+            // (Bool, Double, or Enum).
             // Therefore we extract its values in a generic way to check its size.
+            @SuppressWarnings("deprecation") // concrete annotation class is not known
             List<Object> values =
                     AnnotationUtils.getElementValueArray(anno, "value", Object.class, false);
             if (values.size() > ValueAnnotatedTypeFactory.MAX_VALUES) {

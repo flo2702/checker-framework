@@ -1,7 +1,5 @@
 package org.checkerframework.checker.regex;
 
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.ExecutableElement;
 import org.checkerframework.dataflow.analysis.ConditionalTransferResult;
 import org.checkerframework.dataflow.analysis.RegularTransferResult;
 import org.checkerframework.dataflow.analysis.TransferInput;
@@ -24,12 +22,15 @@ import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.TreeUtils;
 
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.ExecutableElement;
+
 /** The transfer function for the Regex Checker. */
 public class RegexTransfer extends CFTransfer {
 
     // isRegex and asRegex are tested as signatures (string name plus formal parameters), not
     // ExecutableElement, because they exist in two packages:
-    // org.checkerframework.checker.regex.RegexUtil.isRegex(String,int)
+    // org.checkerframework.checker.regex.util.RegexUtil.isRegex(String,int)
     // org.plumelib.util.RegexUtil.isRegex(String,int)
     // and org.plumelib.util might not be on the classpath.
     private static final String IS_REGEX_METHOD_NAME = "isRegex";
@@ -49,9 +50,8 @@ public class RegexTransfer extends CFTransfer {
                         analysis.getTypeFactory().getProcessingEnv());
     }
 
-    // TODO: These are special cases for isRegex(String, int) and asRegex(String, int).
-    // They should be replaced by adding an @EnsuresQualifierIf annotation that supports
-    // specifying attributes.
+    // TODO: These are special cases for isRegex(String, int) and asRegex(String, int).  They should
+    // be replaced by adding an @EnsuresQualifierIf annotation that supports specifying attributes.
     @Override
     public TransferResult<CFValue, CFStore> visitMethodInvocation(
             MethodInvocationNode n, TransferInput<CFValue, CFStore> in) {
@@ -85,9 +85,7 @@ public class RegexTransfer extends CFTransfer {
             CFStore elseStore = thenStore.copy();
             ConditionalTransferResult<CFValue, CFStore> newResult =
                     new ConditionalTransferResult<>(result.getResultValue(), thenStore, elseStore);
-            JavaExpression firstParam =
-                    JavaExpression.fromNode(
-                            factory.getContext().getAnnotationProvider(), n.getArgument(0));
+            JavaExpression firstParam = JavaExpression.fromNode(n.getArgument(0));
 
             // add annotation with correct group count (if possible,
             // regex annotation without count otherwise)
@@ -196,8 +194,7 @@ public class RegexTransfer extends CFTransfer {
         MethodAccessNode methodAccessNode = ((MethodInvocationNode) possibleMatcher).getTarget();
         Node receiver = methodAccessNode.getReceiver();
 
-        JavaExpression matcherReceiver =
-                JavaExpression.fromNode(analysis.getTypeFactory(), receiver);
+        JavaExpression matcherReceiver = JavaExpression.fromNode(receiver);
 
         IntegerLiteralNode iln = (IntegerLiteralNode) possibleConstant;
         int groupCount;
@@ -221,8 +218,11 @@ public class RegexTransfer extends CFTransfer {
 
     /**
      * Returns true if the given receiver is a class named "RegexUtil". Examples of such classes are
-     * org.checkerframework.checker.regex.RegexUtil and org.plumelib.util.RegexUtil, and the user
-     * might copy one into their own project.
+     * org.checkerframework.checker.regex.util.RegexUtil and org.plumelib.util.RegexUtil, and the
+     * user might copy one into their own project.
+     *
+     * @param receiver some string
+     * @return true if the given receiver is a class named "RegexUtil"
      */
     private boolean isRegexUtil(String receiver) {
         return receiver.equals("RegexUtil") || receiver.endsWith(".RegexUtil");

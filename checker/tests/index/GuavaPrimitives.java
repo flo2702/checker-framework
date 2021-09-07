@@ -1,6 +1,3 @@
-import java.util.AbstractList;
-import java.util.Collections;
-import java.util.List;
 import org.checkerframework.checker.index.qual.HasSubsequence;
 import org.checkerframework.checker.index.qual.IndexFor;
 import org.checkerframework.checker.index.qual.IndexOrHigh;
@@ -10,6 +7,10 @@ import org.checkerframework.checker.index.qual.LTLengthOf;
 import org.checkerframework.checker.index.qual.LessThan;
 import org.checkerframework.checker.index.qual.Positive;
 import org.checkerframework.common.value.qual.MinLen;
+
+import java.util.AbstractList;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * A simplified version of the Guava primitives classes (such as Bytes, Longs, Shorts, etc.) with
@@ -51,9 +52,10 @@ public class GuavaPrimitives extends AbstractList<Short> {
     }
 
     @SuppressWarnings(
-            "index") // these three fields need to be initialized in some order, and any ordering
-    // leads to the first two issuing errors - since each field is dependent on at
-    // least one of the others
+            "index" // these three fields need to be initialized in some order, and any ordering
+    // leads to the first two issuing errors - since each field is dependent on at least one of the
+    // others
+    )
     GuavaPrimitives(
             short @MinLen(1) [] array,
             @IndexFor("#1") @LessThan("#3") int start,

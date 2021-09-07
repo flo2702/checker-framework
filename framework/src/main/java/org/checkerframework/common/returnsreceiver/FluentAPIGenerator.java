@@ -1,16 +1,17 @@
 package org.checkerframework.common.returnsreceiver;
 
+import org.checkerframework.checker.signature.qual.CanonicalName;
+import org.checkerframework.framework.type.AnnotatedTypeMirror;
+import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
+import org.checkerframework.javacutil.AnnotationUtils;
+import org.checkerframework.javacutil.TypeSystemError;
+import org.checkerframework.javacutil.TypesUtils;
+
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
-import org.checkerframework.checker.signature.qual.CanonicalName;
-import org.checkerframework.framework.type.AnnotatedTypeMirror;
-import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
-import org.checkerframework.javacutil.AnnotationUtils;
-import org.checkerframework.javacutil.BugInCF;
-import org.checkerframework.javacutil.TypesUtils;
 
 /**
  * A utility class to support fluent API generators so the checker can add {@code @This} annotations
@@ -50,8 +51,7 @@ public class FluentAPIGenerator {
             /**
              * The qualified name of the AutoValue Builder annotation. This needs to be constructed
              * dynamically due to a side effect of the shadow plugin. See {@link
-             * FluentAPIGenerators#AUTO_VALUE#getAutoValueBuilderCanonicalName()} for more
-             * information.
+             * getAutoValueBuilderCanonicalName()} for more information.
              */
             private final String AUTO_VALUE_BUILDER = getAutoValueBuilderCanonicalName();
 
@@ -80,7 +80,7 @@ public class FluentAPIGenerator {
                 if (inAutoValueBuilder) {
                     AnnotatedTypeMirror returnType = t.getReturnType();
                     if (returnType == null) {
-                        throw new BugInCF("Return type cannot be null: " + t);
+                        throw new TypeSystemError("Return type cannot be null: " + t);
                     }
                     return enclosingElement.equals(
                             TypesUtils.getTypeElement(returnType.getUnderlyingType()));
@@ -119,7 +119,7 @@ public class FluentAPIGenerator {
                 if (inLombokBuilder) {
                     AnnotatedTypeMirror returnType = t.getReturnType();
                     if (returnType == null) {
-                        throw new BugInCF("Return type cannot be null: " + t);
+                        throw new TypeSystemError("Return type cannot be null: " + t);
                     }
                     return enclosingElement.equals(
                             TypesUtils.getTypeElement(returnType.getUnderlyingType()));

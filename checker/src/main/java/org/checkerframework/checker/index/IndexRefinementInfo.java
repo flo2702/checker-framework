@@ -1,7 +1,5 @@
 package org.checkerframework.checker.index;
 
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
 import org.checkerframework.dataflow.analysis.ConditionalTransferResult;
 import org.checkerframework.dataflow.analysis.TransferResult;
 import org.checkerframework.dataflow.cfg.node.BinaryOperationNode;
@@ -10,7 +8,11 @@ import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.flow.CFStore;
 import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.framework.type.QualifierHierarchy;
-import org.checkerframework.javacutil.BugInCF;
+import org.checkerframework.javacutil.TypeSystemError;
+
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
 
 /**
  * This struct contains all of the information that the refinement functions need. It's called by
@@ -68,7 +70,7 @@ public class IndexRefinementInfo {
             Set<AnnotationMirror> set, QualifierHierarchy hierarchy) {
         Set<? extends AnnotationMirror> tops = hierarchy.getTopAnnotations();
         if (tops.size() != 1) {
-            throw new BugInCF(
+            throw new TypeSystemError(
                     "%s: Found %d tops, but expected one.%nFound: %s",
                     IndexRefinementInfo.class, tops.size(), tops);
         }

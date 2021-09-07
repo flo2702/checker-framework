@@ -4,23 +4,7 @@ import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.util.TreePath;
 import com.sun.tools.javac.code.Symbol.MethodSymbol;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeVariable;
-import javax.lang.model.util.Types;
-import javax.tools.Diagnostic.Kind;
+
 import org.checkerframework.framework.source.SourceChecker;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
@@ -52,10 +36,31 @@ import org.checkerframework.framework.util.typeinference.solver.SubtypesSolver;
 import org.checkerframework.framework.util.typeinference.solver.SupertypesSolver;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.Pair;
-import org.checkerframework.javacutil.TreeUtils;
+import org.checkerframework.javacutil.TreePathUtil;
 import org.checkerframework.javacutil.TypeAnnotationUtils;
 import org.checkerframework.javacutil.TypesUtils;
 import org.plumelib.util.StringsPlume;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.type.ExecutableType;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeVariable;
+import javax.lang.model.util.Types;
+import javax.tools.Diagnostic.Kind;
 
 /**
  * An implementation of TypeArgumentInference that mostly follows the process outlined in JLS7 See
@@ -105,8 +110,7 @@ public class DefaultTypeArgumentInference implements TypeArgumentInference {
     private final boolean showInferenceSteps;
 
     public DefaultTypeArgumentInference(AnnotatedTypeFactory typeFactory) {
-        this.showInferenceSteps =
-                typeFactory.getContext().getChecker().hasOption("showInferenceSteps");
+        this.showInferenceSteps = typeFactory.getChecker().hasOption("showInferenceSteps");
     }
 
     @Override
@@ -123,7 +127,7 @@ public class DefaultTypeArgumentInference implements TypeArgumentInference {
         AnnotatedTypeMirror assignedTo =
                 TypeArgInferenceUtil.assignedTo(typeFactory, pathToExpression);
 
-        SourceChecker checker = typeFactory.getContext().getChecker();
+        SourceChecker checker = typeFactory.getChecker();
 
         if (showInferenceSteps) {
             checker.message(
@@ -136,10 +140,10 @@ public class DefaultTypeArgumentInference implements TypeArgumentInference {
 
         final Set<TypeVariable> targets = TypeArgInferenceUtil.methodTypeToTargets(methodType);
 
-        if (TreeUtils.enclosingNonParen(pathToExpression).first.getKind()
+        if (TreePathUtil.enclosingNonParen(pathToExpression).first.getKind()
                         == Tree.Kind.LAMBDA_EXPRESSION
                 || (assignedTo == null
-                        && TreeUtils.getAssignmentContext(pathToExpression) != null)) {
+                        && TreePathUtil.getAssignmentContext(pathToExpression) != null)) {
             // If the type of the assignment context isn't found, but the expression is assigned,
             // then don't attempt to infer type arguments, because the Java type inferred will be
             // incorrect.  The assignment type is null when it includes uninferred type arguments.
@@ -191,7 +195,10 @@ public class DefaultTypeArgumentInference implements TypeArgumentInference {
         }
         try {
             return TypeArgInferenceUtil.correctResults(
-                    inferredArgs, expressionTree, methodType.getUnderlyingType(), typeFactory);
+                    inferredArgs,
+                    expressionTree,
+                    (ExecutableType) methodElem.asType(),
+                    typeFactory);
         } catch (Throwable ex) {
             // Ignore any exceptions
             return inferredArgs;
@@ -488,7 +495,7 @@ public class DefaultTypeArgumentInference implements TypeArgumentInference {
             final Set<TypeVariable> targets,
             boolean useNullArguments) {
         final List<AnnotatedTypeMirror> paramTypes =
-                AnnotatedTypes.expandVarArgsFromTypes(methodType, argTypes);
+                AnnotatedTypes.expandVarArgsParametersFromTypes(methodType, argTypes);
 
         if (argTypes.size() != paramTypes.size()) {
             throw new BugInCF(
@@ -706,7 +713,7 @@ public class DefaultTypeArgumentInference implements TypeArgumentInference {
                     if (TypesUtils.isErasedSubtype(
                             equalityATM.getUnderlyingType(),
                             superATM.getUnderlyingType(),
-                            typeFactory.getContext().getTypeUtils())) {
+                            typeFactory.getChecker().getTypeUtils())) {
                         // If the underlying type of equalityATM is a subtype of the underlying
                         // type of superATM, then the call to isSubtype below will issue an error.
                         // So call asSuper so that the isSubtype call below works correctly.
@@ -773,10 +780,11 @@ public class DefaultTypeArgumentInference implements TypeArgumentInference {
 
         final Set<AFConstraint> visited = new HashSet<>();
 
-        List<AFReducer> reducers = new ArrayList<>();
-        reducers.add(new A2FReducer(typeFactory));
-        reducers.add(new F2AReducer(typeFactory));
-        reducers.add(new FIsAReducer(typeFactory));
+        List<AFReducer> reducers =
+                Arrays.asList(
+                        new A2FReducer(typeFactory),
+                        new F2AReducer(typeFactory),
+                        new FIsAReducer(typeFactory));
 
         Set<AFConstraint> newConstraints = new HashSet<>(10);
         while (!toProcess.isEmpty()) {
@@ -876,12 +884,12 @@ public class DefaultTypeArgumentInference implements TypeArgumentInference {
             TypeVariable target,
             AnnotatedTypeFactory typeFactory,
             Map<TypeVariable, AnnotatedTypeVariable> declarations) {
-        AnnotatedTypeVariable atv = declarations.get(target);
-        if (atv == null) {
-            atv = (AnnotatedTypeVariable) typeFactory.getAnnotatedType(target.asElement());
-            declarations.put(target, atv);
-        }
-
+        AnnotatedTypeVariable atv =
+                declarations.computeIfAbsent(
+                        target,
+                        __ ->
+                                (AnnotatedTypeVariable)
+                                        typeFactory.getAnnotatedType(target.asElement()));
         return atv;
     }
 }

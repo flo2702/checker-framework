@@ -1,7 +1,8 @@
 package org.checkerframework.framework.type;
 
-import javax.lang.model.element.AnnotationMirror;
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import javax.lang.model.element.AnnotationMirror;
 
 /**
  * Stores the result of {@link StructuralEqualityComparer} for type arguments.
@@ -46,14 +47,10 @@ public class StructuralEqualityVisitHistory {
             boolean result) {
         if (result) {
             trueHistory.put(type1, type2, hierarchy, true);
-            if (falseHistory.contains(type1, type2, hierarchy)) {
-                falseHistory.remove(type1, type2, hierarchy);
-            }
+            falseHistory.remove(type1, type2, hierarchy);
         } else {
             falseHistory.put(type1, type2, hierarchy, true);
-            if (trueHistory.contains(type1, type2, hierarchy)) {
-                trueHistory.remove(type1, type2, hierarchy);
-            }
+            trueHistory.remove(type1, type2, hierarchy);
         }
     }
 

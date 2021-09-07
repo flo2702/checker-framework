@@ -12,15 +12,19 @@ import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.ParameterizedTypeTree;
 import com.sun.source.tree.TypeCastTree;
 import com.sun.tools.javac.util.Log;
-import java.util.List;
-import javax.annotation.processing.SupportedSourceVersion;
-import javax.lang.model.SourceVersion;
-import javax.lang.model.element.AnnotationMirror;
+
 import org.checkerframework.framework.source.SourceChecker;
 import org.checkerframework.framework.source.SourceVisitor;
 import org.checkerframework.javacutil.AnnotationProvider;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.TreeUtils;
+
+import java.util.List;
+
+import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.ExecutableElement;
 
 /**
  * An annotation processor for counting the size of Java code:
@@ -57,6 +61,10 @@ public class JavaCodeStatistics extends SourceChecker {
      * Checker subcheckers.
      */
     int numberOfIndexWarningSuppressions = 0;
+
+    /** The SuppressWarnings.value field/element. */
+    final ExecutableElement suppressWarningsValueElement =
+            TreeUtils.getMethod(SuppressWarnings.class, "value", 0, processingEnv);
 
     /** Creates a JavaCodeStatistics. */
     public JavaCodeStatistics() {
@@ -99,7 +107,7 @@ public class JavaCodeStatistics extends SourceChecker {
                     .equals(SuppressWarnings.class.getCanonicalName())) {
                 List<String> keys =
                         AnnotationUtils.getElementValueArray(
-                                annotationMirror, "value", String.class, true);
+                                annotationMirror, suppressWarningsValueElement, String.class);
                 for (String foundKey : keys) {
                     for (String indexKey : warningKeys) {
                         if (foundKey.startsWith(indexKey)) {
@@ -131,9 +139,8 @@ public class JavaCodeStatistics extends SourceChecker {
         @Override
         public Void visitClass(ClassTree tree, Void p) {
             if (shouldSkipDefs(tree)) {
-                // Not "return super.visitClass(classTree, p);" because that would
-                // recursively call visitors on subtrees; we want to skip the
-                // class entirely.
+                // Not "return super.visitClass(classTree, p);" because that would recursively call
+                // visitors on subtrees; we want to skip the class entirely.
                 return null;
             }
             generics += tree.getTypeParameters().size();

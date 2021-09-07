@@ -1,6 +1,5 @@
 package org.checkerframework.checker.signature;
 
-import javax.lang.model.element.ExecutableElement;
 import org.checkerframework.checker.signature.qual.CanonicalNameOrEmpty;
 import org.checkerframework.dataflow.analysis.ConditionalTransferResult;
 import org.checkerframework.dataflow.analysis.TransferInput;
@@ -16,6 +15,8 @@ import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.TypesUtils;
+
+import javax.lang.model.element.ExecutableElement;
 
 /** The transfer function for the Signature Checker. */
 public class SignatureTransfer extends CFTransfer {
@@ -52,10 +53,8 @@ public class SignatureTransfer extends CFTransfer {
                 ConditionalTransferResult<CFValue, CFStore> result =
                         new ConditionalTransferResult<>(
                                 superResult.getResultValue(), thenStore, elseStore);
-                // The refined expression is the receive of the method call.
-                JavaExpression refinedExpr =
-                        JavaExpression.fromNode(
-                                aTypeFactory.getContext().getAnnotationProvider(), receiver);
+                // The refined expression is the receiver of the method call.
+                JavaExpression refinedExpr = JavaExpression.fromNode(receiver);
 
                 elseStore.insertValue(refinedExpr, aTypeFactory.CANONICAL_NAME);
                 return result;

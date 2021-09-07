@@ -3,17 +3,20 @@ package org.checkerframework.dataflow.util;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.type.TypeKind;
+
 import org.checkerframework.dataflow.cfg.node.BooleanLiteralNode;
 import org.checkerframework.dataflow.cfg.node.ConditionalNotNode;
 import org.checkerframework.dataflow.cfg.node.ConditionalOrNode;
 import org.checkerframework.dataflow.cfg.node.FieldAccessNode;
 import org.checkerframework.dataflow.cfg.node.MethodInvocationNode;
 import org.checkerframework.dataflow.cfg.node.Node;
+import org.checkerframework.dataflow.cfg.node.TypeCastNode;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.TypesUtils;
+
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.type.TypeKind;
 
 /** A utility class to operate on a given {@link Node}. */
 public class NodeUtils {
@@ -31,8 +34,7 @@ public class NodeUtils {
             return true;
         }
 
-        // not all nodes have an associated tree, but those are all not of a
-        // boolean type.
+        // not all nodes have an associated tree, but those are all not of a boolean type.
         Tree tree = node.getTree();
         if (tree == null) {
             return false;
@@ -87,5 +89,19 @@ public class NodeUtils {
         } else {
             return false;
         }
+    }
+
+    /**
+     * Remove any {@link TypeCastNode}s wrapping a node, returning the operand nested within the
+     * type casts.
+     *
+     * @param node a node
+     * @return node, but with any surrounding typecasts removed
+     */
+    public static Node removeCasts(Node node) {
+        while (node instanceof TypeCastNode) {
+            node = ((TypeCastNode) node).getOperand();
+        }
+        return node;
     }
 }

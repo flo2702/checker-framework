@@ -2,9 +2,11 @@ package org.checkerframework.framework.type;
 
 import org.checkerframework.framework.type.visitor.SimpleAnnotatedTypeScanner;
 
+import java.util.Objects;
+
 /**
  * Computes the hashcode of an AnnotatedTypeMirror using the underlying type and primary annotations
- * of the type and its component type.
+ * and the hash code of component types of AnnotatedTypeMirror.
  *
  * <p>This class should be synchronized with EqualityAtmComparer.
  *
@@ -31,8 +33,6 @@ public class HashcodeAtmVisitor extends SimpleAnnotatedTypeScanner<Integer, Void
         if (type == null) {
             return 0;
         }
-
-        return type.getAnnotations().toString().hashCode() * 17
-                + type.getUnderlyingType().toString().hashCode() * 13;
+        return Objects.hash(type.getUnderlyingTypeHashCode(), type.getAnnotations().toString());
     }
 }

@@ -2,17 +2,7 @@ package org.checkerframework.framework.type.poly;
 
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.NewClassTree;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeKind;
+
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedArrayType;
@@ -33,6 +23,19 @@ import org.checkerframework.framework.util.AnnotationMirrorSet;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeKind;
 
 /**
  * Implements framework support for qualifier polymorphism.
@@ -164,7 +167,7 @@ public abstract class AbstractQualifierPolymorphism implements QualifierPolymorp
             return;
         }
         List<AnnotatedTypeMirror> parameters =
-                AnnotatedTypes.expandVarArgs(atypeFactory, type, tree.getArguments());
+                AnnotatedTypes.expandVarArgsParameters(atypeFactory, type, tree.getArguments());
         List<AnnotatedTypeMirror> arguments =
                 AnnotatedTypes.getAnnotatedTypes(atypeFactory, parameters, tree.getArguments());
 
@@ -198,7 +201,7 @@ public abstract class AbstractQualifierPolymorphism implements QualifierPolymorp
             return;
         }
         List<AnnotatedTypeMirror> parameters =
-                AnnotatedTypes.expandVarArgs(atypeFactory, type, tree.getArguments());
+                AnnotatedTypes.expandVarArgsParameters(atypeFactory, type, tree.getArguments());
         List<AnnotatedTypeMirror> arguments =
                 AnnotatedTypes.getAnnotatedTypes(atypeFactory, parameters, tree.getArguments());
 
@@ -262,7 +265,7 @@ public abstract class AbstractQualifierPolymorphism implements QualifierPolymorp
             // If the member reference is a reference to an instance method of an arbitrary
             // object, then first parameter of the functional interface corresponds to the
             // receiver of the member reference.
-            List<AnnotatedTypeMirror> newParameters = new ArrayList<>();
+            List<AnnotatedTypeMirror> newParameters = new ArrayList<>(parameters.size() + 1);
             newParameters.add(memberReference.getReceiverType());
             newParameters.addAll(parameters);
             parameters = newParameters;
@@ -280,7 +283,7 @@ public abstract class AbstractQualifierPolymorphism implements QualifierPolymorp
         }
         // Deal with varargs
         if (memberReference.isVarArgs() && !functionalInterface.isVarArgs()) {
-            parameters = AnnotatedTypes.expandVarArgsFromTypes(memberReference, args);
+            parameters = AnnotatedTypes.expandVarArgsParametersFromTypes(memberReference, args);
         }
 
         instantiationMapping =
@@ -441,12 +444,14 @@ public abstract class AbstractQualifierPolymorphism implements QualifierPolymorp
             }
             if (itert.hasNext()) {
                 throw new BugInCF(
-                        "PolyCollector.visit: types is longer than polyTypes:%n  types = %s%n  polyTypes = %s%n",
+                        "PolyCollector.visit: types is longer than polyTypes:%n"
+                                + "  types = %s%n  polyTypes = %s%n",
                         types, polyTypes);
             }
             if (itera.hasNext()) {
                 throw new BugInCF(
-                        "PolyCollector.visit: types is shorter than polyTypes:%n  types = %s%n  polyTypes = %s%n",
+                        "PolyCollector.visit: types is shorter than polyTypes:%n"
+                                + "  types = %s%n  polyTypes = %s%n",
                         types, polyTypes);
             }
             return result;
@@ -496,7 +501,8 @@ public abstract class AbstractQualifierPolymorphism implements QualifierPolymorp
         protected String defaultErrorMessage(
                 AnnotatedTypeMirror type1, AnnotatedTypeMirror type2, Void aVoid) {
             return String.format(
-                    "AbstractQualifierPolymorphism: Unexpected combination: type1: %s (%s) type2: %s (%s).",
+                    "AbstractQualifierPolymorphism: Unexpected combination: type1: %s (%s) type2:"
+                            + " %s (%s).",
                     type1, type1.getKind(), type2, type2.getKind());
         }
 
@@ -523,7 +529,7 @@ public abstract class AbstractQualifierPolymorphism implements QualifierPolymorp
                 if (TypesUtils.isErasedSubtype(
                         type1Arg.getUnderlyingType(),
                         type2Arg.getUnderlyingType(),
-                        atypeFactory.getContext().getTypeUtils())) {
+                        atypeFactory.getChecker().getTypeUtils())) {
                     result = reduce(result, visit(type1Arg, type2Arg));
                 } // else an unchecked warning was issued by Java, ignore this part of the type.
             }

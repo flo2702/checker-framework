@@ -1,11 +1,7 @@
 package org.checkerframework.common.aliasing;
 
 import com.sun.source.tree.NewArrayTree;
-import java.lang.annotation.Annotation;
-import java.util.Collection;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.util.Elements;
+
 import org.checkerframework.common.aliasing.qual.LeakedToResult;
 import org.checkerframework.common.aliasing.qual.MaybeAliased;
 import org.checkerframework.common.aliasing.qual.MaybeLeaked;
@@ -23,6 +19,13 @@ import org.checkerframework.framework.type.QualifierHierarchy;
 import org.checkerframework.framework.type.treeannotator.ListTreeAnnotator;
 import org.checkerframework.framework.type.treeannotator.TreeAnnotator;
 import org.checkerframework.javacutil.AnnotationBuilder;
+
+import java.lang.annotation.Annotation;
+import java.util.Collection;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.util.Elements;
 
 /** Annotated type factory for the Aliasing Checker. */
 public class AliasingAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
@@ -48,10 +51,9 @@ public class AliasingAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         }
     }
 
-    // @NonLeaked and @LeakedToResult are type qualifiers because of a checker
-    // framework limitation (Issue 383). Once the stub parser gets updated to read
-    // non-type-qualifiers annotations on stub files, this annotation won't be a
-    // type qualifier anymore.
+    // @NonLeaked and @LeakedToResult are type qualifiers because of a checker framework limitation
+    // (Issue 383). Once the stub parser gets updated to read non-type-qualifiers annotations on
+    // stub files, this annotation won't be a type qualifier anymore.
     @Override
     protected Set<Class<? extends Annotation>> createSupportedTypeQualifiers() {
         return getBundledTypeQualifiers(MaybeLeaked.class);
@@ -116,12 +118,11 @@ public class AliasingAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         @Override
         public boolean isSubtype(AnnotationMirror subAnno, AnnotationMirror superAnno) {
             if (isLeakedQualifier(superAnno) && isLeakedQualifier(subAnno)) {
-                // @LeakedToResult and @NonLeaked were supposed to be
-                // non-type-qualifiers annotations.
-                // Currently the stub parser does not support non-type-qualifier
-                // annotations on receiver parameters (Issue 383), therefore these
-                // annotations are implemented as type qualifiers but the
-                // warnings related to the hierarchy are ignored.
+                // @LeakedToResult and @NonLeaked were supposed to be non-type-qualifiers
+                // annotations.
+                // Currently the stub parser does not support non-type-qualifier annotations on
+                // receiver parameters (Issue 383), therefore these annotations are implemented as
+                // type qualifiers but the warnings related to the hierarchy are ignored.
                 return true;
             }
             return super.isSubtype(subAnno, superAnno);

@@ -1,5 +1,6 @@
-import java.util.HashMap;
 import org.checkerframework.checker.nullness.qual.*;
+
+import java.util.HashMap;
 
 public class KeyForSubtyping {
     HashMap<String, String> mapA = new HashMap<>();
@@ -11,10 +12,9 @@ public class KeyForSubtyping {
             @KeyFor("this.mapA") String a,
             @KeyFor("this.mapB") String b,
             @KeyFor({"this.mapA", "this.mapB"}) String ab) {
-        // Try the error cases first, otherwise dataflow will change the inferred
-        // annotations on the variables such that a line of code can have an
-        // effect on a subsequent line of code. We want each of these tests to
-        // be independent.
+        // Try the error cases first, otherwise dataflow will change the inferred annotations on the
+        // variables such that a line of code can have an effect on a subsequent line of code. We
+        // want each of these tests to be independent.
 
         // :: error: (assignment.type.incompatible)
         ab = a;

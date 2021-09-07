@@ -1,9 +1,11 @@
 package org.checkerframework.dataflow.cfg.node;
 
 import com.sun.source.tree.BinaryTree;
-import java.util.ArrayList;
-import java.util.Collection;
+
 import org.checkerframework.javacutil.TreeUtils;
+
+import java.util.Arrays;
+import java.util.Collection;
 
 /**
  * A node for a binary expression.
@@ -42,9 +44,6 @@ public abstract class BinaryOperationNode extends Node {
 
     @Override
     public Collection<Node> getOperands() {
-        ArrayList<Node> list = new ArrayList<>(2);
-        list.add(getLeftOperand());
-        list.add(getRightOperand());
-        return list;
+        return Arrays.asList(getLeftOperand(), getRightOperand());
     }
 }

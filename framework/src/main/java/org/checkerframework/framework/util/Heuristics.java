@@ -9,9 +9,12 @@ import com.sun.source.tree.Tree;
 import com.sun.source.tree.UnaryTree;
 import com.sun.source.util.SimpleTreeVisitor;
 import com.sun.source.util.TreePath;
+
+import org.checkerframework.javacutil.TreePathUtil;
+import org.checkerframework.javacutil.TreeUtils;
+
 import java.util.ArrayDeque;
 import java.util.Arrays;
-import org.checkerframework.javacutil.TreeUtils;
 
 /**
  * Utilities for determining tree-based heuristics.
@@ -28,7 +31,7 @@ public class Heuristics {
      * contained by an if statement which is immediately contained in a method, one would invoke:
      *
      * <pre>
-     * matchParents(path, Kind.IF, Kind.METHOD)
+     * matchParents(path, Kind.IF, Tree.Kind.METHOD)
      * </pre>
      *
      * @param path the path to match
@@ -97,7 +100,7 @@ public class Heuristics {
         @SuppressWarnings("interning:not.interned")
         @Override
         public boolean match(TreePath path) {
-            StatementTree stmt = TreeUtils.enclosingOfClass(path, StatementTree.class);
+            StatementTree stmt = TreePathUtil.enclosingOfClass(path, StatementTree.class);
             if (stmt == null) {
                 return false;
             }

@@ -1,8 +1,5 @@
 package org.checkerframework.checker.nullness;
 
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.type.TypeMirror;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.checker.nullness.qual.PolyNull;
@@ -13,6 +10,11 @@ import org.checkerframework.framework.flow.CFAbstractValue;
 import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.type.TypeMirror;
 
 /**
  * Behaves just like {@link CFValue}, but additionally tracks whether at this point {@link PolyNull}
@@ -38,7 +40,7 @@ public class NullnessValue extends CFAbstractValue<NullnessValue> {
         NullnessValue result = super.leastUpperBound(other);
 
         AnnotationMirror resultNullableAnno =
-                AnnotationUtils.getAnnotationByClass(result.annotations, Nullable.class);
+                analysis.getTypeFactory().getAnnotationByClass(result.annotations, Nullable.class);
 
         if (resultNullableAnno != null && other != null) {
             if ((this.isPolyNullNonNull
@@ -64,8 +66,8 @@ public class NullnessValue extends CFAbstractValue<NullnessValue> {
      */
     @Pure
     private boolean containsNonNullOrPolyNull() {
-        return AnnotationUtils.containsSameByClass(annotations, NonNull.class)
-                || AnnotationUtils.containsSameByClass(annotations, PolyNull.class);
+        return analysis.getTypeFactory().containsSameByClass(annotations, NonNull.class)
+                || analysis.getTypeFactory().containsSameByClass(annotations, PolyNull.class);
     }
 
     /**
@@ -75,8 +77,8 @@ public class NullnessValue extends CFAbstractValue<NullnessValue> {
      */
     @Pure
     private boolean containsNullableOrPolyNull() {
-        return AnnotationUtils.containsSameByClass(annotations, Nullable.class)
-                || AnnotationUtils.containsSameByClass(annotations, PolyNull.class);
+        return analysis.getTypeFactory().containsSameByClass(annotations, Nullable.class)
+                || analysis.getTypeFactory().containsSameByClass(annotations, PolyNull.class);
     }
 
     @SideEffectFree

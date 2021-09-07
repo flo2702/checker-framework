@@ -7,19 +7,8 @@ import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.TypeAnnotationPosition;
 import com.sun.tools.javac.code.TypeAnnotationPosition.TypePathEntry;
 import com.sun.tools.javac.code.TypeAnnotationPosition.TypePathEntryKind;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeVariable;
+
+import org.checkerframework.checker.formatter.qual.FormatMethod;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedArrayType;
@@ -32,8 +21,21 @@ import org.checkerframework.framework.type.ElementAnnotationApplier;
 import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.BugInCF;
-import org.checkerframework.javacutil.TypesUtils;
 import org.plumelib.util.StringsPlume;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.type.TypeKind;
 
 /**
  * Utility methods for adding the annotations that are stored in an Element to the type that
@@ -136,7 +138,7 @@ public class ElementAnnotationUtil {
             TargetType... targetTypes) {
         final Map<TargetType, List<TypeCompound>> targetTypeToAnnos = new HashMap<>();
         for (TargetType targetType : targetTypes) {
-            targetTypeToAnnos.put(targetType, new ArrayList<>(10));
+            targetTypeToAnnos.put(targetType, new ArrayList<>());
         }
 
         for (final TypeCompound anno : annos) {
@@ -290,7 +292,7 @@ public class ElementAnnotationUtil {
     static void annotateViaTypeAnnoPosition(
             final AnnotatedTypeMirror type, final Collection<TypeCompound> annos)
             throws UnexpectedAnnotationLocationException {
-        final Map<AnnotatedWildcardType, WildcardBoundAnnos> wildcardToAnnos =
+        final IdentityHashMap<AnnotatedWildcardType, WildcardBoundAnnos> wildcardToAnnos =
                 new IdentityHashMap<>();
         for (final TypeCompound anno : annos) {
             AnnotatedTypeMirror target =
@@ -315,12 +317,8 @@ public class ElementAnnotationUtil {
             final AnnotatedWildcardType wildcard,
             final TypeCompound anno,
             final Map<AnnotatedWildcardType, WildcardBoundAnnos> wildcardToAnnos) {
-        WildcardBoundAnnos boundAnnos = wildcardToAnnos.get(wildcard);
-        if (boundAnnos == null) {
-            boundAnnos = new WildcardBoundAnnos(wildcard);
-            wildcardToAnnos.put(wildcard, boundAnnos);
-        }
-
+        WildcardBoundAnnos boundAnnos =
+                wildcardToAnnos.computeIfAbsent(wildcard, WildcardBoundAnnos::new);
         boundAnnos.addAnnotation(anno);
     }
 
@@ -399,8 +397,8 @@ public class ElementAnnotationUtil {
         if (location.isEmpty() && type.getKind() != TypeKind.DECLARED) {
             // An annotation with an empty type path on a declared type applies to the outermost
             // enclosing type. This logic is handled together with non-empty type paths in
-            // getLocationTypeADT. For other kinds of types, no work is required for an empty
-            // type path.
+            // getLocationTypeADT.
+            // For other kinds of types, no work is required for an empty type path.
             return type;
         }
         switch (type.getKind()) {
@@ -411,15 +409,6 @@ public class ElementAnnotationUtil {
                         (AnnotatedDeclaredType) type, location, anno, isComponentTypeOfArray);
             case WILDCARD:
                 return getLocationTypeAWT((AnnotatedWildcardType) type, location);
-            case TYPEVAR:
-                if (TypesUtils.isCaptured((TypeVariable) type.getUnderlyingType())) {
-                    // Work-around for Issue 1696: ignore captured wildcards.
-                    // There is no reason to observe such a type and it would be better
-                    // to prevent that this type ever reaches this point.
-                    return type;
-                }
-                // Raise an error for all other type variables (why isn't this needed?).
-                break;
             case ARRAY:
                 return getLocationTypeAAT((AnnotatedArrayType) type, location, anno);
             case UNION:
@@ -430,8 +419,8 @@ public class ElementAnnotationUtil {
                 // Raise an error for all other types below.
         }
         throw new UnexpectedAnnotationLocationException(
-                "ElementAnnotationUtil.getTypeAtLocation: "
-                        + "unexpected annotation with location found for type: %s (kind: %s ) location: ",
+                "ElementAnnotationUtil.getTypeAtLocation: unexpected annotation with location found"
+                        + " for type: %s (kind: %s ) location: ",
                 type, type.getKind(), location);
     }
 
@@ -454,7 +443,7 @@ public class ElementAnnotationUtil {
             TypeCompound anno,
             boolean isComponentTypeOfArray)
             throws UnexpectedAnnotationLocationException {
-        // List order by outer most type to inner most type.
+        // List order by outermost type to innermost type.
         ArrayDeque<AnnotatedDeclaredType> outerToInner = new ArrayDeque<>();
         AnnotatedDeclaredType enclosing = type;
         while (enclosing != null) {
@@ -559,7 +548,7 @@ public class ElementAnnotationUtil {
 
     /**
      * When we have an (e.g. @Odd int @NonNull []) the type-annotation position of the array
-     * annotation (@NonNull) is really the outer most type in the TypeAnnotationPosition and will
+     * annotation (@NonNull) is really the outermost type in the TypeAnnotationPosition and it will
      * NOT have TypePathEntryKind.ARRAY at the end of its position. The position of the component
      * type (@Odd) is considered deeper in the type and therefore has the TypePathEntryKind.ARRAY in
      * its position.
@@ -624,7 +613,24 @@ public class ElementAnnotationUtil {
          * @param format format string
          * @param args arguments to the format string
          */
+        @FormatMethod
         private UnexpectedAnnotationLocationException(String format, Object... args) {
+            super(String.format(format, args));
+        }
+    }
+
+    /** An ERROR TypeKind was found. */
+    @SuppressWarnings("serial")
+    public static class ErrorTypeKindException extends Error {
+
+        /**
+         * Creates an ErrorTypeKindException.
+         *
+         * @param format format string
+         * @param args arguments to the format string
+         */
+        @FormatMethod
+        public ErrorTypeKindException(String format, Object... args) {
             super(String.format(format, args));
         }
     }

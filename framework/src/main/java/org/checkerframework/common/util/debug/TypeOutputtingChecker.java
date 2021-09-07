@@ -5,15 +5,7 @@ import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.VariableTree;
 import com.sun.tools.javac.processing.JavacProcessingEnvironment;
 import com.sun.tools.javac.util.Context;
-import java.util.Collection;
-import java.util.Set;
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.util.Elements;
+
 import org.checkerframework.checker.signature.qual.CanonicalName;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
@@ -26,9 +18,20 @@ import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.TreeUtils;
 
+import java.util.Collection;
+import java.util.Set;
+
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.util.Elements;
+
 /**
  * A testing class that can be used to test {@link TypeElement}. In particular it tests that the
- * types read from classfiles are the same to the ones from java files.
+ * types read from classfiles are the same to the ones from Java files.
  *
  * <p>For testing, you need to do the following:
  *
@@ -71,7 +74,7 @@ public class TypeOutputtingChecker extends BaseTypeChecker {
             currentClass = element.getSimpleName().toString();
 
             AnnotatedDeclaredType type = atypeFactory.getAnnotatedType(node);
-            System.out.println(node.getSimpleName() + "\t" + type + "\t" + type.directSuperTypes());
+            System.out.println(node.getSimpleName() + "\t" + type + "\t" + type.directSupertypes());
 
             super.processClassTree(node);
         }
@@ -137,7 +140,7 @@ public class TypeOutputtingChecker extends BaseTypeChecker {
         String simpleName = typeElt.getSimpleName().toString();
         // Output class info
         AnnotatedDeclaredType type = atypeFactory.fromElement(typeElt);
-        System.out.println(simpleName + "\t" + type + "\t" + type.directSuperTypes());
+        System.out.println(simpleName + "\t" + type + "\t" + type.directSupertypes());
 
         // output fields and methods
         for (Element enclosedElt : typeElt.getEnclosedElements()) {
@@ -166,12 +169,11 @@ public class TypeOutputtingChecker extends BaseTypeChecker {
 
         @Override
         public void postProcessClassTree(ClassTree tree) {
-            // Do not store the qualifiers determined by this factory.
-            // This factory adds declaration annotations as type annotations,
-            // because TypeFromElement needs to read declaration annotations
-            // and this factory blindly supports all annotations.
-            // When storing those annotation to bytecode, the compiler chokes.
-            // See testcase tests/nullness/GeneralATFStore.java
+            // Do not store the qualifiers determined by this factory.  This factory adds
+            // declaration annotations as type annotations, because TypeFromElement needs to read
+            // declaration annotations and this factory blindly supports all annotations.
+            // When storing those annotation to bytecode, the compiler chokes.  See testcase
+            // tests/nullness/GeneralATFStore.java
         }
 
         /** Return true to support any qualifier. No handling of aliases. */
@@ -265,7 +267,8 @@ public class TypeOutputtingChecker extends BaseTypeChecker {
             @Override
             public AnnotationMirror getPolymorphicAnnotation(AnnotationMirror start) {
                 throw new BugInCF(
-                        "GeneralQualifierHierarchy.getPolymorphicAnnotation() shouldn't be called.");
+                        "GeneralQualifierHierarchy.getPolymorphicAnnotation() shouldn't be"
+                                + " called.");
             }
 
             @Override

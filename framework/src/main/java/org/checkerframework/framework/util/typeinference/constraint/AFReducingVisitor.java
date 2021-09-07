@@ -1,8 +1,5 @@
 package org.checkerframework.framework.util.typeinference.constraint;
 
-import java.util.List;
-import java.util.Set;
-import javax.lang.model.type.TypeKind;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedArrayType;
@@ -19,6 +16,11 @@ import org.checkerframework.framework.util.typeinference.TypeArgInferenceUtil;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.TypesUtils;
 import org.plumelib.util.StringsPlume;
+
+import java.util.List;
+import java.util.Set;
+
+import javax.lang.model.type.TypeKind;
 
 /**
  * Takes a single step in reducing a AFConstraint.
@@ -179,7 +181,7 @@ abstract class AFReducingVisitor extends AbstractAtmComboVisitor<Void, Set<AFCon
             AnnotatedDeclaredType subtype,
             AnnotatedDeclaredType supertype,
             Set<AFConstraint> constraints) {
-        if (subtype.wasRaw() || supertype.wasRaw()) {
+        if (subtype.isUnderlyingTypeRaw() || supertype.isUnderlyingTypeRaw()) {
             // The error will be caught in {@link DefaultTypeArgumentInference#infer} and
             // inference will be aborted, but type-checking will continue.
             throw new BugInCF("Can't infer type arguments when raw types are involved.");
@@ -188,7 +190,7 @@ abstract class AFReducingVisitor extends AbstractAtmComboVisitor<Void, Set<AFCon
         if (!TypesUtils.isErasedSubtype(
                 subtype.getUnderlyingType(),
                 supertype.getUnderlyingType(),
-                typeFactory.getContext().getTypeUtils())) {
+                typeFactory.getChecker().getTypeUtils())) {
             return null;
         }
         AnnotatedDeclaredType subAsSuper =

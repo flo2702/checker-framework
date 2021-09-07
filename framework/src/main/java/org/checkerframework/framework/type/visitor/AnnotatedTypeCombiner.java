@@ -1,14 +1,16 @@
 package org.checkerframework.framework.type.visitor;
 
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.QualifierHierarchy;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.BugInCF;
 
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+
 /** Changes each parameter type to be the GLB of the parameter type and visited type. */
-public class AnnotatedTypeCombiner extends AnnotatedTypeComparer<Void> {
+public class AnnotatedTypeCombiner extends DoubleAnnotatedTypeScanner<Void> {
 
     /**
      * Combines all annotations from {@code from} and {@code to} into {@code to} using the GLB.
@@ -32,27 +34,22 @@ public class AnnotatedTypeCombiner extends AnnotatedTypeComparer<Void> {
     private final QualifierHierarchy hierarchy;
 
     /**
-     * Private constructor.
+     * Create an AnnotatedTypeCombiner.
      *
      * @param hierarchy the hierarchy used to the compute the GLB
      */
-    private AnnotatedTypeCombiner(final QualifierHierarchy hierarchy) {
+    public AnnotatedTypeCombiner(final QualifierHierarchy hierarchy) {
         this.hierarchy = hierarchy;
     }
 
     @Override
     @SuppressWarnings("interning:not.interned") // assertion
-    protected Void compare(AnnotatedTypeMirror one, AnnotatedTypeMirror two) {
+    protected Void defaultAction(AnnotatedTypeMirror one, AnnotatedTypeMirror two) {
         assert one != two;
         if (one != null && two != null) {
             combineAnnotations(one, two);
         }
         return null;
-    }
-
-    @Override
-    protected Void combineRs(Void r1, Void r2) {
-        return r1;
     }
 
     /**

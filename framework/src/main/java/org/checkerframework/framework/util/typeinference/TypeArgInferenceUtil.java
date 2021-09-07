@@ -12,9 +12,31 @@ import com.sun.source.tree.NewArrayTree;
 import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.ReturnTree;
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.Tree.Kind;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
+
+import org.checkerframework.checker.interning.qual.FindDistinct;
+import org.checkerframework.framework.type.AnnotatedTypeFactory;
+import org.checkerframework.framework.type.AnnotatedTypeMirror;
+import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedArrayType;
+import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
+import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedPrimitiveType;
+import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedTypeVariable;
+import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedWildcardType;
+import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
+import org.checkerframework.framework.type.QualifierHierarchy;
+import org.checkerframework.framework.type.TypeVariableSubstitutor;
+import org.checkerframework.framework.type.visitor.AnnotatedTypeScanner;
+import org.checkerframework.framework.util.AnnotatedTypes;
+import org.checkerframework.framework.util.AnnotationMirrorMap;
+import org.checkerframework.framework.util.AnnotationMirrorSet;
+import org.checkerframework.javacutil.BugInCF;
+import org.checkerframework.javacutil.TreePathUtil;
+import org.checkerframework.javacutil.TreeUtils;
+import org.checkerframework.javacutil.TypeAnnotationUtils;
+import org.checkerframework.javacutil.TypesUtils;
+import org.plumelib.util.CollectionsPlume;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -25,6 +47,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ExecutableElement;
@@ -42,25 +65,6 @@ import javax.lang.model.type.TypeVariable;
 import javax.lang.model.type.TypeVisitor;
 import javax.lang.model.type.UnionType;
 import javax.lang.model.util.Types;
-import org.checkerframework.checker.interning.qual.FindDistinct;
-import org.checkerframework.framework.type.AnnotatedTypeFactory;
-import org.checkerframework.framework.type.AnnotatedTypeMirror;
-import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedArrayType;
-import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
-import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedPrimitiveType;
-import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedTypeVariable;
-import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedWildcardType;
-import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
-import org.checkerframework.framework.type.QualifierHierarchy;
-import org.checkerframework.framework.type.TypeVariableSubstitutor;
-import org.checkerframework.framework.type.visitor.AnnotatedTypeScanner;
-import org.checkerframework.framework.util.AnnotatedTypes;
-import org.checkerframework.framework.util.AnnotationMirrorMap;
-import org.checkerframework.framework.util.AnnotationMirrorSet;
-import org.checkerframework.javacutil.BugInCF;
-import org.checkerframework.javacutil.TreeUtils;
-import org.checkerframework.javacutil.TypeAnnotationUtils;
-import org.checkerframework.javacutil.TypesUtils;
 
 /** Miscellaneous utilities to help in type argument inference. */
 public class TypeArgInferenceUtil {
@@ -78,10 +82,10 @@ public class TypeArgInferenceUtil {
             final ExpressionTree methodInvocation, final AnnotatedTypeFactory typeFactory) {
         final List<? extends ExpressionTree> argTrees;
 
-        if (methodInvocation.getKind() == Kind.METHOD_INVOCATION) {
+        if (methodInvocation.getKind() == Tree.Kind.METHOD_INVOCATION) {
             argTrees = ((MethodInvocationTree) methodInvocation).getArguments();
 
-        } else if (methodInvocation.getKind() == Kind.NEW_CLASS) {
+        } else if (methodInvocation.getKind() == Tree.Kind.NEW_CLASS) {
             argTrees = ((NewClassTree) methodInvocation).getArguments();
 
         } else {
@@ -91,16 +95,17 @@ public class TypeArgInferenceUtil {
                     methodInvocation);
         }
 
-        final List<AnnotatedTypeMirror> argTypes = new ArrayList<>(argTrees.size());
-        for (Tree arg : argTrees) {
-            AnnotatedTypeMirror argType = typeFactory.getAnnotatedType(arg);
-            if (TypesUtils.isPrimitive(argType.getUnderlyingType())) {
-                argTypes.add(typeFactory.getBoxedType((AnnotatedPrimitiveType) argType));
-            } else {
-                argTypes.add(argType);
-            }
-        }
-
+        List<AnnotatedTypeMirror> argTypes =
+                CollectionsPlume.mapList(
+                        (Tree arg) -> {
+                            AnnotatedTypeMirror argType = typeFactory.getAnnotatedType(arg);
+                            if (TypesUtils.isPrimitive(argType.getUnderlyingType())) {
+                                return typeFactory.getBoxedType((AnnotatedPrimitiveType) argType);
+                            } else {
+                                return argType;
+                            }
+                        },
+                        argTrees);
         return argTypes;
     }
 
@@ -143,7 +148,7 @@ public class TypeArgInferenceUtil {
      */
     @SuppressWarnings("interning:not.interned") // AST node comparisons
     public static AnnotatedTypeMirror assignedTo(AnnotatedTypeFactory atypeFactory, TreePath path) {
-        Tree assignmentContext = TreeUtils.getAssignmentContext(path);
+        Tree assignmentContext = TreePathUtil.getAssignmentContext(path);
         AnnotatedTypeMirror res;
         if (assignmentContext == null) {
             res = null;
@@ -198,10 +203,11 @@ public class TypeArgInferenceUtil {
                             receiver,
                             newClassTree.getArguments());
         } else if (assignmentContext instanceof ReturnTree) {
-            HashSet<Kind> kinds = new HashSet<>(Arrays.asList(Kind.LAMBDA_EXPRESSION, Kind.METHOD));
-            Tree enclosing = TreeUtils.enclosingOfKind(path, kinds);
+            HashSet<Tree.Kind> kinds =
+                    new HashSet<>(Arrays.asList(Tree.Kind.LAMBDA_EXPRESSION, Tree.Kind.METHOD));
+            Tree enclosing = TreePathUtil.enclosingOfKind(path, kinds);
 
-            if (enclosing.getKind() == Kind.METHOD) {
+            if (enclosing.getKind() == Tree.Kind.METHOD) {
                 res = atypeFactory.getAnnotatedType((MethodTree) enclosing).getReturnType();
             } else {
                 AnnotatedExecutableType fninf =
@@ -230,7 +236,7 @@ public class TypeArgInferenceUtil {
             List<? extends ExpressionTree> arguments) {
         AnnotatedExecutableType method =
                 AnnotatedTypes.asMemberOf(
-                        atypeFactory.getContext().getTypeUtils(),
+                        atypeFactory.getChecker().getTypeUtils(),
                         atypeFactory,
                         receiver,
                         methodElt);
@@ -279,7 +285,7 @@ public class TypeArgInferenceUtil {
         argumentTree = TreeUtils.withoutParens(argumentTree);
         if (argumentTree == path.getLeaf()) {
             return true;
-        } else if (argumentTree.getKind() == Kind.CONDITIONAL_EXPRESSION) {
+        } else if (argumentTree.getKind() == Tree.Kind.CONDITIONAL_EXPRESSION) {
             ConditionalExpressionTree conditionalExpressionTree =
                     (ConditionalExpressionTree) argumentTree;
             return isArgument(path, conditionalExpressionTree.getTrueExpression())
@@ -351,14 +357,13 @@ public class TypeArgInferenceUtil {
     private static boolean containsUninferredTypeParameter(
             AnnotatedTypeMirror type, AnnotatedExecutableType methodType) {
         final List<AnnotatedTypeVariable> annotatedTypeVars = methodType.getTypeVariables();
-        final List<TypeVariable> typeVars = new ArrayList<>(annotatedTypeVars.size());
-
-        for (AnnotatedTypeVariable annotatedTypeVar : annotatedTypeVars) {
-            typeVars.add(
-                    (TypeVariable)
-                            TypeAnnotationUtils.unannotatedType(
-                                    annotatedTypeVar.getUnderlyingType()));
-        }
+        final List<TypeVariable> typeVars =
+                CollectionsPlume.mapList(
+                        (AnnotatedTypeVariable annotatedTypeVar) ->
+                                (TypeVariable)
+                                        TypeAnnotationUtils.unannotatedType(
+                                                annotatedTypeVar.getUnderlyingType()),
+                        annotatedTypeVars);
 
         return containsTypeParameter(type, typeVars);
     }
@@ -531,6 +536,7 @@ public class TypeArgInferenceUtil {
         Map<TypeVariable, TypeMirror> fromReturn =
                 getMappingFromReturnType(invocation, methodType, env);
         for (Map.Entry<TypeVariable, AnnotatedTypeMirror> entry :
+                // result is side-effected by this loop, so iterate over a copy
                 new ArrayList<>(result.entrySet())) {
             TypeVariable typeVariable = entry.getKey();
             if (!fromReturn.containsKey(typeVariable)) {
@@ -539,7 +545,7 @@ public class TypeArgInferenceUtil {
             TypeMirror correctType = fromReturn.get(typeVariable);
             TypeMirror inferredType = entry.getValue().getUnderlyingType();
             if (types.isSameType(types.erasure(correctType), types.erasure(inferredType))) {
-                if (areSameCapture(correctType, inferredType, types)) {
+                if (areSameCapture(correctType, inferredType)) {
                     continue;
                 }
             }
@@ -559,12 +565,16 @@ public class TypeArgInferenceUtil {
     /**
      * Returns true if actual and inferred are captures of the same wildcard or declared type.
      *
+     * @param actual the actual type
+     * @param inferred the inferred type
      * @return true if actual and inferred are captures of the same wildcard or declared type
      */
-    private static boolean areSameCapture(TypeMirror actual, TypeMirror inferred, Types types) {
-        if (TypesUtils.isCaptured(actual) && TypesUtils.isCaptured(inferred)) {
+    private static boolean areSameCapture(TypeMirror actual, TypeMirror inferred) {
+        if (TypesUtils.isCapturedTypeVariable(actual)
+                && TypesUtils.isCapturedTypeVariable(inferred)) {
             return true;
-        } else if (TypesUtils.isCaptured(actual) && inferred.getKind() == TypeKind.WILDCARD) {
+        } else if (TypesUtils.isCapturedTypeVariable(actual)
+                && inferred.getKind() == TypeKind.WILDCARD) {
             return true;
         } else if (actual.getKind() == TypeKind.DECLARED
                 && inferred.getKind() == TypeKind.DECLARED) {
@@ -574,8 +584,7 @@ public class TypeArgInferenceUtil {
                 for (int i = 0; i < actualDT.getTypeArguments().size(); i++) {
                     if (!areSameCapture(
                             actualDT.getTypeArguments().get(i),
-                            inferredDT.getTypeArguments().get(i),
-                            types)) {
+                            inferredDT.getTypeArguments().get(i))) {
                         return false;
                     }
                 }

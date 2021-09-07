@@ -1,12 +1,13 @@
 // Test case for Issue 524:
 // https://github.com/typetools/checker-framework/issues/524
 
-import java.util.concurrent.locks.ReentrantLock;
 import org.checkerframework.checker.lock.qual.GuardedBy;
+import org.checkerframework.checker.lock.qual.GuardedByUnknown;
 
-// WARNING: this test is nondeterministic, and has already been
-// minimized - if you modify it by removing what appears to be
-// redundant code, it may no longer reproduce the issue or provide
+import java.util.concurrent.locks.ReentrantLock;
+
+// WARNING: this test is nondeterministic, and has already been minimized - if you modify it by
+// removing what appears to be redundant code, it may no longer reproduce the issue or provide
 // coverage for the issue after a fix for the issue has been made.
 
 // About the nondeterminism:
@@ -21,12 +22,17 @@ public class Issue524 {
         public Object field;
     }
 
+    @GuardedByUnknown MyClass someValue() {
+        return new MyClass();
+    }
+
     void testLocalVariables() {
         @GuardedBy({}) ReentrantLock localLock = new ReentrantLock();
 
         {
+            @SuppressWarnings("assignment") // prevent flow-sensitive type refinement
             // :: error: (lock.expression.not.final)
-            @GuardedBy("localLock") MyClass q = new MyClass();
+            @GuardedBy("localLock") MyClass q = someValue();
             localLock.lock();
             localLock.lock();
             // Without a fix for issue 524 in place, the error lock.not.held

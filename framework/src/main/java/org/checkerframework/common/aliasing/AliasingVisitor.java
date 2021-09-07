@@ -6,16 +6,11 @@ import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.NewArrayTree;
 import com.sun.source.tree.ThrowTree;
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.Tree.Kind;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
-import java.util.List;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.VariableElement;
+
 import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
+import org.checkerframework.checker.formatter.qual.FormatMethod;
 import org.checkerframework.common.aliasing.qual.LeakedToResult;
 import org.checkerframework.common.aliasing.qual.NonLeaked;
 import org.checkerframework.common.aliasing.qual.Unique;
@@ -25,8 +20,16 @@ import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedArrayType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
-import org.checkerframework.javacutil.AnnotationUtils;
+import org.checkerframework.javacutil.TreePathUtil;
 import org.checkerframework.javacutil.TreeUtils;
+
+import java.util.List;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.VariableElement;
 
 /**
  * This visitor ensures that every constructor whose result is annotated as {@literal @}Unique does
@@ -78,13 +81,12 @@ public class AliasingVisitor extends BaseTypeVisitor<AliasingAnnotatedTypeFactor
                     checker.reportError(node, "unique.leaked");
                 }
             } else {
-                // TODO: Currently the type of "this" doesn't always return
-                // the type of the constructor result, therefore we need
-                // this "else" block. Once constructors are implemented
-                // correctly we could remove that code below, since the type
-                // of "this" in a @Unique constructor will be @Unique.
+                // TODO: Currently the type of "this" doesn't always return the type of the
+                // constructor result, therefore we need this "else" block. Once constructors are
+                // implemented correctly we could remove that code below, since the type of "this"
+                // in a @Unique constructor will be @Unique.
                 Tree parent = getCurrentPath().getParentPath().getLeaf();
-                boolean parentIsStatement = parent.getKind() == Kind.EXPRESSION_STATEMENT;
+                boolean parentIsStatement = parent.getKind() == Tree.Kind.EXPRESSION_STATEMENT;
                 ExecutableElement methodElement = TreeUtils.elementFromUse(node);
                 List<? extends VariableElement> params = methodElement.getParameters();
                 List<? extends ExpressionTree> args = node.getArguments();
@@ -142,16 +144,13 @@ public class AliasingVisitor extends BaseTypeVisitor<AliasingAnnotatedTypeFactor
         }
     }
 
-    // TODO: Merge that code in
-    // commonAssignmentCheck(AnnotatedTypeMirror varType, ExpressionTree
-    // valueExp, String errorKey, boolean isLocalVariableAssignement), because
-    // the method below isn't called for pseudo-assignments, but the mentioned
-    // one is. The issue of copy-pasting the code from this method to the other
-    // one is that a declaration such as: List<@Unique Object> will raise a
-    // unique.leaked warning, as there is a pseudo-assignment from @Unique to a
-    // @MaybeAliased object, if the @Unique annotation is not in the stubfile.
-    // TODO: Change the documentation in BaseTypeVisitor to point out that
-    // this isn't called for pseudo-assignments.
+    // TODO: Merge that code in commonAssignmentCheck(AnnotatedTypeMirror varType, ExpressionTree
+    // valueExp, String errorKey, boolean isLocalVariableAssignement), because the method below
+    // isn't called for pseudo-assignments, but the mentioned one is. The issue of copy-pasting the
+    // code from this method to the other one is that a declaration such as: List<@Unique Object>
+    // will raise a unique.leaked warning, as there is a pseudo-assignment from @Unique to a
+    // @MaybeAliased object, if the @Unique annotation is not in the stubfile.  TODO: Change the
+    // documentation in BaseTypeVisitor to point out that this isn't called for pseudo-assignments.
     @Override
     protected void commonAssignmentCheck(
             Tree varTree,
@@ -160,9 +159,8 @@ public class AliasingVisitor extends BaseTypeVisitor<AliasingAnnotatedTypeFactor
             Object... extraArgs) {
         super.commonAssignmentCheck(varTree, valueExp, errorKey, extraArgs);
         if (isInUniqueConstructor() && TreeUtils.isExplicitThisDereference(valueExp)) {
-            // If an assignment occurs inside a constructor with
-            // result type @Unique, it will invalidate the @Unique property
-            // by using the "this" reference.
+            // If an assignment occurs inside a constructor with result type @Unique, it will
+            // invalidate the @Unique property by using the "this" reference.
             checker.reportError(valueExp, "unique.leaked");
         } else if (canBeLeaked(valueExp)) {
             checker.reportError(valueExp, "unique.leaked");
@@ -170,6 +168,7 @@ public class AliasingVisitor extends BaseTypeVisitor<AliasingAnnotatedTypeFactor
     }
 
     @Override
+    @FormatMethod
     protected void commonAssignmentCheck(
             AnnotatedTypeMirror varType,
             AnnotatedTypeMirror valueType,
@@ -179,21 +178,22 @@ public class AliasingVisitor extends BaseTypeVisitor<AliasingAnnotatedTypeFactor
         super.commonAssignmentCheck(varType, valueType, valueTree, errorKey, extraArgs);
 
         // If we are visiting a pseudo-assignment, visitorLeafKind is either
-        // Kind.NEW_CLASS or Kind.METHOD_INVOCATION.
+        // Tree.Kind.NEW_CLASS or Tree.Kind.METHOD_INVOCATION.
         TreePath path = visitorState.getPath();
         if (path == null) {
             return;
         }
-        Kind visitorLeafKind = path.getLeaf().getKind();
+        Tree.Kind visitorLeafKind = path.getLeaf().getKind();
 
-        if (visitorLeafKind == Kind.NEW_CLASS || visitorLeafKind == Kind.METHOD_INVOCATION) {
+        if (visitorLeafKind == Tree.Kind.NEW_CLASS
+                || visitorLeafKind == Tree.Kind.METHOD_INVOCATION) {
             // Handling pseudo-assignments
             if (canBeLeaked(valueTree)) {
-                Kind parentKind = visitorState.getPath().getParentPath().getLeaf().getKind();
+                Tree.Kind parentKind = visitorState.getPath().getParentPath().getLeaf().getKind();
 
                 if (!varType.hasAnnotation(NonLeaked.class)
                         && !(varType.hasAnnotation(LeakedToResult.class)
-                                && parentKind == Kind.EXPRESSION_STATEMENT)) {
+                                && parentKind == Tree.Kind.EXPRESSION_STATEMENT)) {
                     checker.reportError(valueTree, "unique.leaked");
                 }
             }
@@ -218,12 +218,12 @@ public class AliasingVisitor extends BaseTypeVisitor<AliasingAnnotatedTypeFactor
         VariableElement elt = TreeUtils.elementFromDeclaration(node);
         if (elt.getKind().isField() && varType.hasExplicitAnnotation(Unique.class)) {
             checker.reportError(node, "unique.location.forbidden");
-        } else if (node.getType().getKind() == Kind.ARRAY_TYPE) {
+        } else if (node.getType().getKind() == Tree.Kind.ARRAY_TYPE) {
             AnnotatedArrayType arrayType = (AnnotatedArrayType) varType;
             if (arrayType.getComponentType().hasAnnotation(Unique.class)) {
                 checker.reportError(node, "unique.location.forbidden");
             }
-        } else if (node.getType().getKind() == Kind.PARAMETERIZED_TYPE) {
+        } else if (node.getType().getKind() == Tree.Kind.PARAMETERIZED_TYPE) {
             AnnotatedDeclaredType declaredType = (AnnotatedDeclaredType) varType;
             for (AnnotatedTypeMirror atm : declaredType.getTypeArguments()) {
                 if (atm.hasAnnotation(Unique.class)) {
@@ -276,11 +276,13 @@ public class AliasingVisitor extends BaseTypeVisitor<AliasingAnnotatedTypeFactor
      * {@code @Unique}
      *
      * @param exp the Tree to check
+     * @return true if {@code exp} has type {@code @Unique} and is not a method invocation nor a new
+     *     class expression
      */
     private boolean canBeLeaked(Tree exp) {
         AnnotatedTypeMirror type = atypeFactory.getAnnotatedType(exp);
-        boolean isMethodInvocation = exp.getKind() == Kind.METHOD_INVOCATION;
-        boolean isNewClass = exp.getKind() == Kind.NEW_CLASS;
+        boolean isMethodInvocation = exp.getKind() == Tree.Kind.METHOD_INVOCATION;
+        boolean isNewClass = exp.getKind() == Tree.Kind.NEW_CLASS;
         boolean isUniqueType = isUniqueClass(type) || type.hasExplicitAnnotation(Unique.class);
         return isUniqueType && !isMethodInvocation && !isNewClass;
     }
@@ -301,14 +303,21 @@ public class AliasingVisitor extends BaseTypeVisitor<AliasingAnnotatedTypeFactor
         if (annoMirrors == null) {
             return false;
         }
-        if (AnnotationUtils.containsSameByClass(annoMirrors, Unique.class)) {
+        if (atypeFactory.containsSameByClass(annoMirrors, Unique.class)) {
             return true;
         }
         return false;
     }
 
+    /**
+     * Returns true if the enclosing method is a constructor whose return type is annotated as
+     * {@code @Unique}.
+     *
+     * @return true if the enclosing method is a constructor whose return type is annotated as
+     *     {@code @Unique}
+     */
     private boolean isInUniqueConstructor() {
-        MethodTree enclosingMethod = TreeUtils.enclosingMethod(getCurrentPath());
+        MethodTree enclosingMethod = TreePathUtil.enclosingMethod(getCurrentPath());
         if (enclosingMethod == null) {
             return false; // No enclosing method.
         }

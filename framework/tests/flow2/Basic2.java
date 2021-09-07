@@ -1,7 +1,8 @@
-import java.util.List;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.framework.test.*;
 import org.checkerframework.framework.testchecker.util.*;
+
+import java.util.List;
 
 public class Basic2 {
 
@@ -206,7 +207,7 @@ public class Basic2 {
         final String f1;
         CF c;
 
-        void nonpure() {};
+        void nonpure() {}
 
         CF(@Odd String p1) {
             f1 = p1;
@@ -224,8 +225,8 @@ public class Basic2 {
 
     // final fields with initializer
     class A {
-        final @Odd String f1 = null;
-        final String f2 = f1;
+        private final @Odd String f1 = null;
+        private final String f2 = f1;
 
         void A_t1() {
             @Odd String l1 = f2;

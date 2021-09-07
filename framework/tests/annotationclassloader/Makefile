@@ -37,6 +37,7 @@ demo1:
 	  -processor org.checkerframework.common.aliasing.AliasingChecker \
 	  -Anomsgtext \
 	  -ApermitMissingJdk \
+	  -AnoJreVersionCheck \
 	  LoaderTest.java
 
 # loads from framework.jar
@@ -48,6 +49,7 @@ demo2:
 	  -processor org.checkerframework.common.aliasing.AliasingChecker \
 	  -Anomsgtext \
 	  -ApermitMissingJdk \
+	  -AnoJreVersionCheck \
 	  LoaderTest.java
 
 # ======================================================
@@ -60,8 +62,9 @@ load-from-dir-test:
 	  -processor org.checkerframework.common.aliasing.AliasingChecker \
 	  -Anomsgtext \
 	  -ApermitMissingJdk \
+	  -AnoJreVersionCheck \
 	  LoaderTest.java > Out.txt 2>&1 || true
-	diff -u Expected.txt Out.txt -I 'Note'
+	diff -u Expected.txt Out.txt
 	rm -f Out.txt
 
 # loads from framework.jar
@@ -72,6 +75,7 @@ load-from-jar-test:
 	  -processor org.checkerframework.common.aliasing.AliasingChecker \
 	  -Anomsgtext \
 	  -ApermitMissingJdk \
+	  -AnoJreVersionCheck \
 	  LoaderTest.java > Out.txt 2>&1 || true
 	diff -u Expected.txt Out.txt
 	rm -f Out.txt

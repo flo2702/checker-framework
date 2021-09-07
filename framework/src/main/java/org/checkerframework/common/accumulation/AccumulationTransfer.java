@@ -2,12 +2,7 @@ package org.checkerframework.common.accumulation;
 
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.Tree.Kind;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import org.checkerframework.common.value.ValueCheckerUtils;
+
 import org.checkerframework.dataflow.analysis.TransferResult;
 import org.checkerframework.dataflow.cfg.node.MethodInvocationNode;
 import org.checkerframework.dataflow.cfg.node.Node;
@@ -17,6 +12,12 @@ import org.checkerframework.framework.flow.CFAnalysis;
 import org.checkerframework.framework.flow.CFStore;
 import org.checkerframework.framework.flow.CFTransfer;
 import org.checkerframework.framework.flow.CFValue;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
 
 /**
  * The default transfer function for an accumulation checker.
@@ -75,7 +76,7 @@ public class AccumulationTransfer extends CFTransfer {
         List<String> valuesAsList = Arrays.asList(values);
         // If dataflow has already recorded information about the target, fetch it and integrate
         // it into the list of values in the new annotation.
-        JavaExpression target = JavaExpression.fromNode(atypeFactory, node);
+        JavaExpression target = JavaExpression.fromNode(node);
         if (CFAbstractStore.canInsertJavaExpression(target)) {
             CFValue flowValue = result.getRegularStore().getValue(target);
             if (flowValue != null) {
@@ -83,12 +84,11 @@ public class AccumulationTransfer extends CFTransfer {
                 assert flowAnnos.size() <= 1;
                 for (AnnotationMirror anno : flowAnnos) {
                     if (atypeFactory.isAccumulatorAnnotation(anno)) {
-                        List<String> oldFlowValues =
-                                ValueCheckerUtils.getValueOfAnnotationWithStringArgument(anno);
-                        if (oldFlowValues != null) {
+                        List<String> oldFlowValues = atypeFactory.getAccumulatedValues(anno);
+                        if (!oldFlowValues.isEmpty()) {
                             // valuesAsList cannot have its length changed -- it is backed by an
-                            // array.  getValueOfAnnotationWithStringArgument returns a new,
-                            // modifiable list.
+                            // array -- but if oldFlowValues is not empty, it is a new, modifiable
+                            // list.
                             oldFlowValues.addAll(valuesAsList);
                             valuesAsList = oldFlowValues;
                         }
@@ -101,33 +101,11 @@ public class AccumulationTransfer extends CFTransfer {
         insertIntoStores(result, target, newAnno);
 
         Tree tree = node.getTree();
-        if (tree != null && tree.getKind() == Kind.METHOD_INVOCATION) {
+        if (tree != null && tree.getKind() == Tree.Kind.METHOD_INVOCATION) {
             Node receiver = ((MethodInvocationNode) node).getTarget().getReceiver();
             if (receiver != null && atypeFactory.returnsThis((MethodInvocationTree) tree)) {
                 accumulate(receiver, result, values);
             }
-        }
-    }
-
-    /**
-     * Inserts newAnno as the value into all stores (conditional or not) in the result for node.
-     *
-     * @param result the TransferResult holding the stores to modify
-     * @param target the receiver whose value should be modified
-     * @param newAnno the new value
-     */
-    private void insertIntoStores(
-            TransferResult<CFValue, CFStore> result,
-            JavaExpression target,
-            AnnotationMirror newAnno) {
-        if (result.containsTwoStores()) {
-            CFStore thenStore = result.getThenStore();
-            CFStore elseStore = result.getElseStore();
-            thenStore.insertValue(target, newAnno);
-            elseStore.insertValue(target, newAnno);
-        } else {
-            CFStore store = result.getRegularStore();
-            store.insertValue(target, newAnno);
         }
     }
 }

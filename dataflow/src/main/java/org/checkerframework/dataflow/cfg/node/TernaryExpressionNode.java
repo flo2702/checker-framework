@@ -1,12 +1,14 @@
 package org.checkerframework.dataflow.cfg.node;
 
 import com.sun.source.tree.ConditionalExpressionTree;
-import com.sun.source.tree.Tree.Kind;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Objects;
+import com.sun.source.tree.Tree;
+
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.javacutil.TreeUtils;
+
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Objects;
 
 /**
  * A node for a conditional expression:
@@ -25,7 +27,7 @@ public class TernaryExpressionNode extends Node {
     public TernaryExpressionNode(
             ConditionalExpressionTree tree, Node condition, Node thenOperand, Node elseOperand) {
         super(TreeUtils.typeOf(tree));
-        assert tree.getKind() == Kind.CONDITIONAL_EXPRESSION;
+        assert tree.getKind() == Tree.Kind.CONDITIONAL_EXPRESSION;
         this.tree = tree;
         this.condition = condition;
         this.thenOperand = thenOperand;
@@ -83,10 +85,6 @@ public class TernaryExpressionNode extends Node {
 
     @Override
     public Collection<Node> getOperands() {
-        ArrayList<Node> list = new ArrayList<>(3);
-        list.add(getConditionOperand());
-        list.add(getThenOperand());
-        list.add(getElseOperand());
-        return list;
+        return Arrays.asList(getConditionOperand(), getThenOperand(), getElseOperand());
     }
 }

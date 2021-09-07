@@ -1,14 +1,16 @@
 package org.checkerframework.common.value.util;
 
+import org.checkerframework.checker.interning.qual.InternedDistinct;
+import org.checkerframework.checker.nullness.qual.Nullable;
+
 import java.math.BigInteger;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+
 import javax.lang.model.type.TypeKind;
-import org.checkerframework.checker.interning.qual.InternedDistinct;
-import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * The Range class models a 64-bit two's-complement integral interval, such as all integers between
@@ -715,7 +717,7 @@ public class Range {
                 } else { // (to > Long.MIN_VALUE)
                     // When this range contains Long.MIN_VALUE, which would have a remainder of 0 if
                     // divided by Long.MIN_VALUE, the result range is {0} unioned with [from + 1,
-                    // to]
+                    // to].
                     range = create(from + 1, to).union(create(0, 0));
                 }
             } else { // (from > Long.MIN_VALUE)

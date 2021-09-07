@@ -1,12 +1,5 @@
 package org.checkerframework.framework.util;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.type.TypeVariable;
 import org.checkerframework.checker.interning.qual.FindDistinct;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
@@ -22,6 +15,15 @@ import org.checkerframework.framework.type.QualifierHierarchy;
 import org.checkerframework.framework.type.visitor.AbstractAtmComboVisitor;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.TypeVariable;
 
 /**
  * Helper class to compute the least upper bound of two AnnotatedTypeMirrors.
@@ -166,15 +168,21 @@ class AtmLubVisitor extends AbstractAtmComboVisitor<Void, AnnotatedTypeMirror> {
         AnnotatedDeclaredType castedLub = castLub(type1, lub);
 
         lubPrimaryAnnotations(type1, type2, lub);
-        List<AnnotatedTypeMirror> lubTypArgs = new ArrayList<>();
+
+        if (lub.getKind() == TypeKind.DECLARED) {
+            AnnotatedDeclaredType enclosingLub = ((AnnotatedDeclaredType) lub).getEnclosingType();
+            AnnotatedDeclaredType enclosing1 = type1.getEnclosingType();
+            AnnotatedDeclaredType enclosing2 = type2.getEnclosingType();
+            if (enclosingLub != null && enclosing1 != null && enclosing2 != null) {
+                visitDeclared_Declared(enclosing1, enclosing2, enclosingLub);
+            }
+        }
+
         for (int i = 0; i < type1.getTypeArguments().size(); i++) {
             AnnotatedTypeMirror type1TypeArg = type1.getTypeArguments().get(i);
             AnnotatedTypeMirror type2TypeArg = type2.getTypeArguments().get(i);
             AnnotatedTypeMirror lubTypeArg = castedLub.getTypeArguments().get(i);
             lubTypeArgument(type1TypeArg, type2TypeArg, lubTypeArg);
-        }
-        if (!lubTypArgs.isEmpty()) {
-            castedLub.setTypeArguments(lubTypArgs);
         }
         return null;
     }
@@ -187,7 +195,7 @@ class AtmLubVisitor extends AbstractAtmComboVisitor<Void, AnnotatedTypeMirror> {
         final AnnotatedTypeMirror type1AsLub = AnnotatedTypes.asSuper(atypeFactory, type1, lub);
         final AnnotatedTypeMirror type2AsLub = AnnotatedTypes.asSuper(atypeFactory, type2, lub);
 
-        // If the type argument is a wildcard or captured wildcard, then the lub computation is
+        // If the type argument is a wildcard or captured type argument, then the lub computation is
         // slightly different.  The primary annotation on the lower bound is the glb of lower bounds
         // of the type types.  This is because the lub of Gen<@A ? extends @A Object> and Gen<@B ?
         // extends @A Object> is Gen<@B ? extends @A Object>.  If visit(type1AsLub, type2AsLub, lub)
@@ -213,7 +221,7 @@ class AtmLubVisitor extends AbstractAtmComboVisitor<Void, AnnotatedTypeMirror> {
                     lubWildcard.getSuperBound(),
                     lubWildcard.getExtendsBound());
         } else if (lub.getKind() == TypeKind.TYPEVAR
-                && TypesUtils.isCaptured((TypeVariable) lub.getUnderlyingType())) {
+                && TypesUtils.isCapturedTypeVariable((TypeVariable) lub.getUnderlyingType())) {
             if (visited(lub)) {
                 return;
             }
@@ -248,9 +256,8 @@ class AtmLubVisitor extends AbstractAtmComboVisitor<Void, AnnotatedTypeMirror> {
             AnnotationMirror anno1 = type1LowerBound.getAnnotationInHierarchy(top);
             AnnotationMirror anno2 = type2LowerBound.getAnnotationInHierarchy(top);
 
-            AnnotationMirror glb = null;
             if (anno1 != null && anno2 != null) {
-                glb = qualifierHierarchy.greatestLowerBound(anno1, anno2);
+                AnnotationMirror glb = qualifierHierarchy.greatestLowerBound(anno1, anno2);
                 lubLowerBound.replaceAnnotation(glb);
             }
         }

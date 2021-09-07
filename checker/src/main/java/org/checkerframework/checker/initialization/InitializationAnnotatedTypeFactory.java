@@ -7,30 +7,11 @@ import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.Tree.Kind;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
-import java.lang.annotation.Annotation;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.Modifier;
-import javax.lang.model.element.Name;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.Types;
+
 import org.checkerframework.checker.initialization.qual.FBCBottom;
 import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.initialization.qual.NotOnlyInitialized;
@@ -57,8 +38,31 @@ import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.Pair;
+import org.checkerframework.javacutil.TreePathUtil;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.lang.annotation.Annotation;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
+import javax.lang.model.element.Name;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Types;
 
 /**
  * The annotated type factory for the freedom-before-commitment type-system. The
@@ -88,6 +92,16 @@ public abstract class InitializationAnnotatedTypeFactory<
     /** {@link FBCBottom}. */
     protected final AnnotationMirror FBCBOTTOM;
 
+    /** The java.lang.Object type. */
+    protected final TypeMirror objectTypeMirror;
+
+    /** The Unused.when field/element. */
+    protected final ExecutableElement unusedWhenElement;
+    /** The UnderInitialization.value field/element. */
+    protected final ExecutableElement underInitializationValueElement;
+    /** The UnknownInitialization.value field/element. */
+    protected final ExecutableElement unknownInitializationValueElement;
+
     /** Cache for the initialization annotations. */
     protected final Set<Class<? extends Annotation>> initAnnos;
 
@@ -110,11 +124,19 @@ public abstract class InitializationAnnotatedTypeFactory<
     protected InitializationAnnotatedTypeFactory(BaseTypeChecker checker) {
         super(checker, true);
 
+        UNKNOWN_INITIALIZATION = AnnotationBuilder.fromClass(elements, UnknownInitialization.class);
         INITIALIZED = AnnotationBuilder.fromClass(elements, Initialized.class);
         UNDER_INITALIZATION = AnnotationBuilder.fromClass(elements, UnderInitialization.class);
         NOT_ONLY_INITIALIZED = AnnotationBuilder.fromClass(elements, NotOnlyInitialized.class);
         FBCBOTTOM = AnnotationBuilder.fromClass(elements, FBCBottom.class);
-        UNKNOWN_INITIALIZATION = AnnotationBuilder.fromClass(elements, UnknownInitialization.class);
+
+        objectTypeMirror =
+                processingEnv.getElementUtils().getTypeElement("java.lang.Object").asType();
+        unusedWhenElement = TreeUtils.getMethod(Unused.class, "when", 0, processingEnv);
+        underInitializationValueElement =
+                TreeUtils.getMethod(UnderInitialization.class, "value", 0, processingEnv);
+        unknownInitializationValueElement =
+                TreeUtils.getMethod(UnknownInitialization.class, "value", 0, processingEnv);
 
         Set<Class<? extends Annotation>> tempInitAnnos = new LinkedHashSet<>(4);
         tempInitAnnos.add(UnderInitialization.class);
@@ -269,9 +291,21 @@ public abstract class InitializationAnnotatedTypeFactory<
      * @return the annotation's argument
      */
     public TypeMirror getTypeFrameFromAnnotation(AnnotationMirror annotation) {
-        TypeMirror name =
-                AnnotationUtils.getElementValue(annotation, "value", TypeMirror.class, true);
-        return name;
+        if (AnnotationUtils.areSameByName(
+                annotation,
+                "org.checkerframework.checker.initialization.qual.UnderInitialization")) {
+            return AnnotationUtils.getElementValue(
+                    annotation,
+                    underInitializationValueElement,
+                    TypeMirror.class,
+                    objectTypeMirror);
+        } else {
+            return AnnotationUtils.getElementValue(
+                    annotation,
+                    unknownInitializationValueElement,
+                    TypeMirror.class,
+                    objectTypeMirror);
+        }
     }
 
     /**
@@ -427,7 +461,7 @@ public abstract class InitializationAnnotatedTypeFactory<
             TreePath topLevelMemberPath = findTopLevelClassMemberForTree(path);
             if (topLevelMemberPath != null && topLevelMemberPath.getLeaf() != null) {
                 Tree topLevelMember = topLevelMemberPath.getLeaf();
-                if (topLevelMember.getKind() != Kind.METHOD
+                if (topLevelMember.getKind() != Tree.Kind.METHOD
                         || TreeUtils.isConstructor((MethodTree) topLevelMember)) {
                     setSelfTypeInInitializationCode(tree, enclosing, topLevelMemberPath);
                 }
@@ -456,7 +490,7 @@ public abstract class InitializationAnnotatedTypeFactory<
                 return null;
             }
         }
-        ClassTree enclosingClass = TreeUtils.enclosingClass(path);
+        ClassTree enclosingClass = TreePathUtil.enclosingClass(path);
         if (enclosingClass != null) {
             List<? extends Tree> classMembers = enclosingClass.getMembers();
             TreePath searchPath = path;
@@ -474,18 +508,22 @@ public abstract class InitializationAnnotatedTypeFactory<
     /**
      * Side-effects argument {@code selfType} to make it @Initialized or @UnderInitialization,
      * depending on whether all fields have been set.
+     *
+     * @param tree a tree
+     * @param selfType the type to side-effect
+     * @param path a path
      */
     protected void setSelfTypeInInitializationCode(
             Tree tree, AnnotatedDeclaredType selfType, TreePath path) {
-        ClassTree enclosingClass = TreeUtils.enclosingClass(path);
+        ClassTree enclosingClass = TreePathUtil.enclosingClass(path);
         Type classType = ((JCTree) enclosingClass).type;
         AnnotationMirror annotation = null;
 
         // If all fields are initialized-only, and they are all initialized,
         // then:
-        // - if the class is final, this is @Initialized
-        // - otherwise, this is @UnderInitialization(CurrentClass) as
-        // there might still be subclasses that need initialization.
+        //  - if the class is final, this is @Initialized
+        //  - otherwise, this is @UnderInitialization(CurrentClass) as
+        //    there might still be subclasses that need initialization.
         if (areAllFieldsInitializedOnly(enclosingClass)) {
             Store store = getStoreBefore(tree);
             if (store != null
@@ -553,8 +591,8 @@ public abstract class InitializationAnnotatedTypeFactory<
             Store store,
             TreePath path,
             boolean isStatic,
-            List<? extends AnnotationMirror> receiverAnnotations) {
-        ClassTree currentClass = TreeUtils.enclosingClass(path);
+            Collection<? extends AnnotationMirror> receiverAnnotations) {
+        ClassTree currentClass = TreePathUtil.enclosingClass(path);
         List<VariableTree> fields = InitializationChecker.getAllFields(currentClass);
         List<VariableTree> uninitWithInvariantAnno = new ArrayList<>();
         List<VariableTree> uninitWithoutInvariantAnno = new ArrayList<>();
@@ -607,7 +645,7 @@ public abstract class InitializationAnnotatedTypeFactory<
     public List<VariableTree> getInitializedInvariantFields(Store store, TreePath path) {
         // TODO: Instead of passing the TreePath around, can we use
         // getCurrentClassTree?
-        ClassTree currentClass = TreeUtils.enclosingClass(path);
+        ClassTree currentClass = TreePathUtil.enclosingClass(path);
         List<VariableTree> fields = InitializationChecker.getAllFields(currentClass);
         List<VariableTree> initializedFields = new ArrayList<>();
         for (VariableTree field : fields) {
@@ -638,7 +676,7 @@ public abstract class InitializationAnnotatedTypeFactory<
             return false;
         }
 
-        Name when = AnnotationUtils.getElementValueClassName(unused, "when", false);
+        Name when = AnnotationUtils.getElementValueClassName(unused, unusedWhenElement);
         for (AnnotationMirror anno : receiverAnnos) {
             Name annoName = ((TypeElement) anno.getAnnotationType().asElement()).getQualifiedName();
             if (annoName.contentEquals(when)) {

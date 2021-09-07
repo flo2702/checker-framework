@@ -1,7 +1,8 @@
-import java.lang.reflect.Constructor;
 import org.checkerframework.framework.testchecker.reflection.qual.Sibling1;
 import org.checkerframework.framework.testchecker.reflection.qual.Sibling2;
 import org.checkerframework.framework.testchecker.reflection.qual.Top;
+
+import java.lang.reflect.Constructor;
 
 public class ReflectionConstructorTest {
     @Sibling1 int sibling1;
@@ -48,7 +49,7 @@ public class ReflectionConstructorTest {
         try {
             Class<?> c = ReflectionConstructorTest.class;
             Constructor<?> init = c.getConstructor(new Class<?>[] {Integer.class});
-            // :: error: (assignment.type.incompatible)
+            // :: error: (argument.type.incompatible) :: error: (assignment.type.incompatible)
             @Sibling1 Object o = init.newInstance(new Object[] {sibling2});
         } catch (Exception ignore) {
         }

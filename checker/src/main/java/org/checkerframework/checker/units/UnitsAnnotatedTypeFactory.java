@@ -4,17 +4,7 @@ import com.sun.source.tree.BinaryTree;
 import com.sun.source.tree.CompoundAssignmentTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.Tree;
-import java.lang.annotation.Annotation;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Name;
-import javax.lang.model.util.Elements;
-import javax.tools.Diagnostic.Kind;
+
 import org.checkerframework.checker.initialization.qual.UnderInitialization;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -47,9 +37,24 @@ import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.InternalUtils;
+import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypeSystemError;
 import org.checkerframework.javacutil.UserError;
 import org.plumelib.reflection.Signatures;
+
+import java.lang.annotation.Annotation;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Name;
+import javax.lang.model.util.Elements;
+import javax.tools.Diagnostic.Kind;
 
 /**
  * Annotated type factory for the Units Checker.
@@ -72,6 +77,20 @@ public class UnitsAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
     protected final AnnotationMirror BOTTOM =
             AnnotationBuilder.fromClass(elements, UnitsBottom.class);
 
+    /** The UnitsMultiple.prefix argument/element. */
+    private final ExecutableElement unitsMultiplePrefixElement =
+            TreeUtils.getMethod(UnitsMultiple.class, "prefix", 0, processingEnv);
+    /** The UnitsMultiple.quantity argument/element. */
+    private final ExecutableElement unitsMultipleQuantityElement =
+            TreeUtils.getMethod(UnitsMultiple.class, "quantity", 0, processingEnv);
+    /** The UnitsRelations.value argument/element. */
+    private final ExecutableElement unitsRelationsValueElement =
+            TreeUtils.getMethod(
+                    org.checkerframework.checker.units.qual.UnitsRelations.class,
+                    "value",
+                    0,
+                    processingEnv);
+
     /**
      * Map from canonical class name to the corresponding UnitsRelations instance. We use the string
      * to prevent instantiating the UnitsRelations multiple times.
@@ -91,9 +110,8 @@ public class UnitsAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         this.postInit();
     }
 
-    // In Units Checker, we always want to print out the Invisible Qualifiers
-    // (UnknownUnits), and to format the print out of qualifiers by removing
-    // Prefix.one
+    // In Units Checker, we always want to print out the Invisible Qualifiers (UnknownUnits), and to
+    // format the print out of qualifiers by removing Prefix.one
     @Override
     protected AnnotatedTypeFormatter createAnnotatedTypeFormatter() {
         return new UnitsAnnotatedTypeFormatter(checker);
@@ -122,11 +140,13 @@ public class UnitsAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
             if (isUnitsMultiple(metaAnno)) {
                 // retrieve the Class of the base unit annotation
                 Name baseUnitAnnoClass =
-                        AnnotationUtils.getElementValueClassName(metaAnno, "quantity", true);
+                        AnnotationUtils.getElementValueClassName(
+                                metaAnno, unitsMultipleQuantityElement);
 
                 // retrieve the SI Prefix of the aliased annotation
                 Prefix prefix =
-                        AnnotationUtils.getElementValueEnum(metaAnno, "prefix", Prefix.class, true);
+                        AnnotationUtils.getElementValueEnum(
+                                metaAnno, unitsMultiplePrefixElement, Prefix.class, Prefix.one);
 
                 // Build a base unit annotation with the prefix applied
                 result =
@@ -166,6 +186,7 @@ public class UnitsAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         if (unitsRel == null) {
             unitsRel = new HashMap<>();
             // Always add the default units relations, for the standard units.
+            // Other code adds more relations.
             unitsRel.put(
                     UnitsRelationsDefault.class.getCanonicalName(),
                     new UnitsRelationsDefault().init(processingEnv));
@@ -310,7 +331,8 @@ public class UnitsAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
                 // TODO: does every alias have to have Prefix?
                 // Retrieve the base unit annotation.
                 Name baseUnitAnnoClass =
-                        AnnotationUtils.getElementValueClassName(metaAnno, "quantity", true);
+                        AnnotationUtils.getElementValueClassName(
+                                metaAnno, unitsMultipleQuantityElement);
                 return baseUnitAnnoClass;
             }
         }
@@ -339,10 +361,12 @@ public class UnitsAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         for (AnnotationMirror ama : am.getAnnotationType().asElement().getAnnotationMirrors()) {
             if (areSameByClass(ama, unitsRelationsAnnoClass)) {
                 String theclassname =
-                        AnnotationUtils.getElementValueClassName(ama, "value", true).toString();
+                        AnnotationUtils.getElementValueClassName(ama, unitsRelationsValueElement)
+                                .toString();
                 if (!Signatures.isClassGetName(theclassname)) {
                     throw new UserError(
-                            "Malformed class name \"%s\" should be in ClassGetName format in annotation %s",
+                            "Malformed class name \"%s\" should be in ClassGetName format in"
+                                    + " annotation %s",
                             theclassname, ama);
                 }
                 Class<?> valueElement;
@@ -378,7 +402,7 @@ public class UnitsAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
                                         .newInstance()
                                         .init(processingEnv));
                     } catch (Throwable e) {
-                        throw new BugInCF("Throwable when instantiating UnitsRelations", e);
+                        throw new TypeSystemError("Throwable when instantiating UnitsRelations", e);
                     }
                 }
             }
@@ -603,10 +627,15 @@ public class UnitsAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
                     return lub;
                 }
             }
-            throw new BugInCF("Unexpected QualifierKinds: %s %s", qualifierKind1, qualifierKind2);
+            throw new TypeSystemError(
+                    "Unexpected QualifierKinds: %s %s", qualifierKind1, qualifierKind2);
         }
 
         @Override
+        @SuppressWarnings(
+                "nullness:return" // This class UnitsQualifierHierarchy is annotated for nullness,
+        // but the outer class UnitsAnnotatedTypeFactory is not, so the type of fields is @Nullable.
+        )
         protected AnnotationMirror greatestLowerBoundWithElements(
                 AnnotationMirror a1,
                 QualifierKind qualifierKind1,
@@ -688,7 +717,7 @@ public class UnitsAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
                 }
                 superQuals.removeAll(lowest);
             }
-            throw new BugInCF("No direct super qualifier found for %s", qualifierKind);
+            throw new TypeSystemError("No direct super qualifier found for %s", qualifierKind);
         }
     }
 

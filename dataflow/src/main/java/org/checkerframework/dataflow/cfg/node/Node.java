@@ -1,17 +1,20 @@
 package org.checkerframework.dataflow.cfg.node;
 
 import com.sun.source.tree.Tree;
-import java.util.ArrayDeque;
-import java.util.Collection;
-import java.util.StringJoiner;
-import java.util.concurrent.atomic.AtomicLong;
-import javax.lang.model.type.TypeMirror;
+
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.cfg.block.Block;
 import org.checkerframework.dataflow.cfg.builder.CFGBuilder;
 import org.checkerframework.dataflow.qual.Pure;
 import org.plumelib.util.UniqueId;
+
+import java.util.ArrayDeque;
+import java.util.Collection;
+import java.util.StringJoiner;
+import java.util.concurrent.atomic.AtomicLong;
+
+import javax.lang.model.type.TypeMirror;
 
 /**
  * A node in the abstract representation used for Java code inside a basic block.
@@ -104,7 +107,7 @@ public abstract class Node implements UniqueId {
      * Returns the {@link Tree} in the abstract syntax tree, or {@code null} if no corresponding
      * tree exists. For instance, this is the case for an {@link ImplicitThisNode}.
      *
-     * @return the corresponding {@link Tree} or {@code null}.
+     * @return the corresponding {@link Tree} or {@code null}
      */
     @Pure
     public abstract @Nullable Tree getTree();

@@ -1,15 +1,17 @@
 package org.checkerframework.dataflow.cfg.block;
 
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.dataflow.cfg.node.Node;
+import org.checkerframework.javacutil.BugInCF;
+
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import javax.lang.model.type.TypeMirror;
-import org.checkerframework.checker.nullness.qual.Nullable;
-import org.checkerframework.dataflow.cfg.node.Node;
-import org.checkerframework.javacutil.BugInCF;
 
 /** Base class of the {@link Block} implementation hierarchy. */
 public class ExceptionBlockImpl extends SingleSuccessorBlockImpl implements ExceptionBlock {
@@ -23,7 +25,7 @@ public class ExceptionBlockImpl extends SingleSuccessorBlockImpl implements Exce
     /** Create an empty exceptional block. */
     public ExceptionBlockImpl() {
         super(BlockType.EXCEPTION_BLOCK);
-        exceptionalSuccessors = new LinkedHashMap<>();
+        exceptionalSuccessors = new LinkedHashMap<>(2);
     }
 
     /** Set the node. */
@@ -62,11 +64,8 @@ public class ExceptionBlockImpl extends SingleSuccessorBlockImpl implements Exce
      * @param cause the exception type that leads to the given block
      */
     public void addExceptionalSuccessor(BlockImpl b, TypeMirror cause) {
-        Set<Block> blocks = exceptionalSuccessors.get(cause);
-        if (blocks == null) {
-            blocks = new LinkedHashSet<>();
-            exceptionalSuccessors.put(cause, blocks);
-        }
+        Set<Block> blocks =
+                exceptionalSuccessors.computeIfAbsent(cause, __ -> new LinkedHashSet<>());
         blocks.add(b);
         b.addPredecessor(this);
     }

@@ -1,16 +1,20 @@
 package org.checkerframework.checker.nullness;
 
 import com.sun.source.tree.ExpressionTree;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
+
 import org.checkerframework.checker.nullness.qual.KeyFor;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.flow.CFAbstractValue;
 import org.checkerframework.javacutil.AnnotationUtils;
+
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
 
 /**
  * KeyForValue holds additional information about which maps this value is a key for. This extra
@@ -18,14 +22,18 @@ import org.checkerframework.javacutil.AnnotationUtils;
  * type. For example,
  *
  * <pre>
- * {@code Map<T, Object> map = ...;}
- * {@code <T> T method(T param) { }
- *   if (map.contains(param) {
  *     {@code @NonNull Object o = map.get(param);}
+ * </pre>
+ *
+ * <pre><code>
+ * Map&lt;T, Object&gt; map = ...;
+ * &lt;T&gt; T method(T param) {
+ *   if (map.contains(param)) {
+ *    &nbsp;@NonNull Object o = map.get(param);
  *     return param;
  *   }
  * }
- * }</pre>
+ * </code></pre>
  *
  * Inside the if statement, {@code param} is a key for "map". This would normally be represented as
  * {@code @KeyFor("map") T}, but this is not a subtype of {@code T}, so the type cannot be refined.
@@ -38,7 +46,7 @@ public class KeyForValue extends CFAbstractValue<KeyForValue> {
      * this value is a key. Otherwise, it's null.
      */
     // Cannot be final because lub re-assigns; add a new constructor to do this cleanly?
-    private Set<String> keyForMaps;
+    private @Nullable Set<String> keyForMaps;
 
     /** Create an instance. */
     public KeyForValue(
@@ -46,14 +54,16 @@ public class KeyForValue extends CFAbstractValue<KeyForValue> {
             Set<AnnotationMirror> annotations,
             TypeMirror underlyingType) {
         super(analysis, annotations, underlyingType);
-        AnnotationMirror keyfor =
-                analysis.getTypeFactory().getAnnotationByClass(annotations, KeyFor.class);
+        KeyForAnnotatedTypeFactory atypeFactory =
+                (KeyForAnnotatedTypeFactory) analysis.getTypeFactory();
+        AnnotationMirror keyfor = atypeFactory.getAnnotationByClass(annotations, KeyFor.class);
         if (keyfor != null
                 && (underlyingType.getKind() == TypeKind.TYPEVAR
                         || underlyingType.getKind() == TypeKind.WILDCARD)) {
-            keyForMaps = new LinkedHashSet<>();
             List<String> list =
-                    AnnotationUtils.getElementValueArray(keyfor, "value", String.class, true);
+                    AnnotationUtils.getElementValueArray(
+                            keyfor, atypeFactory.keyForValueElement, String.class);
+            keyForMaps = new LinkedHashSet<>(list.size());
             keyForMaps.addAll(list);
         } else {
             keyForMaps = null;
@@ -75,7 +85,7 @@ public class KeyForValue extends CFAbstractValue<KeyForValue> {
             return lub;
         }
         // Lub the keyForMaps by intersecting the sets.
-        lub.keyForMaps = new LinkedHashSet<>();
+        lub.keyForMaps = new LinkedHashSet<>(this.keyForMaps.size());
         lub.keyForMaps.addAll(this.keyForMaps);
         lub.keyForMaps.retainAll(other.keyForMaps);
         if (lub.keyForMaps.isEmpty()) {

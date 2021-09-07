@@ -1,11 +1,16 @@
 package org.checkerframework.checker.units;
 
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.AnnotationMirror;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 
-/** Interface that is used to specify the relation between units. */
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.AnnotationMirror;
+
+/**
+ * Interface that is used to specify the relation between units. A class that implements this
+ * interface is the argument to the {@link org.checkerframework.checker.units.qual.UnitsRelations}
+ * annotation.
+ */
 public interface UnitsRelations {
     /**
      * Initialize the object. Needs to be called before any other method.

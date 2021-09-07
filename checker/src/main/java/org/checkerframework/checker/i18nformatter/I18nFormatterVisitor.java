@@ -2,9 +2,7 @@ package org.checkerframework.checker.i18nformatter;
 
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.Tree;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.type.TypeMirror;
+
 import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
 import org.checkerframework.checker.formatter.FormatterTreeUtil.InvocationType;
 import org.checkerframework.checker.formatter.FormatterTreeUtil.Result;
@@ -14,11 +12,14 @@ import org.checkerframework.checker.i18nformatter.qual.I18nConversionCategory;
 import org.checkerframework.checker.i18nformatter.qual.I18nFormatFor;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
-import org.checkerframework.dataflow.cfg.node.MethodInvocationNode;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.TreeUtils;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.type.TypeMirror;
 
 /**
  * Whenever a method with {@link I18nFormatFor} annotation is invoked, it will perform the format
@@ -34,10 +35,8 @@ public class I18nFormatterVisitor extends BaseTypeVisitor<I18nFormatterAnnotated
 
     @Override
     public Void visitMethodInvocation(MethodInvocationTree tree, Void p) {
-        MethodInvocationNode nodeNode =
-                atypeFactory.getFirstNodeOfKindForTree(tree, MethodInvocationNode.class);
         I18nFormatterTreeUtil tu = atypeFactory.treeUtil;
-        I18nFormatCall fc = tu.createFormatForCall(tree, nodeNode, atypeFactory);
+        I18nFormatCall fc = tu.createFormatForCall(tree, atypeFactory);
         if (fc != null) {
             checkInvocationFormatFor(fc);
             return p;
@@ -70,8 +69,8 @@ public class I18nFormatterVisitor extends BaseTypeVisitor<I18nFormatterAnnotated
                         int formatl = formatCats.length;
 
                         // For assignments, i18nformat.missing.arguments and
-                        // i18nformat.excess.arguments are issued
-                        // from commonAssignmentCheck.
+                        // i18nformat.excess.arguments are
+                        // issued from commonAssignmentCheck.
                         if (paraml < formatl) {
                             tu.warning(invc, "i18nformat.missing.arguments", formatl, paraml);
                         }
@@ -158,9 +157,8 @@ public class I18nFormatterVisitor extends BaseTypeVisitor<I18nFormatterAnnotated
                         varType.toString(),
                         valueType.toString());
             } else if (rhsArgTypes.length > lhsArgTypes.length) {
-                // Since it is known that too many conversion categories were provided,
-                // issue a more specific error message to that effect than
-                // assignment.type.incompatible.
+                // Since it is known that too many conversion categories were provided, issue a more
+                // specific error message to that effect than assignment.type.incompatible.
                 checker.reportError(
                         valueTree,
                         "i18nformat.excess.arguments",
@@ -171,7 +169,7 @@ public class I18nFormatterVisitor extends BaseTypeVisitor<I18nFormatterAnnotated
 
         // By calling super.commonAssignmentCheck last, any i18nformat.excess.arguments message
         // issued for a given line of code will take precedence over the
-        // assignment.type.incompatible
+        //   assignment.type.incompatible
         // issued by super.commonAssignmentCheck.
         super.commonAssignmentCheck(varType, valueType, valueTree, errorKey, extraArgs);
     }

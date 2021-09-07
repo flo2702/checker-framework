@@ -1,6 +1,5 @@
 package org.checkerframework.checker.calledmethods;
 
-import java.util.LinkedHashSet;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.common.accumulation.AccumulationChecker;
 import org.checkerframework.common.basetype.BaseTypeChecker;
@@ -9,6 +8,8 @@ import org.checkerframework.common.value.ValueChecker;
 import org.checkerframework.framework.qual.StubFiles;
 import org.checkerframework.framework.source.SupportedOptions;
 import org.checkerframework.framework.source.SuppressWarningsPrefix;
+
+import java.util.LinkedHashSet;
 
 /**
  * The Called Methods Checker tracks the methods that have definitely been called on an object. One
@@ -27,6 +28,7 @@ import org.checkerframework.framework.source.SuppressWarningsPrefix;
     CalledMethodsChecker.USE_VALUE_CHECKER,
     CalledMethodsChecker.COUNT_FRAMEWORK_BUILD_CALLS,
     CalledMethodsChecker.DISABLE_BUILDER_FRAMEWORK_SUPPORTS,
+    CalledMethodsChecker.DISABLE_RETURNS_RECEIVER
 })
 @StubFiles({"DescribeImages.astub", "GenerateDataKey.astub"})
 public class CalledMethodsChecker extends AccumulationChecker {
@@ -60,7 +62,7 @@ public class CalledMethodsChecker extends AccumulationChecker {
 
     /**
      * The number of calls to build frameworks supported by this invocation. Incremented only if the
-     * {@link #COUNT_FRAMEWORK_BUILD_CALLS} option was supplied.
+     * {@link #COUNT_FRAMEWORK_BUILD_CALLS} command-line option was supplied.
      */
     int numBuildCalls = 0;
 
@@ -74,17 +76,7 @@ public class CalledMethodsChecker extends AccumulationChecker {
      */
     private boolean isReturnsReceiverDisabled() {
         if (returnsReceiverDisabled == null) {
-            // BaseTypeChecker#hasOption calls getImmediateSubcheckerClasses (so that all
-            // subcheckers' options are considered), so the processingEnvironment must be checked
-            // for options directly, because this method is called from there.
-            returnsReceiverDisabled =
-                    this.processingEnv.getOptions().containsKey(DISABLE_RETURNS_RECEIVER)
-                            || this.processingEnv
-                                    .getOptions()
-                                    .containsKey(
-                                            this.getClass().getSimpleName()
-                                                    + "_"
-                                                    + DISABLE_RETURNS_RECEIVER);
+            returnsReceiverDisabled = hasOptionNoSubcheckers(DISABLE_RETURNS_RECEIVER);
         }
         return returnsReceiverDisabled;
     }

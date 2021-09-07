@@ -9,18 +9,9 @@ import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.ParenthesizedTree;
 import com.sun.source.tree.StatementTree;
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.Tree.Kind;
 import com.sun.source.tree.UnaryTree;
 import com.sun.source.tree.VariableTree;
-import java.util.Collection;
-import java.util.List;
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
+
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.common.basetype.BaseAnnotatedTypeFactory;
 import org.checkerframework.common.basetype.BaseTypeChecker;
@@ -32,6 +23,17 @@ import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclared
 import org.checkerframework.javacutil.Pair;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.util.Collection;
+import java.util.List;
+
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
 
 /**
  * The OptionalVisitor enforces the Optional Checker rules. These rules are described in the Checker
@@ -87,7 +89,12 @@ public class OptionalVisitor
         return new OptionalTypeValidator(checker, this, atypeFactory);
     }
 
-    /** @return true iff expression is a call to java.util.Optional.get */
+    /**
+     * Returns true iff {@code expression} is a call to java.util.Optional.get.
+     *
+     * @param expression an expression
+     * @return true iff {@code expression} is a call to java.util.Optional.get
+     */
     private boolean isCallToGet(ExpressionTree expression) {
         ProcessingEnvironment env = checker.getProcessingEnvironment();
         return TreeUtils.isMethodInvocation(expression, optionalGet, env);
@@ -131,7 +138,12 @@ public class OptionalVisitor
         }
     }
 
-    /** @return true iff expression is a call to Optional creation: of, ofNullable. */
+    /**
+     * Returns true iff the method being callid is Optional creation: of, ofNullable.
+     *
+     * @param methInvok a method invocation
+     * @return true iff the method being called is Optional creation: of, ofNullable
+     */
     private boolean isOptionalCreation(MethodInvocationTree methInvok) {
         ProcessingEnvironment env = checker.getProcessingEnvironment();
         return TreeUtils.isMethodInvocation(methInvok, optionalOf, env)
@@ -139,7 +151,11 @@ public class OptionalVisitor
     }
 
     /**
-     * @return true iff expression is a call to Optional elimination: get, orElse, orElseGet,
+     * Returns true iff the method being called is Optional elimination: get, orElse, orElseGet,
+     * orElseThrow.
+     *
+     * @param methInvok a method invocation
+     * @return true iff the method being called is Optional elimination: get, orElse, orElseGet,
      *     orElseThrow
      */
     private boolean isOptionalElimation(MethodInvocationTree methInvok) {
@@ -181,7 +197,7 @@ public class OptionalVisitor
             falseExpr = tmp;
         }
 
-        if (trueExpr.getKind() != Kind.METHOD_INVOCATION) {
+        if (trueExpr.getKind() != Tree.Kind.METHOD_INVOCATION) {
             return;
         }
         ExpressionTree trueReceiver = TreeUtils.getReceiverTree(trueExpr);
@@ -208,10 +224,16 @@ public class OptionalVisitor
         }
     }
 
-    /** Return true if the two trees represent the same expression. */
+    /**
+     * Returns true if the two trees represent the same expression.
+     *
+     * @param tree1 the first tree
+     * @param tree2 the second tree
+     * @return true if the two trees represent the same expression
+     */
     private boolean sameExpression(ExpressionTree tree1, ExpressionTree tree2) {
-        JavaExpression r1 = JavaExpression.fromTree(atypeFactory, tree1);
-        JavaExpression r2 = JavaExpression.fromTree(atypeFactory, tree1);
+        JavaExpression r1 = JavaExpression.fromTree(tree1);
+        JavaExpression r2 = JavaExpression.fromTree(tree1);
         if (r1 != null && !r1.containsUnknown() && r2 != null && !r2.containsUnknown()) {
             return r1.equals(r2);
         } else {
@@ -255,11 +277,11 @@ public class OptionalVisitor
             return;
         }
 
-        if (thenStmt.getKind() != Kind.EXPRESSION_STATEMENT) {
+        if (thenStmt.getKind() != Tree.Kind.EXPRESSION_STATEMENT) {
             return;
         }
         ExpressionTree thenExpr = ((ExpressionStatementTree) thenStmt).getExpression();
-        if (thenExpr.getKind() != Kind.METHOD_INVOCATION) {
+        if (thenExpr.getKind() != Tree.Kind.METHOD_INVOCATION) {
             return;
         }
         MethodInvocationTree invok = (MethodInvocationTree) thenExpr;
@@ -306,7 +328,7 @@ public class OptionalVisitor
             return;
         }
         ExpressionTree receiver = TreeUtils.getReceiverTree(node);
-        if (!(receiver.getKind() == Kind.METHOD_INVOCATION
+        if (!(receiver.getKind() == Tree.Kind.METHOD_INVOCATION
                 && isOptionalCreation((MethodInvocationTree) receiver))) {
             return;
         }

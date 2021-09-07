@@ -3,10 +3,12 @@ package org.checkerframework.framework.type;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.Tree;
-import javax.lang.model.type.TypeKind;
+
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
 import org.checkerframework.javacutil.BugInCF;
+
+import javax.lang.model.type.TypeKind;
 
 /**
  * A utility class to convert trees into corresponding AnnotatedTypeMirrors. This class should be
@@ -40,10 +42,11 @@ class TypeFromTree {
             type = expressionVisitor.visit(tree, typeFactory);
         } catch (Throwable t) {
             throw new BugInCF(
-                    String.format(
-                            "Error in AnnotatedTypeMirror.fromExpression(%s, %s): %s",
-                            typeFactory.getClass().getSimpleName(), tree, t.getMessage()),
-                    t);
+                    t,
+                    "Error in AnnotatedTypeMirror.fromExpression(%s, %s): %s",
+                    typeFactory.getClass().getSimpleName(),
+                    tree,
+                    t.getMessage());
         }
         ifExecutableCheckElement(typeFactory, tree, type);
 

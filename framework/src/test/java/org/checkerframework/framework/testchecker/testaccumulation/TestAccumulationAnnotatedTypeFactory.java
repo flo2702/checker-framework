@@ -1,7 +1,7 @@
 package org.checkerframework.framework.testchecker.testaccumulation;
 
 import com.sun.source.tree.MethodInvocationTree;
-import javax.lang.model.element.AnnotationMirror;
+
 import org.checkerframework.common.accumulation.AccumulationAnnotatedTypeFactory;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.framework.testchecker.testaccumulation.qual.TestAccumulation;
@@ -11,6 +11,8 @@ import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.treeannotator.ListTreeAnnotator;
 import org.checkerframework.framework.type.treeannotator.TreeAnnotator;
 import org.checkerframework.javacutil.TreeUtils;
+
+import javax.lang.model.element.AnnotationMirror;
 
 /**
  * The annotated type factory for a test accumulation checker, which implements a basic called
@@ -58,12 +60,10 @@ public class TestAccumulationAnnotatedTypeFactory extends AccumulationAnnotatedT
             //
             // The basic accumulation analysis cannot handle this case - it can use the RR checker
             // to transfer an annotation from the receiver to the return type, but because
-            // accumulation
-            // (has to) happen in dataflow, the correct annotation may not yet be available. The
-            // basic
-            // accumulation analysis therefore only supports "pass-through" returns receiver
-            // methods;
-            // it does not support automatically accumulating at the same time.
+            // accumulation (has to) happen in dataflow, the correct annotation may not yet be
+            // available. The basic accumulation analysis therefore only supports "pass-through"
+            // returns receiver methods; it does not support automatically accumulating at the same
+            // time.
             if (returnsThis(tree)) {
                 String methodName = TreeUtils.getMethodName(tree.getMethodSelect());
                 AnnotationMirror oldAnno = type.getAnnotationInHierarchy(top);

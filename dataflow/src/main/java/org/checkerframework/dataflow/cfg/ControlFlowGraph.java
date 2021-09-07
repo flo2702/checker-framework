@@ -5,20 +5,7 @@ import com.sun.source.tree.LambdaExpressionTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.UnaryTree;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Queue;
-import java.util.Set;
-import java.util.StringJoiner;
-import java.util.concurrent.atomic.AtomicLong;
+
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.analysis.AnalysisResult;
@@ -35,6 +22,19 @@ import org.checkerframework.dataflow.cfg.node.ReturnNode;
 import org.checkerframework.dataflow.cfg.visualize.CFGVisualizer;
 import org.checkerframework.dataflow.cfg.visualize.StringCFGVisualizer;
 import org.plumelib.util.UniqueId;
+
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.StringJoiner;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * A control flow graph (CFG for short) of a single method.
@@ -186,6 +186,7 @@ public class ControlFlowGraph implements UniqueId {
     public Set<Block> getAllBlocks(
             @UnknownInitialization(ControlFlowGraph.class) ControlFlowGraph this) {
         Set<Block> visited = new HashSet<>();
+        // worklist is always a subset of visited; any block in worklist is also in visited.
         Queue<Block> worklist = new ArrayDeque<>();
         Block cur = entryBlock;
         visited.add(entryBlock);
@@ -196,11 +197,8 @@ public class ControlFlowGraph implements UniqueId {
                 break;
             }
 
-            Collection<Block> succs = cur.getSuccessors();
-
-            for (Block b : succs) {
-                if (!visited.contains(b)) {
-                    visited.add(b);
+            for (Block b : cur.getSuccessors()) {
+                if (visited.add(b)) {
                     worklist.add(b);
                 }
             }
@@ -235,6 +233,7 @@ public class ControlFlowGraph implements UniqueId {
     public List<Block> getDepthFirstOrderedBlocks() {
         List<Block> dfsOrderResult = new ArrayList<>();
         Set<Block> visited = new HashSet<>();
+        // worklist can contain values that are not yet in visited.
         Deque<Block> worklist = new ArrayDeque<>();
         worklist.add(entryBlock);
         while (!worklist.isEmpty()) {
@@ -244,9 +243,12 @@ public class ControlFlowGraph implements UniqueId {
                 worklist.removeLast();
             } else {
                 visited.add(cur);
-                Collection<Block> successors = cur.getSuccessors();
-                successors.removeAll(visited);
-                worklist.addAll(successors);
+
+                for (Block b : cur.getSuccessors()) {
+                    if (!visited.contains(b)) {
+                        worklist.add(b);
+                    }
+                }
             }
         }
 
@@ -311,11 +313,8 @@ public class ControlFlowGraph implements UniqueId {
 
     @Override
     public String toString() {
-        Map<String, Object> args = new HashMap<>();
-        args.put("verbose", true);
-
         CFGVisualizer<?, ?, ?> viz = new StringCFGVisualizer<>();
-        viz.init(args);
+        viz.init(Collections.singletonMap("verbose", true));
         Map<String, Object> res = viz.visualize(this, this.getEntryBlock(), null);
         viz.shutdown();
         if (res == null) {

@@ -3,8 +3,8 @@ import org.checkerframework.dataflow.qual.*;
 
 public class AnnotatedGenerics {
     public static void testNullableTypeVariable() {
-        // :: error: (initialization.fields.uninitialized)
         class Test<T extends @Nullable Object> {
+            // :: error: (initialization.field.uninitialized)
             T f;
 
             @Nullable T get() {
@@ -13,7 +13,7 @@ public class AnnotatedGenerics {
         }
         Test<Iterable<String>> l = new Test<>();
         // :: error: (iterating.over.nullable)
-        for (String s : l.get()) ;
+        for (String s : l.get()) {}
     }
 
     public static void testNonNullTypeVariable() {
@@ -23,9 +23,9 @@ public class AnnotatedGenerics {
             }
         }
         Test<@Nullable Iterable<String>> l = new Test<>();
-        for (String s : l.get()) ;
+        for (String s : l.get()) {}
         Test<Iterable<String>> n = new Test<>();
-        for (String s : n.get()) ;
+        for (String s : n.get()) {}
     }
 
     static class MyClass<T> implements MyIterator<@Nullable T> {

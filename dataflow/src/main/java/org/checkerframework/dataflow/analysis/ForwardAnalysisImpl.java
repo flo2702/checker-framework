@@ -2,14 +2,7 @@ package org.checkerframework.dataflow.analysis;
 
 import com.sun.source.tree.LambdaExpressionTree;
 import com.sun.source.tree.MethodTree;
-import com.sun.source.tree.VariableTree;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import javax.lang.model.type.TypeMirror;
+
 import org.checkerframework.checker.interning.qual.FindDistinct;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.checker.nullness.qual.RequiresNonNull;
@@ -28,6 +21,15 @@ import org.checkerframework.dataflow.cfg.node.ReturnNode;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.Pair;
+import org.plumelib.util.CollectionsPlume;
+
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.lang.model.type.TypeMirror;
 
 /**
  * An implementation of a forward analysis to solve a org.checkerframework.dataflow problem given a
@@ -96,7 +98,8 @@ public class ForwardAnalysisImpl<
     public void performAnalysis(ControlFlowGraph cfg) {
         if (isRunning) {
             throw new BugInCF(
-                    "ForwardAnalysisImpl::performAnalysis() shouldn't be called when the analysis is running.");
+                    "ForwardAnalysisImpl::performAnalysis() shouldn't be called when the analysis"
+                            + " is running.");
         }
         isRunning = true;
 
@@ -137,7 +140,8 @@ public class ForwardAnalysisImpl<
                     // Propagate store to successors
                     Block succ = rb.getSuccessor();
                     assert succ != null
-                            : "@AssumeAssertion(nullness): regular basic block without non-exceptional successor unexpected";
+                            : "@AssumeAssertion(nullness): regular basic block without"
+                                    + " non-exceptional successor unexpected";
                     propagateStoresTo(
                             succ, lastNode, currentInput, rb.getFlowRule(), addToWorklistAgain);
                     break;
@@ -163,6 +167,9 @@ public class ForwardAnalysisImpl<
                     for (Map.Entry<TypeMirror, Set<Block>> e :
                             eb.getExceptionalSuccessors().entrySet()) {
                         TypeMirror cause = e.getKey();
+                        if (isIgnoredExceptionType(cause)) {
+                            continue;
+                        }
                         S exceptionalStore = transferResult.getExceptionalStore(cause);
                         if (exceptionalStore != null) {
                             for (Block exceptionSucc : e.getValue()) {
@@ -227,12 +234,10 @@ public class ForwardAnalysisImpl<
     @SuppressWarnings("nullness:contracts.precondition.override.invalid") // implementation field
     @RequiresNonNull("cfg")
     public List<Pair<ReturnNode, @Nullable TransferResult<V, S>>> getReturnStatementStores() {
-        List<Pair<ReturnNode, @Nullable TransferResult<V, S>>> result = new ArrayList<>();
-        for (ReturnNode returnNode : cfg.getReturnNodes()) {
-            TransferResult<V, S> store = storesAtReturnStatements.get(returnNode);
-            result.add(Pair.of(returnNode, store));
-        }
-        return result;
+        return CollectionsPlume
+                .<ReturnNode, Pair<ReturnNode, @Nullable TransferResult<V, S>>>mapList(
+                        returnNode -> Pair.of(returnNode, storesAtReturnStatements.get(returnNode)),
+                        cfg.getReturnNodes());
     }
 
     @Override
@@ -249,11 +254,9 @@ public class ForwardAnalysisImpl<
         // Prepare cache
         IdentityHashMap<Node, TransferResult<V, S>> cache;
         if (analysisCaches != null) {
-            cache = analysisCaches.get(blockTransferInput);
-            if (cache == null) {
-                cache = new IdentityHashMap<>();
-                analysisCaches.put(blockTransferInput, cache);
-            }
+            cache =
+                    analysisCaches.computeIfAbsent(
+                            blockTransferInput, __ -> new IdentityHashMap<>());
         } else {
             cache = null;
         }
@@ -312,8 +315,17 @@ public class ForwardAnalysisImpl<
                         setCurrentNode(node);
                         // Copy the store to avoid changing other blocks' transfer inputs in {@link
                         // #inputs}
-                        TransferResult<V, S> transferResult =
-                                callTransferFunction(node, blockTransferInput.copy());
+                        TransferResult<V, S> transferResult;
+                        if (cache != null && cache.containsKey(node)) {
+                            transferResult = cache.get(node);
+                        } else {
+                            // Copy the store to avoid changing other blocks' transfer inputs in
+                            // {@link #inputs}
+                            transferResult = callTransferFunction(node, blockTransferInput.copy());
+                            if (cache != null) {
+                                cache.put(node, transferResult);
+                            }
+                        }
                         return transferResult.getRegularStore();
                     }
                 default:
@@ -360,26 +372,15 @@ public class ForwardAnalysisImpl<
      */
     @SideEffectFree
     private List<LocalVariableNode> getParameters(UnderlyingAST underlyingAST) {
-        List<LocalVariableNode> result;
         switch (underlyingAST.getKind()) {
             case METHOD:
                 MethodTree tree = ((CFGMethod) underlyingAST).getMethod();
-                result = new ArrayList<>();
-                for (VariableTree p : tree.getParameters()) {
-                    LocalVariableNode var = new LocalVariableNode(p);
-                    result.add(var);
-                    // TODO: document that LocalVariableNode has no block that it belongs to
-                }
-                return result;
+                // TODO: document that LocalVariableNode has no block that it belongs to
+                return CollectionsPlume.mapList(LocalVariableNode::new, tree.getParameters());
             case LAMBDA:
                 LambdaExpressionTree lambda = ((CFGLambda) underlyingAST).getLambdaTree();
-                result = new ArrayList<>();
-                for (VariableTree p : lambda.getParameters()) {
-                    LocalVariableNode var = new LocalVariableNode(p);
-                    result.add(var);
-                    // TODO: document that LocalVariableNode has no block that it belongs to
-                }
-                return result;
+                // TODO: document that LocalVariableNode has no block that it belongs to
+                return CollectionsPlume.mapList(LocalVariableNode::new, lambda.getParameters());
             default:
                 return Collections.emptyList();
         }
@@ -496,10 +497,7 @@ public class ForwardAnalysisImpl<
         S elseStore = getStoreBefore(b, Store.Kind.ELSE);
         boolean shouldWiden = false;
         if (blockCount != null) {
-            Integer count = blockCount.get(b);
-            if (count == null) {
-                count = 0;
-            }
+            Integer count = blockCount.getOrDefault(b, 0);
             shouldWiden = count >= maxCountBeforeWidening;
             if (shouldWiden) {
                 blockCount.put(b, 0);

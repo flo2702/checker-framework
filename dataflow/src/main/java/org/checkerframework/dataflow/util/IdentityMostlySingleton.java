@@ -1,9 +1,10 @@
 package org.checkerframework.dataflow.util;
 
-import java.util.Collections;
-import java.util.IdentityHashMap;
 import org.checkerframework.checker.interning.qual.FindDistinct;
 import org.checkerframework.javacutil.BugInCF;
+
+import java.util.Collections;
+import java.util.IdentityHashMap;
 
 /**
  * An arbitrary-size set that is very efficient (more efficient than HashSet) for 0 and 1 elements.
@@ -32,11 +33,7 @@ public final class IdentityMostlySingleton<T extends Object> extends AbstractMos
                 if (value == e) {
                     return false;
                 }
-                state = State.ANY;
-                set = Collections.newSetFromMap(new IdentityHashMap<>());
-                assert value != null : "@AssumeAssertion(nullness): previous add is non-null";
-                set.add(value);
-                value = null;
+                makeNonSingleton();
                 // fall through
             case ANY:
                 assert set != null : "@AssumeAssertion(nullness): set initialized before";
@@ -44,6 +41,15 @@ public final class IdentityMostlySingleton<T extends Object> extends AbstractMos
             default:
                 throw new BugInCF("Unhandled state " + state);
         }
+    }
+
+    /** Switch the representation of this from SINGLETON to ANY. */
+    private void makeNonSingleton() {
+        state = State.ANY;
+        set = Collections.newSetFromMap(new IdentityHashMap<>(4));
+        assert value != null : "@AssumeAssertion(nullness): previous add is non-null";
+        set.add(value);
+        value = null;
     }
 
     @SuppressWarnings("interning:not.interned") // this class uses object identity

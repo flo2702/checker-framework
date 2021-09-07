@@ -1,21 +1,23 @@
 package org.checkerframework.framework.type;
 
-import java.lang.annotation.Annotation;
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
 import org.checkerframework.checker.signature.qual.CanonicalName;
 import org.checkerframework.framework.qual.UpperBoundFor;
 import org.checkerframework.framework.util.AnnotationMirrorSet;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.lang.annotation.Annotation;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
 
 /** Class that computes and stores the qualifier upper bounds for type uses. */
 public class QualifierUpperBounds {
@@ -108,11 +110,8 @@ public class QualifierUpperBounds {
         String qname;
         if (type.getKind() == TypeKind.DECLARED) {
             DeclaredType declaredType = (DeclaredType) type;
-            bounds.addAll(
-                    atypeFactory
-                            .fromElement((TypeElement) declaredType.asElement())
-                            .getAnnotations());
-            qname = TypesUtils.getQualifiedName(declaredType).toString();
+            bounds.addAll(getAnnotationFromElement(declaredType.asElement()));
+            qname = TypesUtils.getQualifiedName(declaredType);
         } else if (type.getKind().isPrimitive()) {
             qname = type.toString();
         } else {
@@ -136,8 +135,23 @@ public class QualifierUpperBounds {
     }
 
     /**
-     * Adds {@code missing} to {@code annos}, for which no annotation from the same qualifier
-     * hierarchy is present.
+     * Returns the explicit annotations on the element. Subclass can override this behavior to add
+     * annotations.
+     *
+     * @param element element whose annotations to return
+     * @return the explicit annotations on the element
+     */
+    protected Set<AnnotationMirror> getAnnotationFromElement(Element element) {
+        return atypeFactory.fromElement(element).getAnnotations();
+    }
+
+    /**
+     * Adds each annotation in {@code missing} to {@code annos}, for which no annotation from the
+     * same qualifier hierarchy is present.
+     *
+     * @param annos an annotation set to side-effect
+     * @param missing annotations to add to {@code annos}, if {@code annos} does not have an
+     *     annotation from the same qualifier hierarchy
      */
     private void addMissingAnnotations(
             AnnotationMirrorSet annos, Set<? extends AnnotationMirror> missing) {

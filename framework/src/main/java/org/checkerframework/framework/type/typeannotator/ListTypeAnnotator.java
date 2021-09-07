@@ -1,10 +1,11 @@
 package org.checkerframework.framework.type.typeannotator;
 
+import org.checkerframework.framework.type.AnnotatedTypeMirror;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import org.checkerframework.framework.type.AnnotatedTypeMirror;
 
 /**
  * ListTypeAnnotator is a TypeAnnotator that executes a list of {@link TypeAnnotator} for each type
@@ -40,7 +41,7 @@ public final class ListTypeAnnotator extends TypeAnnotator {
      */
     public ListTypeAnnotator(List<TypeAnnotator> annotators) {
         super(null);
-        List<TypeAnnotator> annotatorList = new ArrayList<>();
+        List<TypeAnnotator> annotatorList = new ArrayList<>(annotators.size());
         for (TypeAnnotator annotator : annotators) {
             if (annotator instanceof ListTypeAnnotator) {
                 annotatorList.addAll(((ListTypeAnnotator) annotator).annotators);

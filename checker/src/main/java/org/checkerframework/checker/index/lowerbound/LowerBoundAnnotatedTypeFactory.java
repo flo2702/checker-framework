@@ -7,12 +7,8 @@ import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.UnaryTree;
-import java.lang.annotation.Annotation;
-import java.util.Arrays;
-import java.util.LinkedHashSet;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
+
+import org.checkerframework.checker.index.BaseAnnotatedTypeFactoryForIndexChecker;
 import org.checkerframework.checker.index.IndexMethodIdentifier;
 import org.checkerframework.checker.index.inequality.LessThanAnnotatedTypeFactory;
 import org.checkerframework.checker.index.inequality.LessThanChecker;
@@ -31,7 +27,6 @@ import org.checkerframework.checker.index.qual.Positive;
 import org.checkerframework.checker.index.qual.SubstringIndexFor;
 import org.checkerframework.checker.index.searchindex.SearchIndexAnnotatedTypeFactory;
 import org.checkerframework.checker.index.searchindex.SearchIndexChecker;
-import org.checkerframework.common.basetype.BaseAnnotatedTypeFactory;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.value.ValueAnnotatedTypeFactory;
 import org.checkerframework.common.value.ValueChecker;
@@ -45,6 +40,14 @@ import org.checkerframework.framework.type.treeannotator.ListTreeAnnotator;
 import org.checkerframework.framework.type.treeannotator.TreeAnnotator;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.TreeUtils;
+
+import java.lang.annotation.Annotation;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
 
 /**
  * Implements the introduction rules for the Lower Bound Checker.
@@ -85,7 +88,7 @@ import org.checkerframework.javacutil.TreeUtils;
  *       is positive.
  * </ul>
  */
-public class LowerBoundAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
+public class LowerBoundAnnotatedTypeFactory extends BaseAnnotatedTypeFactoryForIndexChecker {
 
     /** The canonical @{@link GTENegativeOne} annotation. */
     public final AnnotationMirror GTEN1 =
@@ -104,14 +107,19 @@ public class LowerBoundAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
     public final AnnotationMirror POLY =
             AnnotationBuilder.fromClass(elements, PolyLowerBound.class);
 
+    /** Predicates about method calls. */
     private final IndexMethodIdentifier imf;
 
+    /**
+     * Create a new LowerBoundAnnotatedTypeFactory.
+     *
+     * @param checker the type-checker
+     */
     public LowerBoundAnnotatedTypeFactory(BaseTypeChecker checker) {
         super(checker);
-        // Any annotations that are aliased to @NonNegative, @Positive,
-        // or @GTENegativeOne must also be aliased in the constructor of
-        // ValueAnnotatedTypeFactory to the appropriate @IntRangeFrom*
-        // annotation.
+        // Any annotations that are aliased to @NonNegative, @Positive, or @GTENegativeOne must also
+        // be aliased in the constructor of ValueAnnotatedTypeFactory to the appropriate
+        // @IntRangeFrom* annotation.
         addAliasedTypeAnnotation(IndexFor.class, NN);
         addAliasedTypeAnnotation(IndexOrLow.class, GTEN1);
         addAliasedTypeAnnotation(IndexOrHigh.class, NN);

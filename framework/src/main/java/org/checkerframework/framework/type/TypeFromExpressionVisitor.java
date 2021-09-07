@@ -24,20 +24,24 @@ import com.sun.source.tree.Tree;
 import com.sun.source.tree.TypeCastTree;
 import com.sun.source.tree.UnaryTree;
 import com.sun.source.tree.WildcardTree;
-import java.util.List;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
+
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedArrayType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedWildcardType;
 import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.javacutil.BugInCF;
+import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.Pair;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.util.List;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
 
 /**
  * Converts ExpressionTrees into AnnotatedTypeMirrors.
@@ -178,7 +182,9 @@ class TypeFromExpressionVisitor extends TypeFromTreeVisitor {
             return AnnotatedTypes.asMemberOf(f.types, f, selfType, elt).asUse();
         }
 
-        return f.getAnnotatedType(elt);
+        AnnotatedTypeMirror type = f.getAnnotatedType(elt);
+
+        return f.applyCaptureConversion(type, TreeUtils.typeOf(node));
     }
 
     @Override
@@ -189,7 +195,7 @@ class TypeFromExpressionVisitor extends TypeFromTreeVisitor {
             // the type of a class literal is the type of the "class" element.
             return f.getAnnotatedType(elt);
         }
-        switch (elt.getKind()) {
+        switch (ElementUtils.getKindRecordAsClass(elt)) {
             case METHOD:
             case PACKAGE: // "java.lang" in new java.lang.Short("2")
             case CLASS: // o instanceof MyClass.InnerClass
@@ -209,6 +215,7 @@ class TypeFromExpressionVisitor extends TypeFromTreeVisitor {
             // node must be a field access, so get the type of the expression, and then call
             // asMemberOf.
             AnnotatedTypeMirror t = f.getAnnotatedType(node.getExpression());
+            t = f.applyCaptureConversion(t);
             return AnnotatedTypes.asMemberOf(f.types, f, t, elt).asUse();
         }
     }
@@ -242,8 +249,7 @@ class TypeFromExpressionVisitor extends TypeFromTreeVisitor {
     @Override
     public AnnotatedTypeMirror visitNewArray(NewArrayTree node, AnnotatedTypeFactory f) {
 
-        // Don't use fromTypeTree here, because node.getType() is not an
-        // array type!
+        // Don't use fromTypeTree here, because node.getType() is not an array type!
         AnnotatedArrayType result = (AnnotatedArrayType) f.type(node);
 
         if (node.getType() == null) { // e.g., byte[] b = {(byte)1, (byte)2};
@@ -327,7 +333,7 @@ class TypeFromExpressionVisitor extends TypeFromTreeVisitor {
     public AnnotatedTypeMirror visitMethodInvocation(
             MethodInvocationTree node, AnnotatedTypeFactory f) {
         AnnotatedExecutableType ex = f.methodFromUse(node).executableType;
-        return ex.getReturnType().asUse();
+        return f.applyCaptureConversion(ex.getReturnType().asUse());
     }
 
     @Override
@@ -349,11 +355,10 @@ class TypeFromExpressionVisitor extends TypeFromTreeVisitor {
         // to ensure that the structure of the wildcard will match that created by
         // BoundsInitializer/createType.
         if (node.getKind() == Tree.Kind.SUPER_WILDCARD) {
-            AnnotatedTypeReplacer.replace(bound, ((AnnotatedWildcardType) result).getSuperBound());
+            f.replaceAnnotations(bound, ((AnnotatedWildcardType) result).getSuperBound());
 
         } else if (node.getKind() == Tree.Kind.EXTENDS_WILDCARD) {
-            AnnotatedTypeReplacer.replace(
-                    bound, ((AnnotatedWildcardType) result).getExtendsBound());
+            f.replaceAnnotations(bound, ((AnnotatedWildcardType) result).getExtendsBound());
         }
         return result;
     }

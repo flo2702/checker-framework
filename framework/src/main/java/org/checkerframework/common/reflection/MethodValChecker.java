@@ -1,17 +1,16 @@
 package org.checkerframework.common.reflection;
 
-import java.util.LinkedHashSet;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
 import org.checkerframework.common.value.ValueChecker;
-import org.checkerframework.framework.qual.StubFiles;
+
+import java.util.LinkedHashSet;
 
 /**
  * The MethodVal Checker provides a sound estimate of the signature of Method objects.
  *
  * @checker_framework.manual #methodval-and-classval-checkers MethodVal Checker
  */
-@StubFiles({"reflection.astub"})
 public class MethodValChecker extends BaseTypeChecker {
     @Override
     protected BaseTypeVisitor<?> createSourceVisitor() {

@@ -3,6 +3,16 @@ package org.checkerframework.common.value;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.NewClassTree;
+
+import org.checkerframework.checker.signature.qual.CanonicalNameOrEmpty;
+import org.checkerframework.checker.signature.qual.ClassGetName;
+import org.checkerframework.common.basetype.BaseTypeChecker;
+import org.checkerframework.javacutil.ElementUtils;
+import org.checkerframework.javacutil.TreeUtils;
+import org.checkerframework.javacutil.TypesUtils;
+import org.plumelib.util.CollectionsPlume;
+import org.plumelib.util.StringsPlume;
+
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -11,19 +21,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Name;
-import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
-import org.checkerframework.checker.signature.qual.CanonicalNameOrEmpty;
-import org.checkerframework.checker.signature.qual.ClassGetName;
-import org.checkerframework.common.basetype.BaseTypeChecker;
-import org.checkerframework.javacutil.ElementUtils;
-import org.checkerframework.javacutil.TreeUtils;
-import org.checkerframework.javacutil.TypesUtils;
-import org.plumelib.util.StringsPlume;
 
 /**
  * Evaluates expressions (such as method calls and field accesses) at compile time, to determine
@@ -74,23 +76,21 @@ public class ReflectiveEvaluator {
         List<Object[]> listOfArguments;
         if (allArgValues == null) {
             // Method does not have arguments
-            listOfArguments = new ArrayList<>();
-            listOfArguments.add(null);
+            listOfArguments = Collections.singletonList(null);
         } else {
             // Find all possible argument sets
             listOfArguments = cartesianProduct(allArgValues, allArgValues.size() - 1);
         }
 
         if (method.isVarArgs()) {
-            List<Object[]> newList = new ArrayList<>();
             int numberOfParameters = method.getParameterTypes().length;
-            for (Object[] args : listOfArguments) {
-                newList.add(normalizeVararg(args, numberOfParameters));
-            }
-            listOfArguments = newList;
+            listOfArguments =
+                    CollectionsPlume.mapList(
+                            (Object[] args) -> normalizeVararg(args, numberOfParameters),
+                            listOfArguments);
         }
 
-        List<Object> results = new ArrayList<>();
+        List<Object> results = new ArrayList<>(listOfArguments.size());
         for (Object[] arguments : listOfArguments) {
             for (Object receiver : receiverValues) {
                 try {
@@ -178,7 +178,7 @@ public class ReflectiveEvaluator {
         final ExecutableElement ele = TreeUtils.elementFromUse(tree);
         List<Class<?>> paramClasses = null;
         try {
-            @CanonicalNameOrEmpty Name className =
+            @CanonicalNameOrEmpty String className =
                     TypesUtils.getQualifiedName((DeclaredType) ele.getEnclosingElement().asType());
             paramClasses = getParameterClasses(ele);
             @SuppressWarnings("signature") // https://tinyurl.com/cfissue/658 for Class.toString
@@ -222,15 +222,18 @@ public class ReflectiveEvaluator {
         }
     }
 
+    /**
+     * Returns the classes of the given method's formal parameters.
+     *
+     * @param ele a method or constructor
+     * @return the classes of the given method's formal parameters
+     * @throws ClassNotFoundException if the class cannot be found
+     */
     private List<Class<?>> getParameterClasses(ExecutableElement ele)
             throws ClassNotFoundException {
-        List<? extends VariableElement> paramEles = ele.getParameters();
-        List<Class<?>> paramClasses = new ArrayList<>();
-        for (Element e : paramEles) {
-            TypeMirror pType = ElementUtils.getType(e);
-            paramClasses.add(TypesUtils.getClassFromType(pType));
-        }
-        return paramClasses;
+        return CollectionsPlume.mapList(
+                (Element e) -> TypesUtils.getClassFromType(ElementUtils.getType(e)),
+                ele.getParameters());
     }
 
     private List<Object[]> cartesianProduct(List<List<?>> allArgValues, int whichArg) {
@@ -254,13 +257,16 @@ public class ReflectiveEvaluator {
         return tuples;
     }
 
+    /**
+     * Returns a depth-2 copy of the given list. In the returned value, the list and the arrays in
+     * it are new, but the elements of the arrays are shared with the argument.
+     *
+     * @param lastTuples a list of arrays
+     * @return a depth-2 copy of the given list
+     */
     private List<Object[]> copy(List<Object[]> lastTuples) {
-        List<Object[]> returnListOfLists = new ArrayList<>();
-        for (Object[] list : lastTuples) {
-            Object[] copy = Arrays.copyOf(list, list.length);
-            returnListOfLists.add(copy);
-        }
-        return returnListOfLists;
+        return CollectionsPlume.mapList(
+                (Object[] list) -> Arrays.copyOf(list, list.length), lastTuples);
     }
 
     /**
@@ -320,14 +326,13 @@ public class ReflectiveEvaluator {
         List<Object[]> listOfArguments;
         if (argValues == null) {
             // Method does not have arguments
-            listOfArguments = new ArrayList<>();
-            listOfArguments.add(null);
+            listOfArguments = Collections.singletonList(null);
         } else {
             // Find all possible argument sets
             listOfArguments = cartesianProduct(argValues, argValues.size() - 1);
         }
 
-        List<Object> results = new ArrayList<>();
+        List<Object> results = new ArrayList<>(listOfArguments.size());
         for (Object[] arguments : listOfArguments) {
             try {
                 results.add(constructor.newInstance(arguments));
