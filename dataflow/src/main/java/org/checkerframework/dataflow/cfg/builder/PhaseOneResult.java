@@ -4,17 +4,19 @@ import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.LambdaExpressionTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.UnaryTree;
+
+import org.checkerframework.dataflow.cfg.UnderlyingAST;
+import org.checkerframework.dataflow.cfg.builder.ExtendedNode.ExtendedNodeType;
+import org.checkerframework.dataflow.cfg.node.AssignmentNode;
+import org.checkerframework.dataflow.cfg.node.Node;
+import org.checkerframework.dataflow.cfg.node.ReturnNode;
+
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
-import org.checkerframework.dataflow.cfg.UnderlyingAST;
-import org.checkerframework.dataflow.cfg.builder.ExtendedNode.ExtendedNodeType;
-import org.checkerframework.dataflow.cfg.node.AssignmentNode;
-import org.checkerframework.dataflow.cfg.node.Node;
-import org.checkerframework.dataflow.cfg.node.ReturnNode;
 
 /* --------------------------------------------------------- */
 /* Phase One */
@@ -99,6 +101,29 @@ public class PhaseOneResult {
     }
 
     /**
+     * Returns a representation of a map, one entry per line.
+     *
+     * @param <K> the key type of the map
+     * @param <V> the value type of the map
+     * @param map a map
+     * @return a representation of a map, one entry per line
+     */
+    private <K, V> String mapToString(Map<K, V> map) {
+        if (map.isEmpty()) {
+            return "{}";
+        }
+        StringJoiner result =
+                new StringJoiner(
+                        String.format("%n    "),
+                        String.format("{%n    "),
+                        String.format("%n    }"));
+        for (Map.Entry<K, V> entry : map.entrySet()) {
+            result.add(entry.getKey() + " => " + entry.getValue());
+        }
+        return result.toString();
+    }
+
+    /**
      * Returns a verbose string representation of this, useful for debugging.
      *
      * @return a string representation of this
@@ -109,9 +134,9 @@ public class PhaseOneResult {
                         String.format("%n  "),
                         String.format("PhaseOneResult{%n  "),
                         String.format("%n  }"));
-        result.add("treeLookupMap=" + treeLookupMap);
-        result.add("convertedTreeLookupMap=" + convertedTreeLookupMap);
-        result.add("unaryAssignNodeLookupMap=" + unaryAssignNodeLookupMap);
+        result.add("treeLookupMap=" + mapToString(treeLookupMap));
+        result.add("convertedTreeLookupMap=" + mapToString(convertedTreeLookupMap));
+        result.add("unaryAssignNodeLookupMap=" + mapToString(unaryAssignNodeLookupMap));
         result.add("underlyingAST=" + underlyingAST);
         result.add("bindings=" + bindings);
         result.add("nodeList=" + CFGBuilder.extendedNodeCollectionToStringDebug(nodeList));

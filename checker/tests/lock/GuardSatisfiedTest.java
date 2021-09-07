@@ -83,21 +83,22 @@ public class GuardSatisfiedTest {
 
         // Test the receiver type matching a parameter
 
-        // Two @GS parameters with no index are incomparable (as is the case for 'this' and 'q')
+        // Two @GS parameters with no index are incomparable (as is the case for 'this' and 'q').
         // :: error: (guardsatisfied.parameters.must.match)
         methodToCall3(q);
 
         // :: error: (guardsatisfied.parameters.must.match) :: error: (lock.not.held)
         methodToCall3(p);
         synchronized (lock1) {
-            // Two @GS parameters with no index are incomparable (as is the case for 'this' and 'q')
+            // Two @GS parameters with no index are incomparable (as is the case for 'this' and
+            // 'q').
             // :: error: (guardsatisfied.parameters.must.match)
             methodToCall3(q);
             // :: error: (guardsatisfied.parameters.must.match) :: error: (lock.not.held)
             methodToCall3(p);
             synchronized (lock2) {
                 // Two @GS parameters with no index are incomparable (as is the case for 'this' and
-                // 'q')
+                // 'q').
                 // :: error: (guardsatisfied.parameters.must.match)
                 methodToCall3(q);
                 // :: error: (guardsatisfied.parameters.must.match)
@@ -189,10 +190,16 @@ public class GuardSatisfiedTest {
         return this;
     }
 
-    final Object lock1 = new Object(), lock2 = new Object();
+    final Object lock1 = new Object();
+    final Object lock2 = new Object();
+
+    // This method exists to prevent flow-sensitive refinement.
+    @GuardedBy({"lock1", "lock2"}) Object guardedByLock1Lock2() {
+        return new Object();
+    }
 
     void testAssignment(@GuardSatisfied Object o) {
-        @GuardedBy({"lock1", "lock2"}) Object p = new Object();
+        @GuardedBy({"lock1", "lock2"}) Object p = guardedByLock1Lock2();
         // :: error: (lock.not.held)
         o = p;
         synchronized (lock1) {
@@ -205,13 +212,11 @@ public class GuardSatisfiedTest {
     }
 
     // Test disallowed @GuardSatisfied locations.
-    // Whenever a disallowed location can be located within a method return type,
-    // receiver or parameter, test it there, because it's important to check
-    // that those are not mistakenly allowed, since annotations
-    // on method return types, receivers and parameters are allowed.
-    // By definition, fields and non-parameter local variables cannot be
-    // in one of these locations on a method declaration, but other
-    // locations can be.
+    // Whenever a disallowed location can be located within a method return type, receiver or
+    // parameter, test it there, because it's important to check that those are not mistakenly
+    // allowed, since annotations on method return types, receivers and parameters are allowed.  By
+    // definition, fields and non-parameter local variables cannot be in one of these locations on a
+    // method declaration, but other locations can be.
 
     // :: error: (guardsatisfied.location.disallowed)
     @GuardSatisfied Object field;
@@ -236,7 +241,7 @@ public class GuardSatisfiedTest {
         void testGuardSatisfiedOnArrayComponentOfParameterizedType(
                 // :: error: (guardsatisfied.location.disallowed)
                 @GuardSatisfied MyParameterizedClass1<T>[] array) {}
-    };
+    }
 
     void testGuardSatisfiedOnWildCardExtendsBound(
             // :: error: (guardsatisfied.location.disallowed)

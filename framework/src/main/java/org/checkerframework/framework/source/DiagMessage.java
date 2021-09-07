@@ -1,15 +1,17 @@
 package org.checkerframework.framework.source;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-import javax.tools.Diagnostic.Kind;
 import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 import org.checkerframework.framework.qual.AnnotatedFor;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+
+import javax.tools.Diagnostic.Kind;
 
 /**
  * A {@code DiagMessage} is a kind, a message key, and arguments. The message key will be expanded
@@ -33,10 +35,6 @@ public class DiagMessage {
      * @param messageKey the message key
      * @param args the arguments that will be interpolated into the localized message
      */
-    @SuppressWarnings({
-        "nullness:assignment.type.incompatible", // this call to Arrays.copyOf is polymorphic
-        "nullness:argument.type.incompatible" // https://tinyurl.com/cfissue/3448
-    })
     public DiagMessage(Kind kind, @CompilerMessageKey String messageKey, Object... args) {
         this.kind = kind;
         this.messageKey = messageKey;

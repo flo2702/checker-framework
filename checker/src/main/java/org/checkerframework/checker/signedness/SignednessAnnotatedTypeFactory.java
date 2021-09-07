@@ -7,15 +7,9 @@ import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.LiteralTree;
 import com.sun.source.tree.PrimitiveTypeTree;
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.Tree.Kind;
 import com.sun.source.tree.TypeCastTree;
 import com.sun.source.util.TreePath;
-import java.lang.annotation.Annotation;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
+
 import org.checkerframework.checker.interning.qual.InternedDistinct;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.checker.signedness.qual.PolySigned;
@@ -40,11 +34,20 @@ import org.checkerframework.framework.type.treeannotator.PropagationTreeAnnotato
 import org.checkerframework.framework.type.treeannotator.TreeAnnotator;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
-import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.Pair;
+import org.checkerframework.javacutil.TreePathUtil;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypeKindUtils;
+import org.checkerframework.javacutil.TypeSystemError;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.lang.annotation.Annotation;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
 
 /**
  * The type factory for the Signedness Checker.
@@ -58,7 +61,7 @@ public class SignednessAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
             AnnotationBuilder.fromClass(elements, UnknownSignedness.class);
     /** The @Signed annotation. */
     private final AnnotationMirror SIGNED = AnnotationBuilder.fromClass(elements, Signed.class);
-    /** The @Unigned annotation. */
+    /** The @Unsigned annotation. */
     private final AnnotationMirror UNSIGNED = AnnotationBuilder.fromClass(elements, Unsigned.class);
     /** The @SignednessGlb annotation. Do not use @SignedPositive; use this instead. */
     private final AnnotationMirror SIGNEDNESS_GLB =
@@ -77,9 +80,11 @@ public class SignednessAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
     private final AnnotationMirror INT_RANGE_FROM_POSITIVE =
             AnnotationBuilder.fromClass(elements, IntRangeFromPositive.class);
 
-    ValueAnnotatedTypeFactory valueFactory = getTypeFactoryOfSubchecker(ValueChecker.class);
-
-    /** Create a SignednessAnnotatedTypeFactory. */
+    /**
+     * Create a SignednessAnnotatedTypeFactory.
+     *
+     * @param checker the type-checker associated with this type factory
+     */
     public SignednessAnnotatedTypeFactory(BaseTypeChecker checker) {
         super(checker);
 
@@ -141,6 +146,8 @@ public class SignednessAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
                     || javaTypeKind == TypeKind.SHORT
                     || javaTypeKind == TypeKind.INT
                     || javaTypeKind == TypeKind.LONG) {
+                ValueAnnotatedTypeFactory valueFactory =
+                        getTypeFactoryOfSubchecker(ValueChecker.class);
                 AnnotatedTypeMirror valueATM = valueFactory.getAnnotatedType(tree);
                 // These annotations are trusted rather than checked.  Maybe have an option to
                 // disable using them?
@@ -254,6 +261,8 @@ public class SignednessAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         /**
          * Change the type of booleans to {@code @UnknownSignedness} so that the {@link
          * PropagationTreeAnnotator} does not change the type of them.
+         *
+         * @param type a type to change the annotation of, if it is boolean
          */
         private void annotateBooleanAsUnknownSignedness(AnnotatedTypeMirror type) {
             switch (type.getKind()) {
@@ -319,9 +328,9 @@ public class SignednessAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
      * @return true iff node is a mask operation (&amp; or |)
      */
     private boolean isMask(Tree node) {
-        Kind kind = node.getKind();
+        Tree.Kind kind = node.getKind();
 
-        return kind == Kind.AND || kind == Kind.OR;
+        return kind == Tree.Kind.AND || kind == Tree.Kind.OR;
     }
 
     // TODO: Return a TypeKind rather than a PrimitiveTypeTree?
@@ -332,7 +341,7 @@ public class SignednessAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
      * @return type of a primitive cast, or null if not a cast to a primitive
      */
     private PrimitiveTypeTree primitiveTypeCast(Tree node) {
-        if (node.getKind() != Kind.TYPE_CAST) {
+        if (node.getKind() != Tree.Kind.TYPE_CAST) {
             return null;
         }
 
@@ -340,13 +349,13 @@ public class SignednessAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         Tree castType = cast.getType();
 
         Tree underlyingType;
-        if (castType.getKind() == Kind.ANNOTATED_TYPE) {
+        if (castType.getKind() == Tree.Kind.ANNOTATED_TYPE) {
             underlyingType = ((AnnotatedTypeTree) castType).getUnderlyingType();
         } else {
             underlyingType = castType;
         }
 
-        if (underlyingType.getKind() != Kind.PRIMITIVE_TYPE) {
+        if (underlyingType.getKind() != Tree.Kind.PRIMITIVE_TYPE) {
             return null;
         }
 
@@ -364,6 +373,8 @@ public class SignednessAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
     }
 
     /**
+     * Returns the long value of an Integer or a Long
+     *
      * @param obj either an Integer or a Long
      * @return the long value of obj
      */
@@ -389,7 +400,7 @@ public class SignednessAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
      * @return true iff the shiftAmount most significant bits of mask are 0 for AND, and 1 for OR
      */
     private boolean maskIgnoresMSB(
-            Kind maskKind,
+            Tree.Kind maskKind,
             LiteralTree shiftAmountLit,
             LiteralTree maskLit,
             TypeKind shiftedTypeKind) {
@@ -408,14 +419,14 @@ public class SignednessAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         }
         mask >>>= (64 - shiftAmount);
 
-        if (maskKind == Kind.AND) {
+        if (maskKind == Tree.Kind.AND) {
             // Check that the shiftAmount most significant bits of the mask were 0.
             return mask == 0;
-        } else if (maskKind == Kind.OR) {
+        } else if (maskKind == Tree.Kind.OR) {
             // Check that the shiftAmount most significant bits of the mask were 1.
             return mask == (1 << shiftAmount) - 1;
         } else {
-            throw new BugInCF("Invalid Masking Operation");
+            throw new TypeSystemError("Invalid Masking Operation");
         }
     }
 
@@ -461,7 +472,7 @@ public class SignednessAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
                 shiftAmount = 0x3F & getLong(shiftAmountLit.getValue());
                 break;
             default:
-                throw new BugInCF("Invalid shift type");
+                throw new TypeSystemError("Invalid shift type");
         }
 
         // Determine number of bits in the cast type
@@ -483,7 +494,7 @@ public class SignednessAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
                 castBits = 64;
                 break;
             default:
-                throw new BugInCF("Invalid cast target");
+                throw new TypeSystemError("Invalid cast target");
         }
 
         long bitsDiscarded = shiftBits - castBits;
@@ -508,7 +519,7 @@ public class SignednessAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
      *     same effect
      */
     /*package-private*/ boolean isMaskedShiftEitherSignedness(BinaryTree shiftExpr, TreePath path) {
-        Pair<Tree, Tree> enclosingPair = TreeUtils.enclosingNonParen(path);
+        Pair<Tree, Tree> enclosingPair = TreePathUtil.enclosingNonParen(path);
         // enclosing immediately contains shiftExpr or a parenthesized version of shiftExpr
         Tree enclosing = enclosingPair.first;
         // enclosingChild is a child of enclosing:  shiftExpr or a parenthesized version of it.
@@ -557,7 +568,7 @@ public class SignednessAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
      */
     /*package-private*/ boolean isCastedShiftEitherSignedness(BinaryTree shiftExpr, TreePath path) {
         // enclosing immediately contains shiftExpr or a parenthesized version of shiftExpr
-        Tree enclosing = TreeUtils.enclosingNonParen(path).first;
+        Tree enclosing = TreePathUtil.enclosingNonParen(path).first;
 
         PrimitiveTypeTree castPrimitiveType = primitiveTypeCast(enclosing);
         if (castPrimitiveType == null) {

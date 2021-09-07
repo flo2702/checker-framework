@@ -17,16 +17,19 @@ import com.sun.source.tree.WildcardTree;
 import com.sun.source.util.TreePath;
 import com.sun.tools.javac.tree.JCTree.JCAnnotation;
 import com.sun.tools.javac.util.Log;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.TreeSet;
-import javax.annotation.processing.SupportedSourceVersion;
-import javax.lang.model.SourceVersion;
-import javax.lang.model.element.Name;
+
 import org.checkerframework.framework.source.SourceChecker;
 import org.checkerframework.framework.source.SourceVisitor;
 import org.checkerframework.framework.source.SupportedOptions;
 import org.checkerframework.javacutil.AnnotationProvider;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.TreeSet;
+
+import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.Name;
 
 /**
  * An annotation processor for listing the potential locations of annotations. To invoke it, use
@@ -138,12 +141,11 @@ public class AnnotationStatistics extends SourceChecker {
                 Name annoName = ((JCAnnotation) tree).annotationType.type.tsym.getQualifiedName();
                 incrementCount(annoName);
 
-                // An annotation is a body annotation if, while ascending the
-                // AST from the annotation to the root, we find a block
-                // immediately enclosed by a method.
+                // An annotation is a body annotation if, while ascending the AST from the
+                // annotation to the root, we find a block immediately enclosed by a method.
                 //
-                // If an annotation is not a body annotation, it's a signature
-                // (declaration) annotation.
+                // If an annotation is not a body annotation, it's a signature (declaration)
+                // annotation.
 
                 boolean isBodyAnnotation = false;
                 TreePath path = getCurrentPath();
@@ -181,9 +183,8 @@ public class AnnotationStatistics extends SourceChecker {
         @Override
         public Void visitClass(ClassTree tree, Void p) {
             if (shouldSkipDefs(tree)) {
-                // Not "return super.visitClass(classTree, p);" because that would
-                // recursively call visitors on subtrees; we want to skip the
-                // class entirely.
+                // Not "return super.visitClass(classTree, p);" because that would recursively call
+                // visitors on subtrees; we want to skip the class entirely.
                 return null;
             }
             if (locations) {

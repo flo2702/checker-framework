@@ -3,22 +3,13 @@ package org.checkerframework.checker.nullness;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.Elements;
+
 import org.checkerframework.checker.initialization.InitializationTransfer;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.checker.nullness.qual.PolyNull;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.dataflow.analysis.ConditionalTransferResult;
-import org.checkerframework.dataflow.analysis.RegularTransferResult;
 import org.checkerframework.dataflow.analysis.TransferInput;
 import org.checkerframework.dataflow.analysis.TransferResult;
 import org.checkerframework.dataflow.cfg.node.ArrayAccessNode;
@@ -42,9 +33,20 @@ import org.checkerframework.framework.type.visitor.SimpleAnnotatedTypeScanner;
 import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
-import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.TreeUtils;
+import org.checkerframework.javacutil.TypeSystemError;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Elements;
 
 /**
  * Transfer function for the non-null type system. Performs the following refinements:
@@ -85,17 +87,26 @@ public class NullnessTransfer
                     ? extends CFAbstractAnalysis<NullnessValue, NullnessStore, NullnessTransfer>>
             nullnessTypeFactory;
 
-    /** The type factory for the map key analysis. */
-    protected final KeyForAnnotatedTypeFactory keyForTypeFactory;
+    /**
+     * The type factory for the map key analysis, or null if the Map Key Checker should not be run.
+     */
+    protected final @Nullable KeyForAnnotatedTypeFactory keyForTypeFactory;
 
     /** Create a new NullnessTransfer for the given analysis. */
     public NullnessTransfer(NullnessAnalysis analysis) {
         super(analysis);
         this.nullnessTypeFactory = analysis.getTypeFactory();
         Elements elements = nullnessTypeFactory.getElementUtils();
-        this.keyForTypeFactory =
-                ((BaseTypeChecker) nullnessTypeFactory.getContext().getChecker())
-                        .getTypeFactoryOfSubchecker(KeyForSubchecker.class);
+        BaseTypeChecker checker = nullnessTypeFactory.getChecker();
+        if (checker.hasOption("assumeKeyFor")) {
+            this.keyForTypeFactory = null;
+        } else {
+            // It is error-prone to put a type factory in a field.  It is OK here because
+            // keyForTypeFactory is used only to call methods isMapGet() and isKeyForMap().
+            this.keyForTypeFactory =
+                    nullnessTypeFactory.getTypeFactoryOfSubchecker(KeyForSubchecker.class);
+        }
+
         NONNULL = AnnotationBuilder.fromClass(elements, NonNull.class);
         NULLABLE = AnnotationBuilder.fromClass(elements, Nullable.class);
         POLYNULL = AnnotationBuilder.fromClass(elements, PolyNull.class);
@@ -111,9 +122,12 @@ public class NullnessTransfer
     /**
      * Sets a given {@link Node} to non-null in the given {@code store}. Calls to this method
      * implement case 2.
+     *
+     * @param store the store to update
+     * @param node the node that should be non-null
      */
     protected void makeNonNull(NullnessStore store, Node node) {
-        JavaExpression internalRepr = JavaExpression.fromNode(nullnessTypeFactory, node);
+        JavaExpression internalRepr = JavaExpression.fromNode(node);
         store.insertValue(internalRepr, NONNULL);
     }
 
@@ -137,7 +151,8 @@ public class NullnessTransfer
     }
 
     @Override
-    protected NullnessValue finishValue(NullnessValue value, NullnessStore store) {
+    protected @Nullable NullnessValue finishValue(
+            @Nullable NullnessValue value, NullnessStore store) {
         value = super.finishValue(value, store);
         if (value != null) {
             value.isPolyNullNonNull = store.isPolyNullNonNull();
@@ -147,8 +162,8 @@ public class NullnessTransfer
     }
 
     @Override
-    protected NullnessValue finishValue(
-            NullnessValue value, NullnessStore thenStore, NullnessStore elseStore) {
+    protected @Nullable NullnessValue finishValue(
+            @Nullable NullnessValue value, NullnessStore thenStore, NullnessStore elseStore) {
         value = super.finishValue(value, thenStore, elseStore);
         if (value != null) {
             value.isPolyNullNonNull =
@@ -182,8 +197,7 @@ public class NullnessTransfer
 
             List<Node> secondParts = splitAssignments(secondNode);
             for (Node secondPart : secondParts) {
-                JavaExpression secondInternal =
-                        JavaExpression.fromNode(nullnessTypeFactory, secondPart);
+                JavaExpression secondInternal = JavaExpression.fromNode(secondPart);
                 if (CFAbstractStore.canInsertJavaExpression(secondInternal)) {
                     thenStore = thenStore == null ? res.getThenStore() : thenStore;
                     elseStore = elseStore == null ? res.getElseStore() : elseStore;
@@ -368,11 +382,11 @@ public class NullnessTransfer
         // Refine result to @NonNull if n is an invocation of Map.get, the argument is a key for
         // the map, and the map's value type is not @Nullable.
         if (keyForTypeFactory != null && keyForTypeFactory.isMapGet(n)) {
-            String mapName = JavaExpression.fromNode(nullnessTypeFactory, receiver).toString();
+            String mapName = JavaExpression.fromNode(receiver).toString();
             AnnotatedTypeMirror receiverType = nullnessTypeFactory.getReceiverType(n.getTree());
 
             if (keyForTypeFactory.isKeyForMap(mapName, methodArgs.get(0))
-                    && !hasNullableValueType((AnnotatedDeclaredType) receiverType)) {
+                    && !hasNullableValueType(receiverType)) {
                 makeNonNull(result, n);
                 refineToNonNull(result);
             }
@@ -387,12 +401,13 @@ public class NullnessTransfer
      * @param mapOrSubtype the Map type, or a subtype
      * @return true if mapType's value type is @Nullable
      */
-    private boolean hasNullableValueType(AnnotatedDeclaredType mapOrSubtype) {
+    private boolean hasNullableValueType(AnnotatedTypeMirror mapOrSubtype) {
         AnnotatedDeclaredType mapType =
                 AnnotatedTypes.asSuper(nullnessTypeFactory, mapOrSubtype, MAP_TYPE);
         int numTypeArguments = mapType.getTypeArguments().size();
         if (numTypeArguments != 2) {
-            throw new BugInCF("Wrong number %d of type arguments: %s", numTypeArguments, mapType);
+            throw new TypeSystemError(
+                    "Wrong number %d of type arguments: %s", numTypeArguments, mapType);
         }
         AnnotatedTypeMirror valueType = mapType.getTypeArguments().get(1);
         return valueType.hasAnnotation(NULLABLE);
@@ -401,18 +416,14 @@ public class NullnessTransfer
     @Override
     public TransferResult<NullnessValue, NullnessStore> visitReturn(
             ReturnNode n, TransferInput<NullnessValue, NullnessStore> in) {
-        // HACK: make sure we have a value for return statements, because we
-        // need to record (at this return statement) the values of isPolyNullNotNull and
-        // isPolyNullNull.
-        NullnessValue value = createDummyValue();
-        if (in.containsTwoStores()) {
-            NullnessStore thenStore = in.getThenStore();
-            NullnessStore elseStore = in.getElseStore();
-            return new ConditionalTransferResult<>(
-                    finishValue(value, thenStore, elseStore), thenStore, elseStore);
+        TransferResult<NullnessValue, NullnessStore> result = super.visitReturn(n, in);
+
+        if (result.getResultValue() == null) {
+            // Make sure there is a value for return statements, to record (at this return
+            // statement) the values of isPolyNullNotNull and isPolyNullNull.
+            return recreateTransferResult(createDummyValue(), result);
         } else {
-            NullnessStore info = in.getRegularStore();
-            return new RegularTransferResult<>(finishValue(value, info), info);
+            return result;
         }
     }
 

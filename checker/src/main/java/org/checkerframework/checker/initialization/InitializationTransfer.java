@@ -20,6 +20,7 @@ import org.checkerframework.framework.flow.CFAbstractTransfer;
 import org.checkerframework.framework.flow.CFAbstractValue;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
+import org.checkerframework.javacutil.TreePathUtil;
 import org.checkerframework.javacutil.TreeUtils;
 
 import java.util.ArrayList;
@@ -36,7 +37,7 @@ import javax.lang.model.util.ElementFilter;
 /**
  * A transfer function that extends {@link CFAbstractTransfer} and tracks {@link
  * InitializationStore}s. In addition to the features of {@link CFAbstractTransfer}, this transfer
- * function also track which fields of the current class ('self' receiver) have been initialized.
+ * function also tracks which fields of the current class ('self' receiver) have been initialized.
  *
  * <p>More precisely, the following refinements are performed:
  *
@@ -103,7 +104,7 @@ public class InitializationTransfer<
         // Case 1: After a call to the constructor of the same class, all
         // invariant fields are guaranteed to be initialized.
         if (isConstructor && receiver instanceof ThisNode && methodString.equals("this")) {
-            ClassTree clazz = TreeUtils.enclosingClass(analysis.getTypeFactory().getPath(tree));
+            ClassTree clazz = TreePathUtil.enclosingClass(analysis.getTypeFactory().getPath(tree));
             TypeElement clazzElem = TreeUtils.elementFromDeclaration(clazz);
             markInvariantFieldsAsInitialized(result, clazzElem);
         }
@@ -111,7 +112,7 @@ public class InitializationTransfer<
         // Case 4: After a call to the constructor of the super class, all
         // invariant fields of any super class are guaranteed to be initialized.
         if (isConstructor && receiver instanceof ThisNode && methodString.equals("super")) {
-            ClassTree clazz = TreeUtils.enclosingClass(analysis.getTypeFactory().getPath(tree));
+            ClassTree clazz = TreePathUtil.enclosingClass(analysis.getTypeFactory().getPath(tree));
             TypeElement clazzElem = TreeUtils.elementFromDeclaration(clazz);
             TypeMirror superClass = clazzElem.getSuperclass();
 
@@ -135,10 +136,9 @@ public class InitializationTransfer<
         for (VariableElement field : fields) {
             if (((Symbol) field).type.tsym.completer != Symbol.Completer.NULL_COMPLETER
                     || ((Symbol) field).type.getKind() == TypeKind.ERROR) {
-                // If the type is not completed yet, we might run
-                // into trouble. Skip the field.
+                // If the type is not completed yet, we might run into trouble. Skip the field.
                 // TODO: is there a nicer solution?
-                // This was raised by Issue 244.
+                // This was raised by Issue #244.
                 continue;
             }
             AnnotatedTypeMirror fieldType = atypeFactory.getAnnotatedType(field);
@@ -152,13 +152,12 @@ public class InitializationTransfer<
     public TransferResult<V, S> visitAssignment(AssignmentNode n, TransferInput<V, S> in) {
         TransferResult<V, S> result = super.visitAssignment(n, in);
         assert result instanceof RegularTransferResult;
-        JavaExpression expr = JavaExpression.fromNode(analysis.getTypeFactory(), n.getTarget());
+        JavaExpression lhs = JavaExpression.fromNode(n.getTarget());
 
-        // If this is an assignment to a field of 'this', then mark the field as
-        // initialized.
-        if (!expr.containsUnknown()) {
-            if (expr instanceof FieldAccess) {
-                FieldAccess fa = (FieldAccess) expr;
+        // If this is an assignment to a field of 'this', then mark the field as initialized.
+        if (!lhs.containsUnknown()) {
+            if (lhs instanceof FieldAccess) {
+                FieldAccess fa = (FieldAccess) lhs;
                 result.getRegularStore().addInitializedField(fa);
             }
         }

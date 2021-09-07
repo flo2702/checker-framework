@@ -11,16 +11,7 @@ import com.sun.source.tree.ReturnTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
-import java.util.ArrayDeque;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.DeclaredType;
+
 import org.checkerframework.checker.guieffect.qual.AlwaysSafe;
 import org.checkerframework.checker.guieffect.qual.PolyUI;
 import org.checkerframework.checker.guieffect.qual.PolyUIEffect;
@@ -32,13 +23,27 @@ import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
 import org.checkerframework.framework.type.AnnotatedTypeFactory.ParameterizedExecutableType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
+import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
 import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.Pair;
+import org.checkerframework.javacutil.TreePathUtil;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.util.ArrayDeque;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.DeclaredType;
 
 /** Require that only UI code invokes code with the UI effect. */
 public class GuiEffectVisitor extends BaseTypeVisitor<GuiEffectTypeFactory> {
@@ -130,22 +135,34 @@ public class GuiEffectVisitor extends BaseTypeVisitor<GuiEffectTypeFactory> {
                         "override.receiver.invalid",
                         overrider.getReceiverType(),
                         overridden.getReceiverType(),
-                        overriderMeth,
-                        overriderTyp,
-                        overriddenMeth,
-                        overriddenTyp);
+                        overriderType,
+                        overrider,
+                        overriddenType,
+                        overridden);
                 return false;
             }
             return true;
         }
 
+        /**
+         * Create a GuiEffectOverrideChecker.
+         *
+         * @param overriderTree the AST node of the overriding method or method reference
+         * @param overrider the type of the overriding method
+         * @param overridingType the type enclosing the overrider method, usually an
+         *     AnnotatedDeclaredType; for Method References may be something else
+         * @param overridingReturnType the return type of the overriding method
+         * @param overridden the type of the overridden method
+         * @param overriddenType the declared type enclosing the overridden method
+         * @param overriddenReturnType the return type of the overridden method
+         */
         public GuiEffectOverrideChecker(
                 Tree overriderTree,
-                AnnotatedTypeMirror.AnnotatedExecutableType overrider,
+                AnnotatedExecutableType overrider,
                 AnnotatedTypeMirror overridingType,
                 AnnotatedTypeMirror overridingReturnType,
                 AnnotatedExecutableType overridden,
-                AnnotatedTypeMirror.AnnotatedDeclaredType overriddenType,
+                AnnotatedDeclaredType overriddenType,
                 AnnotatedTypeMirror overriddenReturnType) {
             super(
                     overriderTree,
@@ -240,6 +257,11 @@ public class GuiEffectVisitor extends BaseTypeVisitor<GuiEffectTypeFactory> {
         // Skip this check.
     }
 
+    @Override
+    protected void checkForPolymorphicQualifiers(ClassTree classTree) {
+        // Polymorphic qualifiers are legal on classes, so skip this check.
+    }
+
     // Check that the invoked effect is <= permitted effect (effStack.peek())
     @Override
     public Void visitMethodInvocation(MethodInvocationTree node, Void p) {
@@ -253,7 +275,7 @@ public class GuiEffectVisitor extends BaseTypeVisitor<GuiEffectTypeFactory> {
             System.err.println("methodElt found");
         }
 
-        Tree callerTree = TreeUtils.enclosingMethodOrLambda(getCurrentPath());
+        Tree callerTree = TreePathUtil.enclosingMethodOrLambda(getCurrentPath());
         if (callerTree == null) {
             // Static initializer; let's assume this is safe to have the UI effect
             if (debugSpew) {
@@ -366,9 +388,9 @@ public class GuiEffectVisitor extends BaseTypeVisitor<GuiEffectTypeFactory> {
         // subclasses a Safe instantiation, all is well.  If it subclasses a UI instantiation, then
         // the receivers should probably be @UI in both new and override methods, so calls to
         // polymorphic methods of the parent class will work correctly.  In which case for proving
-        // anything, the qualifier on sublasses of UI instantiations would always have to be
-        // @UI... Need to write down |- t for this system!  And the judgments for method overrides
-        // and inheritance!  Those are actually the hardest part of the system.
+        // anything, the qualifier on sublasses of UI instantiations would always have to be @UI...
+        // Need to write down |- t for this system!  And the judgments for method overrides and
+        // inheritance!  Those are actually the hardest part of the system.
 
         ExecutableElement methElt = TreeUtils.elementFromDeclaration(node);
         if (debugSpew) {
@@ -402,8 +424,7 @@ public class GuiEffectVisitor extends BaseTypeVisitor<GuiEffectTypeFactory> {
                 atypeFactory.findInheritedEffectRange(
                         ((TypeElement) methElt.getEnclosingElement()), methElt, true, node);
         // if (targetUIP == null && targetSafeP == null && targetPolyP == null) {
-        // implicitly annotate this method with the LUB of the effects of the methods it
-        // overrides
+        // implicitly annotate this method with the LUB of the effects of the methods it overrides
         // atypeFactory.fromElement(methElt).addAnnotation(range != null ? range.min.getAnnot()
         // : (isUIType(((TypeElement)methElt.getEnclosingElement())) ? UI.class :
         // AlwaysSafe.class));
@@ -492,14 +513,14 @@ public class GuiEffectVisitor extends BaseTypeVisitor<GuiEffectTypeFactory> {
                 ExecutableElement method = invokedMethod.getElement();
                 CharSequence methodName = ElementUtils.getSimpleNameOrDescription(method);
                 List<? extends VariableElement> methodParams = method.getParameters();
-                List<AnnotatedTypeMirror> argsTypes =
-                        AnnotatedTypes.expandVarArgs(
+                List<AnnotatedTypeMirror> paramTypes =
+                        AnnotatedTypes.expandVarArgsParameters(
                                 atypeFactory, invokedMethod, invocationTree.getArguments());
                 for (int i = 0; i < args.size(); ++i) {
                     if (args.get(i).getKind() == Tree.Kind.NEW_CLASS
                             || args.get(i).getKind() == Tree.Kind.LAMBDA_EXPRESSION) {
                         commonAssignmentCheck(
-                                argsTypes.get(i),
+                                paramTypes.get(i),
                                 atypeFactory.getAnnotatedType(args.get(i)),
                                 args.get(i),
                                 "argument.type.incompatible",
@@ -512,7 +533,7 @@ public class GuiEffectVisitor extends BaseTypeVisitor<GuiEffectTypeFactory> {
                 ReturnTree returnTree = (ReturnTree) tree;
                 if (returnTree.getExpression().getKind() == Tree.Kind.NEW_CLASS
                         || returnTree.getExpression().getKind() == Tree.Kind.LAMBDA_EXPRESSION) {
-                    Tree enclosing = TreeUtils.enclosingMethodOrLambda(path);
+                    Tree enclosing = TreePathUtil.enclosingMethodOrLambda(path);
                     AnnotatedTypeMirror ret = null;
                     if (enclosing.getKind() == Tree.Kind.METHOD) {
                         MethodTree enclosingMethod = (MethodTree) enclosing;
@@ -573,7 +594,7 @@ public class GuiEffectVisitor extends BaseTypeVisitor<GuiEffectTypeFactory> {
     // Push a null method and UI effect onto the stack for static field initialization
     // TODO: Figure out if this is safe! For static data, almost certainly,
     // but for statically initialized instance fields, I'm assuming those
-    // are implicitly moved into each constructor, which must then be @UI
+    // are implicitly moved into each constructor, which must then be @UI.
     // currentMethods.addFirst(null);
     // effStack.addFirst(new Effect(UIEffect.class));
     // super.processClassTree(node);

@@ -3,23 +3,9 @@ package org.checkerframework.framework.type;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.processing.JavacProcessingEnvironment;
 import com.sun.tools.javac.util.Context;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.TypeParameterElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.IntersectionType;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.type.TypeVariable;
-import javax.lang.model.type.WildcardType;
+
 import org.checkerframework.checker.interning.qual.FindDistinct;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedArrayType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
@@ -36,6 +22,24 @@ import org.checkerframework.javacutil.Pair;
 import org.checkerframework.javacutil.TypeAnnotationUtils;
 import org.checkerframework.javacutil.TypesUtils;
 import org.plumelib.util.StringsPlume;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.TypeParameterElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.IntersectionType;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.TypeVariable;
+import javax.lang.model.type.WildcardType;
 
 /**
  * BoundsInitializer creates AnnotatedTypeMirrors (without annotations) for the bounds of type
@@ -58,21 +62,22 @@ public class BoundsInitializer {
      */
     public static void initializeTypeArgs(AnnotatedDeclaredType declaredType) {
         final DeclaredType underlyingType = (DeclaredType) declaredType.underlyingType;
-        if (underlyingType.getTypeArguments().isEmpty() && !declaredType.wasRaw()) {
-            // No type arguments to infer.
+        if (underlyingType.getTypeArguments().isEmpty() && !declaredType.isUnderlyingTypeRaw()) {
+            // No type arguments to initialize.
             return;
         }
 
         final TypeElement typeElement =
                 (TypeElement) declaredType.atypeFactory.types.asElement(underlyingType);
-        final List<AnnotatedTypeMirror> typeArgs = new ArrayList<>();
+        int numTypeParameters = typeElement.getTypeParameters().size();
+        final List<AnnotatedTypeMirror> typeArgs = new ArrayList<>(numTypeParameters);
 
         // Create AnnotatedTypeMirror for each type argument and store them in the typeArgsMap.
         // Take un-annotated type variables as the key for this map.
-        Map<TypeVariable, AnnotatedTypeMirror> typeArgMap = new HashMap<>();
-        for (int i = 0; i < typeElement.getTypeParameters().size(); i++) {
+        Map<TypeVariable, AnnotatedTypeMirror> typeArgMap = new HashMap<>(numTypeParameters);
+        for (int i = 0; i < numTypeParameters; i++) {
             TypeMirror javaTypeArg;
-            if (declaredType.wasRaw()) {
+            if (declaredType.isUnderlyingTypeRaw()) {
                 TypeVariable typeVariable =
                         (TypeVariable) typeElement.getTypeParameters().get(i).asType();
                 javaTypeArg = getUpperBoundAsWildcard(typeVariable, declaredType.atypeFactory);
@@ -81,11 +86,12 @@ public class BoundsInitializer {
             }
 
             final AnnotatedTypeMirror typeArg =
-                    AnnotatedTypeMirror.createType(javaTypeArg, declaredType.atypeFactory, false);
+                    AnnotatedTypeMirror.createType(
+                            javaTypeArg, declaredType.atypeFactory, declaredType.isDeclaration());
             if (typeArg.getKind() == TypeKind.WILDCARD) {
                 AnnotatedWildcardType wildcardType = (AnnotatedWildcardType) typeArg;
                 wildcardType.setTypeVariable(typeElement.getTypeParameters().get(i));
-                if (declaredType.wasRaw()) {
+                if (declaredType.isUnderlyingTypeRaw()) {
                     wildcardType.setUninferredTypeArgument();
                 }
             }
@@ -182,20 +188,23 @@ public class BoundsInitializer {
     }
 
     /**
-     * If we are initializing a type variable with a primary annotation than we should first
+     * Returns a type's primary annotations, and clears those annotations.
+     *
+     * <p>If we are initializing a type variable with a primary annotation than we should first
      * initialize it as if it were a declaration (i.e. as if it had no primary annotations) and then
      * apply the primary annotations. We do this so that when we make copies of the original type to
      * represent recursive references the recursive references don't have the primary annotation.
      *
-     * <pre>{@code
-     * e.g.   given the declaration {@code <E extends List<E>>}
-     *        if we do not do this, the NonNull on the use @NonNull E
-     *        would be copied to the primary annotation on E in the bound {@code List<E>}
-     *        i.e. the use would be {@code <@NonNull E extends @NonNull List<@NonNull E>>}
-     *             rather than      {@code <@NonNull E extends @NonNull List<E>>}
-     * }</pre>
+     * <p>Example: The declaration {@code <E extends List<E>>}.<br>
+     * If we do not do this, the NonNull on the use @NonNull E would be copied to the primary
+     * annotation on E in the bound {@code List<E>}.<br>
+     * i.e. the use would be {@code <@NonNull E extends @NonNull List<@NonNull E>>}<br>
+     * rather than {@code <@NonNull E extends @NonNull List<E>>}
+     *
+     * @param type a type whose annotations to read, clear, and return
+     * @return the original primary annotations on {@code type}, or null if none
      */
-    private static Set<AnnotationMirror> saveAnnotations(final AnnotatedTypeMirror type) {
+    private static @Nullable Set<AnnotationMirror> saveAnnotations(final AnnotatedTypeMirror type) {
         if (!type.getAnnotationsField().isEmpty()) {
             final Set<AnnotationMirror> annos = new HashSet<>(type.getAnnotations());
             type.clearAnnotations();
@@ -329,7 +338,7 @@ public class BoundsInitializer {
             if (typevars != null) {
                 this.typevars = typevars;
             } else {
-                this.typevars = new HashMap<>();
+                this.typevars = Collections.emptyMap();
             }
             if (recursiveTypeStructure instanceof TypeVariableStructure) {
                 TypeVariableStructure typeVarStruct =
@@ -420,10 +429,25 @@ public class BoundsInitializer {
             typeVarToStructure.put(type.getUnderlyingType(), typeVarStruct);
             RecursiveTypeStructure parentStructure = this.currentStructure;
 
+            // If type is a captured type variable, then its type variables should be created new,
+            // rather than using one from the rest of the type.  So, clear the typevars map of all
+            // but the mapping with key type.
+            Map<TypeVariable, AnnotatedTypeMirror> hold = new HashMap<>();
+            if (TypesUtils.isCapturedTypeVariable(type.getUnderlyingType())) {
+                for (Map.Entry<TypeVariable, AnnotatedTypeMirror> entry :
+                        new ArrayList<>(typevars.entrySet())) {
+                    if (!type.atypeFactory.types.isSameType(
+                            entry.getKey(), entry.getValue().underlyingType)) {
+                        hold.put(entry.getKey(), entry.getValue());
+                        typevars.remove(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
             this.currentStructure = typeVarStruct;
             initializeUpperBound(type);
             initializeLowerBound(type);
             this.currentStructure = parentStructure;
+            typevars.putAll(hold);
 
             return null;
         }
@@ -579,16 +603,9 @@ public class BoundsInitializer {
             WildcardType javaWildcardType = wildcard.getUnderlyingType();
             TypeMirror javaExtendsBound;
             if (javaWildcardType.getExtendsBound() != null) {
-                // If the wildcard type has an extends bound, use it.
                 javaExtendsBound = javaWildcardType.getExtendsBound();
-            } else if (wildcard.getTypeVariable() != null) {
-                // Otherwise use the upper bound of the type variable associated with this wildcard.
-                javaExtendsBound = wildcard.getTypeVariable().getUpperBound();
             } else {
-                // Otherwise use the upper bound of the java wildcard.
-                javaExtendsBound =
-                        TypesUtils.wildUpperBound(
-                                javaWildcardType, wildcard.atypeFactory.processingEnv);
+                javaExtendsBound = TypesUtils.getObjectTypeMirror(typeFactory.processingEnv);
             }
 
             if (wildcard.isUninferredTypeArgument()) {
@@ -613,22 +630,25 @@ public class BoundsInitializer {
          */
         private void initializeTypeArgs(AnnotatedDeclaredType declaredType) {
             DeclaredType underlyingType = (DeclaredType) declaredType.underlyingType;
-            if (underlyingType.getTypeArguments().isEmpty() && !declaredType.wasRaw()) {
+            if (underlyingType.getTypeArguments().isEmpty()
+                    && !declaredType.isUnderlyingTypeRaw()) {
                 return;
             }
             TypeElement typeElement =
                     (TypeElement) declaredType.atypeFactory.types.asElement(underlyingType);
             List<AnnotatedTypeMirror> typeArgs;
             if (declaredType.typeArgs == null) {
-                typeArgs = new ArrayList<>();
-                for (int i = 0; i < typeElement.getTypeParameters().size(); i++) {
+                int numTypeParameters = typeElement.getTypeParameters().size();
+                typeArgs = new ArrayList<>(numTypeParameters);
+                for (int i = 0; i < numTypeParameters; i++) {
                     TypeMirror javaTypeArg =
                             getJavaType(declaredType, typeElement.getTypeParameters(), i);
                     AnnotatedTypeMirror atmArg =
                             AnnotatedTypeMirror.createType(
                                     javaTypeArg, declaredType.atypeFactory, false);
                     typeArgs.add(atmArg);
-                    if (atmArg.getKind() == TypeKind.WILDCARD && declaredType.wasRaw()) {
+                    if (atmArg.getKind() == TypeKind.WILDCARD
+                            && declaredType.isUnderlyingTypeRaw()) {
                         ((AnnotatedWildcardType) atmArg).setUninferredTypeArgument();
                     }
                 }
@@ -664,20 +684,20 @@ public class BoundsInitializer {
         private final Map<TypeVariable, WildcardType> rawTypeWildcards = new HashMap<>();
 
         /**
-         * Returns the underlying java type of the {@code i}-th type argument of {@code type}. If
+         * Returns the underlying Java type of the {@code i}-th type argument of {@code type}. If
          * {@code type} is raw, then a new wildcard is created or returned from {@code
          * rawTypeWildcards}.
          *
          * @param type declared type
          * @param parameters elements of the type parameters
          * @param i index of the type parameter
-         * @return the underlying java type of the {@code i}-th type argument of {@code type}
+         * @return the underlying Java type of the {@code i}-th type argument of {@code type}
          */
         private TypeMirror getJavaType(
                 AnnotatedDeclaredType type,
                 List<? extends TypeParameterElement> parameters,
                 int i) {
-            if (type.wasRaw()) {
+            if (type.isUnderlyingTypeRaw()) {
                 TypeVariable typeVariable = (TypeVariable) parameters.get(i).asType();
                 if (rawTypeWildcards.containsKey(typeVariable)) {
                     return rawTypeWildcards.get(typeVariable);
@@ -827,8 +847,8 @@ public class BoundsInitializer {
          */
         public void findAllReplacements(
                 Map<TypeVariable, TypeVariableStructure> typeVarToStructure) {
-            this.annotatedTypeVariables = new ArrayList<>();
-            this.replacementList = new ArrayList<>();
+            this.annotatedTypeVariables = new ArrayList<>(typeVarsInType.size());
+            this.replacementList = new ArrayList<>(typeVarsInType.size());
             for (Pair<TypePath, TypeVariable> pair : typeVarsInType) {
                 TypeVariableStructure targetStructure = typeVarToStructure.get(pair.second);
                 AnnotatedTypeVariable template =
@@ -1320,11 +1340,11 @@ public class BoundsInitializer {
         @Override
         protected AnnotatedTypeMirror getTypeInternal(AnnotatedTypeMirror parent) {
             AnnotatedUnionType isect = (AnnotatedUnionType) parent;
-            if (parent.directSuperTypes().size() <= altIndex) {
+            if (parent.directSupertypes().size() <= altIndex) {
                 throw new BugInCF("Invalid altIndex( %s ):%nparent=%s", altIndex, parent);
             }
 
-            return isect.directSuperTypes().get(altIndex);
+            return isect.directSupertypes().get(altIndex);
         }
 
         @Override

@@ -1,16 +1,23 @@
 package org.checkerframework.javacutil;
 
+import org.checkerframework.checker.interning.qual.Interned;
+import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.checker.signature.qual.CanonicalName;
+import org.checkerframework.checker.signature.qual.FullyQualifiedName;
+import org.checkerframework.dataflow.qual.SideEffectFree;
+import org.plumelib.util.StringsPlume;
+
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
+
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
@@ -29,12 +36,6 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
-import org.checkerframework.checker.interning.qual.Interned;
-import org.checkerframework.checker.nullness.qual.Nullable;
-import org.checkerframework.checker.signature.qual.CanonicalName;
-import org.checkerframework.checker.signature.qual.FullyQualifiedName;
-import org.checkerframework.dataflow.qual.SideEffectFree;
-import org.plumelib.util.StringsPlume;
 
 /**
  * Builds an annotation mirror that may have some values.
@@ -88,7 +89,6 @@ public class AnnotationBuilder {
      * @param env the processing environment
      * @param name the canonical name of the annotation to build
      */
-    //
     public AnnotationBuilder(ProcessingEnvironment env, @FullyQualifiedName CharSequence name) {
         this.elements = env.getElementUtils();
         this.types = env.getTypeUtils();
@@ -121,6 +121,15 @@ public class AnnotationBuilder {
     }
 
     /**
+     * Returns the type element of the annotation that is being built.
+     *
+     * @return the type element of the annotation that is being built
+     */
+    public TypeElement getAnnotationElt() {
+        return annotationElt;
+    }
+
+    /**
      * Creates a mapping between element/field names and values.
      *
      * @param elementName the name of an element/field to initialize
@@ -144,6 +153,7 @@ public class AnnotationBuilder {
      * @param elements the element utilities to use
      * @param aClass the annotation class
      * @return an {@link AnnotationMirror} of the given type
+     * @throws UserError if the annotation corresponding to the class could not be loaded
      */
     public static AnnotationMirror fromClass(
             Elements elements, Class<? extends Annotation> aClass) {
@@ -196,7 +206,7 @@ public class AnnotationBuilder {
      */
     public static @Nullable AnnotationMirror fromName(
             Elements elements, @FullyQualifiedName CharSequence name) {
-        return fromName(elements, name, new HashMap<>());
+        return fromName(elements, name, Collections.emptyMap());
     }
 
     /**
@@ -230,9 +240,9 @@ public class AnnotationBuilder {
             return null;
         }
 
-        Map<ExecutableElement, AnnotationValue> elementValues = new LinkedHashMap<>();
-        for (ExecutableElement annoElement :
-                ElementFilter.methodsIn(annoElt.getEnclosedElements())) {
+        List<ExecutableElement> methods = ElementFilter.methodsIn(annoElt.getEnclosedElements());
+        Map<ExecutableElement, AnnotationValue> elementValues = new LinkedHashMap<>(methods.size());
+        for (ExecutableElement annoElement : methods) {
             AnnotationValue elementValue =
                     elementNamesValues.get(annoElement.getSimpleName().toString());
             if (elementValue == null) {
@@ -272,21 +282,41 @@ public class AnnotationBuilder {
      * doesn't exist in the annotation to be built, an error is raised unless the element is
      * specified in {@code ignorableElements}.
      *
-     * @param valueHolder the annotation that holds the values to be copied
-     * @param ignorableElements the elements that can be safely dropped
+     * @param other the annotation that holds the values to be copied; need not be an annotation of
+     *     the same type of the one being built
+     * @param ignorableElements the names of elements of {@code other} that can be safely dropped
      */
     public void copyElementValuesFromAnnotation(
-            AnnotationMirror valueHolder, String... ignorableElements) {
-        Set<String> ignorableElementsSet = new HashSet<>(Arrays.asList(ignorableElements));
+            AnnotationMirror other, String... ignorableElements) {
+        List<String> ignorableElementsList = Arrays.asList(ignorableElements);
         for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> eltValToCopy :
-                valueHolder.getElementValues().entrySet()) {
+                other.getElementValues().entrySet()) {
             Name eltNameToCopy = eltValToCopy.getKey().getSimpleName();
-            if (ignorableElementsSet.contains(eltNameToCopy.toString())) {
+            if (ignorableElementsList.contains(eltNameToCopy.toString())) {
                 continue;
             }
             elementValues.put(findElement(eltNameToCopy), eltValToCopy.getValue());
         }
-        return;
+    }
+
+    /**
+     * Copies every element value from the given annotation. If an element in the given annotation
+     * doesn't exist in the annotation to be built, an error is raised unless the element is
+     * specified in {@code ignorableElements}.
+     *
+     * @param valueHolder the annotation that holds the values to be copied; must be the same type
+     *     as the annotation being built
+     * @param ignorableElements the elements that can be safely dropped
+     */
+    public void copyElementValuesFromAnnotation(
+            AnnotationMirror valueHolder, Collection<ExecutableElement> ignorableElements) {
+        for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> entry :
+                valueHolder.getElementValues().entrySet()) {
+            if (ignorableElements.contains(entry.getKey())) {
+                continue;
+            }
+            elementValues.put(entry.getKey(), entry.getValue());
+        }
     }
 
     /**
@@ -319,23 +349,42 @@ public class AnnotationBuilder {
         return this;
     }
 
-    /** Set the element/field with the given name, to the given value. */
+    /**
+     * Set the element/field with the given name, to the given value.
+     *
+     * @param elementName the element/field name
+     * @param values the new value for the element/field
+     * @return this
+     */
     public AnnotationBuilder setValue(CharSequence elementName, List<? extends Object> values) {
         assertNotBuilt();
-        List<AnnotationValue> avalues = new ArrayList<>(values.size());
         ExecutableElement var = findElement(elementName);
-        TypeMirror expectedType = var.getReturnType();
+        return setValue(var, values);
+    }
+
+    /**
+     * Set the element to the given value.
+     *
+     * @param element the element
+     * @param values the new value for the element
+     * @return this
+     */
+    public AnnotationBuilder setValue(
+            ExecutableElement element, List<? extends @NonNull Object> values) {
+        assertNotBuilt();
+        TypeMirror expectedType = element.getReturnType();
         if (expectedType.getKind() != TypeKind.ARRAY) {
             throw new BugInCF("value is an array while expected type is not");
         }
         expectedType = ((ArrayType) expectedType).getComponentType();
 
+        List<AnnotationValue> avalues = new ArrayList<>(values.size());
         for (Object v : values) {
             checkSubtype(expectedType, v);
             avalues.add(createValue(v));
         }
         AnnotationValue aval = createValue(avalues);
-        elementValues.put(var, aval);
+        elementValues.put(element, aval);
         return this;
     }
 

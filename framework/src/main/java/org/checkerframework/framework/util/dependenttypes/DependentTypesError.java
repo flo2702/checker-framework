@@ -1,20 +1,25 @@
 package org.checkerframework.framework.util.dependenttypes;
 
-import java.util.Objects;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import org.checkerframework.checker.formatter.qual.ConversionCategory;
+import org.checkerframework.checker.formatter.qual.Format;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.framework.util.JavaExpressionParseUtil.JavaExpressionParseException;
 import org.checkerframework.javacutil.BugInCF;
 
+import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
  * Helper class for creating dependent type annotation error strings.
  *
- * <p>IMPORTANT: This is not an Exception. It is a regular class that is returned, not thrown. The
- * errors are not thrown so that they are only reported once rather than every time the annotation
- * is parsed. See {@link DependentTypesHelper} for more details.
+ * <p><b>IMPORTANT:</b> This is not an Exception. It is a regular class that is returned, not
+ * thrown. The errors are not thrown so that they are only reported once rather than every time the
+ * annotation is parsed. See {@link DependentTypesHelper} for more details.
  */
 public class DependentTypesError {
+
+    /// Static fields
 
     /** How elements of this class are formatted. */
     @SuppressWarnings("InlineFormatString") // https://github.com/google/error-prone/issues/1650
@@ -34,16 +39,21 @@ public class DependentTypesError {
     }
 
     /** How to format warnings about use of formal parameter name. */
-    public static final String FORMAL_PARAM_NAME_STRING = "Use \"#%d\" rather than \"%s\"";
+    public static final @Format({ConversionCategory.INT, ConversionCategory.GENERAL}) String
+            FORMAL_PARAM_NAME_STRING = "Use \"#%d\" rather than \"%s\"";
     /** Matches warnings about use of formal parameter name. */
     private static final Pattern FORMAL_PARAM_NAME_PATTERN =
             Pattern.compile(
                     "^'([a-zA-Z_$][a-zA-Z0-9_$]*)' because (Use \"#\\d+\" rather than \"\\1\")$");
 
-    /** The expression that is unparseable or otherwise problematic. */
+    /// Instance fields
+
+    /** The expression that is unparsable or otherwise problematic. */
     public final String expression;
     /** An error message about that expression. */
     public final String error;
+
+    /// Constructors and methods
 
     /**
      * Create a DependentTypesError for the given expression and error message.
@@ -103,8 +113,7 @@ public class DependentTypesError {
 
     @Override
     public String toString() {
-        // Empty string concatenation is to maybe work around Error Prone's InlineFormatString.
-        return String.format(FORMAT_STRING + "", expression, error);
+        return String.format(FORMAT_STRING, expression, error);
     }
 
     /**

@@ -1,9 +1,11 @@
 package org.checkerframework.dataflow.cfg.node;
 
 import com.sun.source.tree.BinaryTree;
-import com.sun.source.tree.Tree.Kind;
-import java.util.Objects;
+import com.sun.source.tree.Tree;
+
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import java.util.Objects;
 
 /**
  * A node for a conditional or expression:
@@ -23,7 +25,7 @@ public class ConditionalOrNode extends BinaryOperationNode {
      */
     public ConditionalOrNode(BinaryTree tree, Node left, Node right) {
         super(tree, left, right);
-        assert tree.getKind() == Kind.CONDITIONAL_OR;
+        assert tree.getKind() == Tree.Kind.CONDITIONAL_OR;
     }
 
     @Override

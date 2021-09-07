@@ -4,22 +4,24 @@ import com.sun.source.tree.AnnotationTree;
 import com.sun.source.tree.LambdaExpressionTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.Tree.Kind;
 import com.sun.source.tree.VariableTree;
-import java.util.ArrayList;
-import java.util.List;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeKind;
+
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
 import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.util.Collections;
+import java.util.List;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeKind;
 
 /**
  * Converts a field or methods tree into an AnnotatedTypeMirror.
@@ -43,7 +45,7 @@ class TypeFromMemberVisitor extends TypeFromTreeVisitor {
         if (annoTrees != null && !annoTrees.isEmpty()) {
             modifierAnnos = TreeUtils.annotationsFromTypeAnnotationTrees(annoTrees);
         } else {
-            modifierAnnos = new ArrayList<>();
+            modifierAnnos = Collections.emptyList();
         }
 
         if (result.getKind() == TypeKind.DECLARED
@@ -89,7 +91,7 @@ class TypeFromMemberVisitor extends TypeFromTreeVisitor {
                     // Declaration annotations apply to the outer type.
                     result.addAnnotation(anno);
                 } else {
-                    // Type annotations apply to the inner most type.
+                    // Type annotations apply to the innermost type.
                     innerType.addAnnotation(anno);
                 }
             }
@@ -139,7 +141,7 @@ class TypeFromMemberVisitor extends TypeFromTreeVisitor {
         }
         Tree declaredInTree =
                 f.getPath(f.declarationFromElement(paramElement)).getParentPath().getLeaf();
-        if (declaredInTree.getKind() == Kind.LAMBDA_EXPRESSION) {
+        if (declaredInTree.getKind() == Tree.Kind.LAMBDA_EXPRESSION) {
             LambdaExpressionTree lambdaDecl = (LambdaExpressionTree) declaredInTree;
             int index = lambdaDecl.getParameters().indexOf(f.declarationFromElement(paramElement));
             AnnotatedExecutableType functionType = f.getFunctionTypeFromTree(lambdaDecl);

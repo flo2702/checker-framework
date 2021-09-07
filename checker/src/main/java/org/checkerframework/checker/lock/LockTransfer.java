@@ -2,11 +2,7 @@ package org.checkerframework.checker.lock;
 
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.MethodTree;
-import java.util.List;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
-import javax.lang.model.type.TypeMirror;
+
 import org.checkerframework.dataflow.analysis.TransferInput;
 import org.checkerframework.dataflow.analysis.TransferResult;
 import org.checkerframework.dataflow.cfg.UnderlyingAST;
@@ -20,6 +16,13 @@ import org.checkerframework.dataflow.expression.JavaExpression;
 import org.checkerframework.framework.flow.CFAbstractTransfer;
 import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.javacutil.TreeUtils;
+
+import java.util.List;
+
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
+import javax.lang.model.type.TypeMirror;
 
 /**
  * LockTransfer handles constructors, initializers, synchronized methods, and synchronized blocks.
@@ -40,19 +43,28 @@ public class LockTransfer extends CFAbstractTransfer<CFValue, LockStore, LockTra
         this.atypeFactory = (LockAnnotatedTypeFactory) analysis.getTypeFactory();
     }
 
-    /** Sets a given {@link Node} to @LockHeld in the given {@code store}. */
+    /**
+     * Sets a given {@link Node} to @LockHeld in the given {@code store}.
+     *
+     * @param store the store to update
+     * @param node the node that should be @LockHeld
+     */
     protected void makeLockHeld(LockStore store, Node node) {
-        JavaExpression internalRepr = JavaExpression.fromNode(atypeFactory, node);
+        JavaExpression internalRepr = JavaExpression.fromNode(node);
         store.insertValue(internalRepr, atypeFactory.LOCKHELD);
     }
 
-    /** Sets a given {@link Node} to @LockPossiblyHeld in the given {@code store}. */
+    /**
+     * Sets a given {@link Node} to @LockPossiblyHeld in the given {@code store}.
+     *
+     * @param store the store to update
+     * @param node the node that should be @LockPossiblyHeld
+     */
     protected void makeLockPossiblyHeld(LockStore store, Node node) {
-        JavaExpression internalRepr = JavaExpression.fromNode(atypeFactory, node);
+        JavaExpression internalRepr = JavaExpression.fromNode(node);
 
-        // insertValue cannot change an annotation to a less
-        // specific type (e.g. LockHeld to LockPossiblyHeld),
-        // so insertLockPossiblyHeld is called.
+        // insertValue cannot change an annotation to a less specific type (e.g. LockHeld to
+        // LockPossiblyHeld), so insertLockPossiblyHeld is called.
         store.insertLockPossiblyHeld(internalRepr);
     }
 
@@ -86,29 +98,24 @@ public class LockTransfer extends CFAbstractTransfer<CFValue, LockStore, LockTra
 
         Kind astKind = underlyingAST.getKind();
 
-        // Methods with the 'synchronized' modifier are
-        // holding the 'this' lock.
+        // Methods with the 'synchronized' modifier are holding the 'this' lock.
 
-        // There is a subtle difference between synchronized methods
-        // and constructors/initializers. A synchronized method is only
-        // taking the intrinsic lock of the current object. It says nothing
-        // about any fields of the current object.
+        // There is a subtle difference between synchronized methods and constructors/initializers.
+        // A synchronized method is only taking the intrinsic lock of the current object. It says
+        // nothing about any fields of the current object.
 
-        // Furthermore, since the current object already exists,
-        // other objects may be guarded by the current object. So
-        // a synchronized method can affect the locking behavior of other
+        // Furthermore, since the current object already exists, other objects may be guarded by the
+        // current object. So a synchronized method can affect the locking behavior of other
         // objects.
 
-        // A constructor/initializer behaves as if the current object
-        // and all its non-static fields were held as locks. But in
-        // reality no locks are held.
+        // A constructor/initializer behaves as if the current object and all its non-static fields
+        // were held as locks. But in reality no locks are held.
 
-        // Furthermore, since the current object is being constructed,
-        // no other object can be guarded by it or any of its non-static
-        // fields.
+        // Furthermore, since the current object is being constructed, no other object can be
+        // guarded by it or any of its non-static fields.
 
         // Handle synchronized methods and constructors.
-        if (astKind == Kind.METHOD) {
+        if (astKind == UnderlyingAST.Kind.METHOD) {
             CFGMethod method = (CFGMethod) underlyingAST;
             MethodTree methodTree = method.getMethod();
 

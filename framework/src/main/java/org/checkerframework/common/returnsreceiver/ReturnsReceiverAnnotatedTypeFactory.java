@@ -1,9 +1,5 @@
 package org.checkerframework.common.returnsreceiver;
 
-import java.lang.annotation.Annotation;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.ElementKind;
 import org.checkerframework.common.basetype.BaseAnnotatedTypeFactory;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.returnsreceiver.qual.BottomThis;
@@ -15,6 +11,12 @@ import org.checkerframework.framework.type.typeannotator.ListTypeAnnotator;
 import org.checkerframework.framework.type.typeannotator.TypeAnnotator;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
+
+import java.lang.annotation.Annotation;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.ElementKind;
 
 /** The type factory for the Returns Receiver Checker. */
 public class ReturnsReceiverAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
@@ -78,9 +80,9 @@ public class ReturnsReceiverAnnotatedTypeFactory extends BaseAnnotatedTypeFactor
                 }
             }
 
-            // If return type is annotated with @This, add @This annotation
-            // to the receiver type.  We cannot yet default all receivers to be
-            // @This due to https://github.com/typetools/checker-framework/issues/2931
+            // If return type is annotated with @This, add @This annotation to the receiver type.
+            // We cannot yet default all receivers to be @This due to
+            // https://github.com/typetools/checker-framework/issues/2931
             AnnotationMirror retAnnotation = returnType.getAnnotationInHierarchy(THIS_ANNOTATION);
             if (retAnnotation != null && AnnotationUtils.areSame(retAnnotation, THIS_ANNOTATION)) {
                 AnnotatedTypeMirror.AnnotatedDeclaredType receiverType = t.getReceiverType();

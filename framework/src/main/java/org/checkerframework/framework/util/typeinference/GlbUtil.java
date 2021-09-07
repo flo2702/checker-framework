@@ -1,15 +1,5 @@
 package org.checkerframework.framework.util.typeinference;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.Types;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedNullType;
@@ -19,6 +9,18 @@ import org.checkerframework.framework.util.AnnotationMirrorMap;
 import org.checkerframework.framework.util.AnnotationMirrorSet;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Types;
 
 /** A class used to determine the greatest lower bounds for a set of AnnotatedTypeMirrors. */
 public class GlbUtil {
@@ -95,9 +97,8 @@ public class GlbUtil {
             index += 1;
         }
 
-        // if the lowest type is a subtype of all glbTypes then it is the GLB, otherwise
-        // there are two types  in glbTypes that are incomparable and we need to use bottom
-        // (AnnotatedNullType)
+        // if the lowest type is a subtype of all glbTypes then it is the GLB, otherwise there are
+        // two types in glbTypes that are incomparable and we need to use bottom (AnnotatedNullType)
         boolean incomparable = false;
         for (final AnnotatedTypeMirror type : glbTypes) {
             if (!incomparable
@@ -105,7 +106,7 @@ public class GlbUtil {
                     && (!TypesUtils.isErasedSubtype(
                                     glbType.getUnderlyingType(),
                                     type.getUnderlyingType(),
-                                    typeFactory.getContext().getTypeUtils())
+                                    typeFactory.getChecker().getTypeUtils())
                             || !typeHierarchy.isSubtype(glbType, type))) {
                 incomparable = true;
             }

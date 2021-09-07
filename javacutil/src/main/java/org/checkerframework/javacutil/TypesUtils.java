@@ -4,15 +4,29 @@ import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.code.Type.CapturedType;
+import com.sun.tools.javac.code.Type.ClassType;
 import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.model.JavacTypes;
 import com.sun.tools.javac.processing.JavacProcessingEnvironment;
 import com.sun.tools.javac.util.Context;
+
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.checker.signature.qual.BinaryName;
+import org.checkerframework.checker.signature.qual.CanonicalNameOrEmpty;
+import org.checkerframework.checker.signature.qual.DotSeparatedIdentifiers;
+import org.checkerframework.checker.signature.qual.FullyQualifiedName;
+import org.plumelib.util.CollectionsPlume;
+import org.plumelib.util.ImmutableTypes;
+import org.plumelib.util.StringsPlume;
+
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.StringJoiner;
+
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.Name;
@@ -25,17 +39,15 @@ import javax.lang.model.type.PrimitiveType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.type.TypeVariable;
+import javax.lang.model.type.UnionType;
 import javax.lang.model.type.WildcardType;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
-import org.checkerframework.checker.nullness.qual.Nullable;
-import org.checkerframework.checker.signature.qual.BinaryName;
-import org.checkerframework.checker.signature.qual.CanonicalNameOrEmpty;
-import org.checkerframework.checker.signature.qual.DotSeparatedIdentifiers;
-import org.checkerframework.checker.signature.qual.FullyQualifiedName;
-import org.plumelib.util.ImmutableTypes;
 
-/** A utility class that helps with {@link TypeMirror}s. */
+/**
+ * A utility class that helps with {@link TypeMirror}s. It complements {@link Types}, providing
+ * methods that {@link Types} does not.
+ */
 public final class TypesUtils {
 
     /** Class cannot be instantiated. */
@@ -152,9 +164,11 @@ public final class TypesUtils {
      * @param type the declared type
      * @return the name corresponding to that type
      */
-    public static @CanonicalNameOrEmpty Name getQualifiedName(DeclaredType type) {
+    @SuppressWarnings("signature:return") // todo: add fake override of Name.toString.
+    public static @CanonicalNameOrEmpty String getQualifiedName(DeclaredType type) {
         TypeElement element = (TypeElement) type.asElement();
-        return element.getQualifiedName();
+        @CanonicalNameOrEmpty Name name = element.getQualifiedName();
+        return name.toString();
     }
 
     /**
@@ -175,6 +189,19 @@ public final class TypesUtils {
                 return "<nulltype>";
             case VOID:
                 return "void";
+            case WILDCARD:
+                WildcardType wildcard = (WildcardType) type;
+                TypeMirror extendsBound = wildcard.getExtendsBound();
+                TypeMirror superBound = wildcard.getSuperBound();
+                return "?"
+                        + (extendsBound != null ? " extends " + simpleTypeName(extendsBound) : "")
+                        + (superBound != null ? " super " + simpleTypeName(superBound) : "");
+            case UNION:
+                StringJoiner sj = new StringJoiner(" | ");
+                for (TypeMirror alternative : ((UnionType) type).getAlternatives()) {
+                    sj.add(simpleTypeName(alternative));
+                }
+                return sj.toString();
             default:
                 if (type.getKind().isPrimitive()) {
                     return TypeAnnotationUtils.unannotatedType(type).toString();
@@ -216,6 +243,20 @@ public final class TypesUtils {
             return (TypeElement) element;
         }
         return null;
+    }
+
+    /**
+     * Given an array type, returns the type with all array levels stripped off.
+     *
+     * @param at an array type
+     * @return the type with all array levels stripped off
+     */
+    public static TypeMirror getInnermostComponentType(ArrayType at) {
+        TypeMirror result = at;
+        while (result.getKind() == TypeKind.ARRAY) {
+            result = ((ArrayType) result).getComponentType();
+        }
+        return result;
     }
 
     /// Equality
@@ -671,6 +712,18 @@ public final class TypesUtils {
     }
 
     /**
+     * Returns the {@code DeclaredType} for {@code java.lang.Object}.
+     *
+     * @param env {@link ProcessingEnvironment}
+     * @return the {@code DeclaredType} for {@code java.lang.Object}
+     */
+    public static DeclaredType getObjectTypeMirror(ProcessingEnvironment env) {
+        Context context = ((JavacProcessingEnvironment) env).getContext();
+        Symtab syms = Symtab.instance(context);
+        return (DeclaredType) syms.objectType;
+    }
+
+    /**
      * Version of com.sun.tools.javac.code.Types.wildLowerBound(Type) that works with both jdk8
      * (called upperBound there) and jdk8u.
      */
@@ -730,17 +783,44 @@ public final class TypesUtils {
         return types.isSubtype(types.erasure(subtype), types.erasure(supertype));
     }
 
-    /** Returns whether a TypeVariable represents a captured type. */
-    public static boolean isCaptured(TypeMirror typeVar) {
-        if (typeVar.getKind() != TypeKind.TYPEVAR) {
+    /**
+     * Returns true if {@code type} is a type variable created during capture conversion.
+     *
+     * @param type a type mirror
+     * @return true if {@code type} is a type variable created during capture conversion
+     * @deprecated use {@link #isCapturedTypeVariable(TypeMirror)} instead
+     */
+    @Deprecated // 2021-07-06
+    public static boolean isCaptured(TypeMirror type) {
+        if (type.getKind() != TypeKind.TYPEVAR) {
             return false;
         }
-        return ((Type.TypeVar) TypeAnnotationUtils.unannotatedType(typeVar)).isCaptured();
+        return ((Type.TypeVar) TypeAnnotationUtils.unannotatedType(type)).isCaptured();
     }
 
-    /** If typeVar is a captured wildcard, returns that wildcard; otherwise returns {@code null}. */
+    /**
+     * Returns true if {@code type} is a type variable created during capture conversion.
+     *
+     * @param type a type mirror
+     * @return true if {@code type} is a type variable created during capture conversion
+     */
+    public static boolean isCapturedTypeVariable(TypeMirror type) {
+        if (type.getKind() != TypeKind.TYPEVAR) {
+            return false;
+        }
+        return ((Type.TypeVar) TypeAnnotationUtils.unannotatedType(type)).isCaptured();
+    }
+
+    /**
+     * If {@code typeVar} is a captured type variable, then returns its underlying wildcard;
+     * otherwise returns {@code null}.
+     *
+     * @param typeVar a type variable that might be a captured type variable
+     * @return {@code typeVar} is a captured type variable, then returns its underlying wildcard;
+     *     otherwise returns {@code null}
+     */
     public static @Nullable WildcardType getCapturedWildcard(TypeVariable typeVar) {
-        if (isCaptured(typeVar)) {
+        if (isCapturedTypeVariable(typeVar)) {
             return ((CapturedType) TypeAnnotationUtils.unannotatedType(typeVar)).wildcard;
         }
         return null;
@@ -758,7 +838,7 @@ public final class TypesUtils {
      * @param tm1 a {@link TypeMirror}
      * @param tm2 a {@link TypeMirror}
      * @param processingEnv the {@link ProcessingEnvironment} to use
-     * @return the least upper bound of {@code tm1} and {@code tm2}.
+     * @return the least upper bound of {@code tm1} and {@code tm2}
      */
     public static TypeMirror leastUpperBound(
             TypeMirror tm1, TypeMirror tm2, ProcessingEnvironment processingEnv) {
@@ -820,7 +900,7 @@ public final class TypesUtils {
      * @param tm1 a {@link TypeMirror}
      * @param tm2 a {@link TypeMirror}
      * @param processingEnv the {@link ProcessingEnvironment} to use
-     * @return the greatest lower bound of {@code tm1} and {@code tm2}.
+     * @return the greatest lower bound of {@code tm1} and {@code tm2}
      */
     public static TypeMirror greatestLowerBound(
             TypeMirror tm1, TypeMirror tm2, ProcessingEnvironment processingEnv) {
@@ -865,6 +945,44 @@ public final class TypesUtils {
         return types.glb(t1, t2);
     }
 
+    /**
+     * Returns the most specific type from the list, or null if none exists.
+     *
+     * @param typeMirrors a list of types
+     * @param processingEnv the {@link ProcessingEnvironment} to use
+     * @return the most specific of the types, or null if none exists
+     */
+    public static @Nullable TypeMirror mostSpecific(
+            List<TypeMirror> typeMirrors, ProcessingEnvironment processingEnv) {
+        if (typeMirrors.size() == 1) {
+            return typeMirrors.get(0);
+        } else {
+            JavacProcessingEnvironment javacEnv = (JavacProcessingEnvironment) processingEnv;
+            com.sun.tools.javac.code.Types types =
+                    com.sun.tools.javac.code.Types.instance(javacEnv.getContext());
+            com.sun.tools.javac.util.List<Type> typeList = typeMirrorListToTypeList(typeMirrors);
+            Type glb = types.glb(typeList);
+            for (Type candidate : typeList) {
+                if (types.isSameType(glb, candidate)) {
+                    return candidate;
+                }
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Given a list of TypeMirror, return a list of Type.
+     *
+     * @param typeMirrors a list of TypeMirrors
+     * @return the argument, converted to a javac list
+     */
+    private static com.sun.tools.javac.util.List<Type> typeMirrorListToTypeList(
+            List<TypeMirror> typeMirrors) {
+        List<Type> typeList = CollectionsPlume.mapList(Type.class::cast, typeMirrors);
+        return com.sun.tools.javac.util.List.from(typeList);
+    }
+
     /// Substitutions
 
     /**
@@ -873,7 +991,7 @@ public final class TypesUtils {
      * @param methodElement a method
      * @param substitutedReceiverType the receiver type, after substitution
      * @param env the environment
-     * @return the return type of the mehtod
+     * @return the return type of the method
      */
     public static TypeMirror substituteMethodReturnType(
             Element methodElement, TypeMirror substitutedReceiverType, ProcessingEnvironment env) {
@@ -898,6 +1016,28 @@ public final class TypesUtils {
         Context ctx = ((JavacProcessingEnvironment) env).getContext();
         com.sun.tools.javac.code.Types javacTypes = com.sun.tools.javac.code.Types.instance(ctx);
         return javacTypes.asSuper((Type) type, ((Type) superType).tsym);
+    }
+
+    /**
+     * Returns the superclass of the given class. Returns null if there is not one.
+     *
+     * @param type a type
+     * @param types type utilities
+     * @return the superclass of the given class, or null
+     */
+    public static @Nullable TypeMirror getSuperclass(TypeMirror type, Types types) {
+        List<? extends TypeMirror> superTypes = types.directSupertypes(type);
+        for (TypeMirror t : superTypes) {
+            // ignore interface types
+            if (!(t instanceof ClassType)) {
+                continue;
+            }
+            ClassType tt = (ClassType) t;
+            if (!tt.isInterface()) {
+                return t;
+            }
+        }
+        return null;
     }
 
     /**
@@ -934,15 +1074,10 @@ public final class TypesUtils {
             List<? extends TypeMirror> typeArgs,
             ProcessingEnvironment env) {
 
-        List<Type> newP = new ArrayList<>();
-        for (TypeMirror typeVariable : typeVariables) {
-            newP.add((Type) typeVariable);
-        }
+        List<Type> newP = CollectionsPlume.mapList(Type.class::cast, typeVariables);
 
-        List<Type> newT = new ArrayList<>();
-        for (TypeMirror typeMirror : typeArgs) {
-            newT.add((Type) typeMirror);
-        }
+        List<Type> newT = CollectionsPlume.mapList(Type.class::cast, typeArgs);
+
         JavacProcessingEnvironment javacEnv = (JavacProcessingEnvironment) env;
         com.sun.tools.javac.code.Types types =
                 com.sun.tools.javac.code.Types.instance(javacEnv.getContext());
@@ -950,5 +1085,85 @@ public final class TypesUtils {
                 (Type) type,
                 com.sun.tools.javac.util.List.from(newP),
                 com.sun.tools.javac.util.List.from(newT));
+    }
+
+    /**
+     * Returns the depth of an array type.
+     *
+     * @param arrayType an array type
+     * @return the depth of {@code arrayType}
+     */
+    public static int getArrayDepth(TypeMirror arrayType) {
+        int counter = 0;
+        TypeMirror type = arrayType;
+        while (type.getKind() == TypeKind.ARRAY) {
+            counter++;
+            type = ((ArrayType) type).getComponentType();
+        }
+        return counter;
+    }
+
+    /**
+     * If {@code typeMirror} is a wildcard, returns a fresh type variable that will be used as a
+     * captured type variable for it. If {@code typeMirror} is not a wildcard, returns {@code
+     * typeMirror}.
+     *
+     * @param typeMirror a type
+     * @param env processing environment
+     * @return a fresh type variable if {@code typeMirror} is a wildcard, otherwise {@code
+     *     typeMirror}
+     */
+    public static TypeMirror freshTypeVariable(TypeMirror typeMirror, ProcessingEnvironment env) {
+        JavacProcessingEnvironment javacEnv = (JavacProcessingEnvironment) env;
+        com.sun.tools.javac.code.Types types =
+                com.sun.tools.javac.code.Types.instance(javacEnv.getContext());
+        return types.freshTypeVariables(com.sun.tools.javac.util.List.of((Type) typeMirror)).head;
+    }
+
+    /**
+     * Returns the list of type variables such that a type variable in the list only references type
+     * variables at a lower index than itself.
+     *
+     * @param collection a collection of type variables
+     * @param types type utilities
+     * @return the type variables ordered so that each type variable only references earlier type
+     *     variables
+     */
+    public static List<TypeVariable> order(Collection<TypeVariable> collection, Types types) {
+        List<TypeVariable> list = new ArrayList<>(collection);
+        List<TypeVariable> ordered = new ArrayList<>();
+        while (!list.isEmpty()) {
+            TypeVariable free = doesNotContainOthers(list, types);
+            list.remove(free);
+            ordered.add(free);
+        }
+        return ordered;
+    }
+
+    /**
+     * Returns the first TypeVariable in {@code collection} that does not contain any other type in
+     * the collection.
+     *
+     * @param collection a collection of type variables
+     * @param types types
+     * @return the first TypeVariable in {@code collection} that does not contain any other type in
+     *     the collection, but maybe itsself
+     */
+    @SuppressWarnings("interning:not.interned") // must be the same object from collection
+    private static TypeVariable doesNotContainOthers(
+            Collection<? extends TypeVariable> collection, Types types) {
+        for (TypeVariable candidate : collection) {
+            boolean doesNotContain = true;
+            for (TypeVariable other : collection) {
+                if (candidate != other && types.contains(candidate, other)) {
+                    doesNotContain = false;
+                    break;
+                }
+            }
+            if (doesNotContain) {
+                return candidate;
+            }
+        }
+        throw new BugInCF("Not found: %s", StringsPlume.join(",", collection));
     }
 }

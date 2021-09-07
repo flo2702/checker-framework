@@ -4,13 +4,16 @@ import com.sun.tools.javac.code.Attribute;
 import com.sun.tools.javac.code.Attribute.TypeCompound;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.TargetType;
-import java.util.List;
-import javax.lang.model.element.Element;
+
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.util.element.ElementAnnotationUtil.UnexpectedAnnotationLocationException;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.util.List;
+
+import javax.lang.model.element.Element;
 
 /** Apply annotations to a declared type based on its declaration. */
 public class TypeDeclarationApplier extends TargetedElementAnnotationApplier {
@@ -25,7 +28,7 @@ public class TypeDeclarationApplier extends TargetedElementAnnotationApplier {
 
     /**
      * If a type_index == -1 it means that the index refers to the immediate supertype class of the
-     * declaration. There is only ever one of these since java has no multiple inheritance
+     * declaration. There is only ever one of these since Java has no multiple inheritance
      */
     public static final int SUPERCLASS_INDEX = -1;
 
@@ -95,9 +98,8 @@ public class TypeDeclarationApplier extends TargetedElementAnnotationApplier {
     protected void handleTargeted(List<TypeCompound> extendsAndImplementsAnnos)
             throws UnexpectedAnnotationLocationException {
         if (TypesUtils.isAnonymous(typeSymbol.type)) {
-            // If this is an anonymous class, then the annotations after "new" but before the
-            // class name are stored as super class annotations. Treat them as annotations on the
-            // class.
+            // If this is an anonymous class, then the annotations after "new" but before the class
+            // name are stored as super class annotations. Treat them as annotations on the class.
             for (final Attribute.TypeCompound anno : extendsAndImplementsAnnos) {
                 if (anno.position.type_index >= SUPERCLASS_INDEX
                         && anno.position.location.isEmpty()) {

@@ -2,20 +2,23 @@ package org.checkerframework.framework.util.element;
 
 import com.sun.tools.javac.code.Attribute.TypeCompound;
 import com.sun.tools.javac.code.TargetType;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.type.TypeKind;
+
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedIntersectionType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedTypeVariable;
 import org.checkerframework.framework.util.element.ElementAnnotationUtil.UnexpectedAnnotationLocationException;
 import org.checkerframework.javacutil.BugInCF;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.type.TypeKind;
 
 /**
  * Applies Element annotations to a single AnnotatedTypeVariable representing a type parameter.
@@ -185,11 +188,7 @@ abstract class TypeParamElementAnnotationApplier extends IndexedElementAnnotatio
             final AnnotatedTypeMirror type,
             final TypeCompound anno,
             final Map<AnnotatedTypeMirror, List<TypeCompound>> typeToAnnos) {
-        List<TypeCompound> annoList = typeToAnnos.get(type);
-        if (annoList == null) {
-            annoList = new ArrayList<>();
-            typeToAnnos.put(type, annoList);
-        }
+        List<TypeCompound> annoList = typeToAnnos.computeIfAbsent(type, __ -> new ArrayList<>());
         annoList.add(anno);
     }
 

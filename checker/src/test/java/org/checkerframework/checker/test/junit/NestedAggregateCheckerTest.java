@@ -2,13 +2,14 @@ package org.checkerframework.checker.test.junit;
 
 // Test case for issue 343.
 // https://github.com/typetools/checker-framework/issues/343
-// This exists to just run the NestedAggregateChecker
+// This exists to just run the NestedAggregateChecker.
 
-import java.io.File;
-import java.util.List;
 import org.checkerframework.checker.testchecker.NestedAggregateChecker;
 import org.checkerframework.framework.test.CheckerFrameworkPerDirectoryTest;
 import org.junit.runners.Parameterized.Parameters;
+
+import java.io.File;
+import java.util.List;
 
 public class NestedAggregateCheckerTest extends CheckerFrameworkPerDirectoryTest {
 

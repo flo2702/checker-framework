@@ -1,11 +1,13 @@
 package org.checkerframework.dataflow.cfg.node;
 
 import com.sun.source.tree.LiteralTree;
+
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.javacutil.TreeUtils;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
-import org.checkerframework.checker.nullness.qual.Nullable;
-import org.checkerframework.javacutil.TreeUtils;
 
 /**
  * A node for a literals that have some form of value:
@@ -48,9 +50,11 @@ public abstract class ValueLiteralNode extends Node {
         return String.valueOf(getValue());
     }
 
-    /** Compare the value of this nodes. */
     @Override
     public boolean equals(@Nullable Object obj) {
+        if (this == obj) {
+            return true;
+        }
         if (!(obj instanceof ValueLiteralNode)) {
             return false;
         }

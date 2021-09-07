@@ -1,11 +1,8 @@
 package org.checkerframework.framework.testchecker.h1h2checker;
 
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.Tree.Kind;
 import com.sun.source.tree.VariableTree;
-import java.lang.annotation.Annotation;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
+
 import org.checkerframework.common.basetype.BaseAnnotatedTypeFactory;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.framework.testchecker.h1h2checker.quals.H1Bot;
@@ -21,6 +18,11 @@ import org.checkerframework.framework.testchecker.h1h2checker.quals.H2S2;
 import org.checkerframework.framework.testchecker.h1h2checker.quals.H2Top;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.javacutil.AnnotationBuilder;
+
+import java.lang.annotation.Annotation;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
 
 public class H1H2AnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
 
@@ -52,7 +54,7 @@ public class H1H2AnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
     protected void addComputedTypeAnnotations(
             Tree tree, AnnotatedTypeMirror type, boolean iUseFlow) {
         super.addComputedTypeAnnotations(tree, type, iUseFlow);
-        if (tree.getKind() == Kind.VARIABLE
+        if (tree.getKind() == Tree.Kind.VARIABLE
                 && ((VariableTree) tree).getName().toString().contains("addH1S2")) {
             type.replaceAnnotation(H1S2);
         }

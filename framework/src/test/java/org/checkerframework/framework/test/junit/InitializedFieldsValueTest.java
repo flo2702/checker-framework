@@ -1,11 +1,12 @@
 package org.checkerframework.framework.test.junit;
 
+import org.checkerframework.framework.test.CheckerFrameworkPerDirectoryTest;
+import org.junit.runners.Parameterized.Parameters;
+
 import java.io.File;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import org.checkerframework.framework.test.CheckerFrameworkPerDirectoryTest;
-import org.junit.runners.Parameterized.Parameters;
 
 public class InitializedFieldsValueTest extends CheckerFrameworkPerDirectoryTest {
 
@@ -18,13 +19,12 @@ public class InitializedFieldsValueTest extends CheckerFrameworkPerDirectoryTest
         super(
                 testFiles,
                 Arrays.asList(
-                        new String[] {
-                            "org.checkerframework.common.initializedfields.InitializedFieldsChecker",
-                            "org.checkerframework.common.value.ValueChecker"
-                        }),
+                        "org.checkerframework.common.initializedfields.InitializedFieldsChecker",
+                        "org.checkerframework.common.value.ValueChecker"),
                 "initialized-fields-value",
                 Collections.emptyList(), // classpathextra
-                "-Anomsgtext");
+                "-Anomsgtext",
+                "-AsuppressWarnings=type.checking.not.run");
     }
 
     @Parameters

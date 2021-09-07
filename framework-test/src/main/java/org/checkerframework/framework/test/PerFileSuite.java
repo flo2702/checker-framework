@@ -1,15 +1,5 @@
 package org.checkerframework.framework.test;
 
-import java.io.File;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
-import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.StringJoiner;
 import org.checkerframework.javacutil.BugInCF;
 import org.junit.runner.Runner;
 import org.junit.runner.notification.RunNotifier;
@@ -20,6 +10,18 @@ import org.junit.runners.model.FrameworkMethod;
 import org.junit.runners.model.InitializationError;
 import org.junit.runners.model.Statement;
 import org.junit.runners.model.TestClass;
+import org.plumelib.util.CollectionsPlume;
+
+import java.io.File;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.StringJoiner;
 
 // TODO: large parts of this file are the same as PerDirectorySuite.java.
 // Reduce duplication by moving common parts to an abstract class.
@@ -75,18 +77,18 @@ public class PerFileSuite extends Suite {
         List<File> javaFiles;
         // We will have either a method getTestDirs which returns String [] or getTestFiles
         // which returns List<Object []> or getParametersMethod would fail
+        if (method == null) {
+            throw new BugInCF("no method annotated with @Parameters");
+        }
         if (method.getReturnType().isArray()) {
             String[] dirs = (String[]) method.invokeExplosively(null);
             javaFiles = TestUtilities.findNestedJavaTestFiles(dirs);
-
         } else {
             javaFiles = (List<File>) method.invokeExplosively(null);
         }
 
-        List<Object[]> argumentLists = new ArrayList<>();
-        for (File javaFile : javaFiles) {
-            argumentLists.add(new Object[] {javaFile});
-        }
+        List<Object[]> argumentLists =
+                CollectionsPlume.mapList((File javaFile) -> new Object[] {javaFile}, javaFiles);
 
         return argumentLists;
     }

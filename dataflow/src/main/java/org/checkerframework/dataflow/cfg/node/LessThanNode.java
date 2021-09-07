@@ -2,9 +2,10 @@ package org.checkerframework.dataflow.cfg.node;
 
 import com.sun.source.tree.BinaryTree;
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.Tree.Kind;
-import java.util.Objects;
+
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import java.util.Objects;
 
 /**
  * A node for the less than comparison:
@@ -17,9 +18,16 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  */
 public class LessThanNode extends BinaryOperationNode {
 
+    /**
+     * Constructs a {@link LessThanNode}.
+     *
+     * @param tree the binary tree
+     * @param left the left operand
+     * @param right the right operand
+     */
     public LessThanNode(BinaryTree tree, Node left, Node right) {
         super(tree, left, right);
-        assert tree.getKind() == Kind.LESS_THAN;
+        assert tree.getKind() == Tree.Kind.LESS_THAN;
     }
 
     @Override

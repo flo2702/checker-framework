@@ -1,4 +1,5 @@
 import net.jcip.annotations.GuardedBy;
+
 import org.checkerframework.checker.lock.qual.GuardSatisfied;
 import org.checkerframework.checker.lock.qual.Holding;
 import org.checkerframework.checker.lock.qual.LockingFree;
@@ -31,11 +32,13 @@ public class JCIPAnnotations {
     void testReceivers() {
         // :: error: (method.invocation.invalid)
         jcipGuardedField.methodWithUnguardedReceiver();
+        // :: error: (method.invocation.invalid)
         jcipGuardedField.methodWithGuardedReceiver();
         // :: error: (lock.not.held)
         jcipGuardedField.methodWithGuardSatisfiedReceiver();
         // :: error: (method.invocation.invalid)
         javaxGuardedField.methodWithUnguardedReceiver();
+        // :: error: (method.invocation.invalid)
         javaxGuardedField.methodWithGuardedReceiver();
         // :: error: (lock.not.held)
         javaxGuardedField.methodWithGuardSatisfiedReceiver();

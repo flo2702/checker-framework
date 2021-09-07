@@ -11,6 +11,7 @@ import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.flow.CFAbstractValue;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
+import org.plumelib.util.CollectionsPlume;
 import org.plumelib.util.ToStringComparator;
 
 import java.util.HashMap;
@@ -18,7 +19,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
@@ -35,13 +35,19 @@ public class InitializationStore<V extends CFAbstractValue<V>, S extends Initial
 
     /** The set of fields that are initialized. */
     protected final Set<VariableElement> initializedFields;
-    /** The set of fields that have 'invariant' annotation. */
+    /** The set of fields that have the 'invariant' annotation, and their value. */
     protected final Map<FieldAccess, V> invariantFields;
 
+    /**
+     * Creates a new InitializationStore.
+     *
+     * @param analysis the analysis class this store belongs to
+     * @param sequentialSemantics should the analysis use sequential Java semantics?
+     */
     public InitializationStore(CFAbstractAnalysis<V, S, ?> analysis, boolean sequentialSemantics) {
         super(analysis, sequentialSemantics);
-        initializedFields = new HashSet<>();
-        invariantFields = new HashMap<>();
+        initializedFields = new HashSet<>(4);
+        invariantFields = new HashMap<>(4);
     }
 
     /**
@@ -51,10 +57,8 @@ public class InitializationStore<V extends CFAbstractValue<V>, S extends Initial
      * initialized.
      */
     @Override
-    public void insertValue(JavaExpression je, V value) {
-        if (value == null) {
-            // No need to insert a null abstract value because it represents
-            // top and top is also the default value.
+    public void insertValue(JavaExpression je, V value, boolean permitNondeterministic) {
+        if (!shouldInsert(je, value, permitNondeterministic)) {
             return;
         }
 
@@ -79,7 +83,7 @@ public class InitializationStore<V extends CFAbstractValue<V>, S extends Initial
             }
         }
 
-        super.insertValue(je, value);
+        super.insertValue(je, value, permitNondeterministic);
 
         for (AnnotationMirror a : value.getAnnotations()) {
             if (atypeFactory.isFieldInvariantAnnotation(a)) {
@@ -125,6 +129,8 @@ public class InitializationStore<V extends CFAbstractValue<V>, S extends Initial
      * Mark the field identified by the element {@code field} as initialized if it belongs to the
      * current class, or is static (in which case there is no aliasing issue and we can just add all
      * static fields).
+     *
+     * @param field a field that is initialized
      */
     public void addInitializedField(FieldAccess field) {
         boolean fieldOnThisReference = field.getReceiver() instanceof ThisReference;
@@ -137,6 +143,8 @@ public class InitializationStore<V extends CFAbstractValue<V>, S extends Initial
     /**
      * Mark the field identified by the element {@code f} as initialized (the caller needs to ensure
      * that the field belongs to the current class, or is a static field).
+     *
+     * @param f a field that is initialized
      */
     public void addInitializedField(VariableElement f) {
         initializedFields.add(f);
@@ -154,6 +162,7 @@ public class InitializationStore<V extends CFAbstractValue<V>, S extends Initial
         }
         @SuppressWarnings("unchecked")
         S other = (S) o;
+
         for (Element field : other.initializedFields) {
             if (!initializedFields.contains(field)) {
                 return false;
@@ -166,8 +175,8 @@ public class InitializationStore<V extends CFAbstractValue<V>, S extends Initial
             }
         }
 
-        Map<FieldAccess, V> removedFieldValues = new HashMap<>();
-        Map<FieldAccess, V> removedOtherFieldValues = new HashMap<>();
+        Map<FieldAccess, V> removedFieldValues = new HashMap<>(invariantFields.size());
+        Map<FieldAccess, V> removedOtherFieldValues = new HashMap<>(other.invariantFields.size());
         try {
             // Remove invariant annotated fields to avoid performance issue reported in #1438.
             for (FieldAccess invariantField : invariantFields.keySet()) {
@@ -190,8 +199,8 @@ public class InitializationStore<V extends CFAbstractValue<V>, S extends Initial
     @Override
     public S leastUpperBound(S other) {
         // Remove invariant annotated fields to avoid performance issue reported in #1438.
-        Map<FieldAccess, V> removedFieldValues = new HashMap<>();
-        Map<FieldAccess, V> removedOtherFieldValues = new HashMap<>();
+        Map<FieldAccess, V> removedFieldValues = new HashMap<>(invariantFields.size());
+        Map<FieldAccess, V> removedOtherFieldValues = new HashMap<>(other.invariantFields.size());
         for (FieldAccess invariantField : invariantFields.keySet()) {
             V v = fieldValues.remove(invariantField);
             removedFieldValues.put(invariantField, v);
@@ -213,8 +222,11 @@ public class InitializationStore<V extends CFAbstractValue<V>, S extends Initial
 
         // Set intersection for invariantFields.
         for (Map.Entry<FieldAccess, V> e : invariantFields.entrySet()) {
-            if (other.invariantFields.containsKey(e.getKey())) {
-                result.invariantFields.put(e.getKey(), e.getValue());
+            FieldAccess key = e.getKey();
+            if (other.invariantFields.containsKey(key)) {
+                // TODO: Is the value other.invariantFields.get(key) the same as e.getValue()?
+                // Should the two values be lubbed?
+                result.invariantFields.put(key, e.getValue());
             }
         }
         // Add invariant annotation.
@@ -226,13 +238,13 @@ public class InitializationStore<V extends CFAbstractValue<V>, S extends Initial
     @Override
     protected String internalVisualize(CFGVisualizer<V, S, ?> viz) {
         String superVisualize = super.internalVisualize(viz);
+
         String initializedVisualize =
                 viz.visualizeStoreKeyVal(
                         "initialized fields", ToStringComparator.sorted(initializedFields));
+
         List<VariableElement> invariantVars =
-                invariantFields.keySet().stream()
-                        .map(FieldAccess::getField)
-                        .collect(Collectors.toList());
+                CollectionsPlume.mapList(FieldAccess::getField, invariantFields.keySet());
         String invariantVisualize =
                 viz.visualizeStoreKeyVal(
                         "invariant fields", ToStringComparator.sorted(invariantVars));

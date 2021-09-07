@@ -1,10 +1,7 @@
 package org.checkerframework.common.aliasing;
 
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.Tree.Kind;
-import java.util.List;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.VariableElement;
+
 import org.checkerframework.common.aliasing.qual.LeakedToResult;
 import org.checkerframework.common.aliasing.qual.NonLeaked;
 import org.checkerframework.common.aliasing.qual.Unique;
@@ -25,6 +22,11 @@ import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
 import org.checkerframework.javacutil.TreeUtils;
+
+import java.util.List;
+
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.VariableElement;
 
 /**
  * Type refinement is treated in the usual way, except that at (pseudo-)assignments the RHS may lose
@@ -66,7 +68,7 @@ public class AliasingTransfer extends CFTransfer {
             return super.visitAssignment(n, in); // Do normal refinement.
         }
         // Widen the type of the rhs if the RHS's declared type wasn't @Unique.
-        JavaExpression rhsExpr = JavaExpression.fromNode(factory, rhs);
+        JavaExpression rhsExpr = JavaExpression.fromNode(rhs);
         in.getRegularStore().clearValue(rhsExpr);
         return new RegularTransferResult<>(null, in.getRegularStore());
     }
@@ -104,7 +106,7 @@ public class AliasingTransfer extends CFTransfer {
             AnnotatedTypeMirror paramType = paramTypes.get(i);
             if (!paramType.hasAnnotation(NonLeaked.class)
                     && !paramType.hasAnnotation(LeakedToResult.class)) {
-                store.clearValue(JavaExpression.fromNode(factory, arg));
+                store.clearValue(JavaExpression.fromNode(arg));
             }
         }
 
@@ -114,7 +116,7 @@ public class AliasingTransfer extends CFTransfer {
         if (receiverType != null
                 && !receiverType.hasAnnotation(LeakedToResult.class)
                 && !receiverType.hasAnnotation(NonLeaked.class)) {
-            store.clearValue(JavaExpression.fromNode(factory, receiver));
+            store.clearValue(JavaExpression.fromNode(receiver));
         }
     }
 
@@ -127,7 +129,7 @@ public class AliasingTransfer extends CFTransfer {
     public TransferResult<CFValue, CFStore> visitMethodInvocation(
             MethodInvocationNode n, TransferInput<CFValue, CFStore> in) {
         Tree parent = n.getTreePath().getParentPath().getLeaf();
-        boolean parentIsStatement = parent.getKind() == Kind.EXPRESSION_STATEMENT;
+        boolean parentIsStatement = parent.getKind() == Tree.Kind.EXPRESSION_STATEMENT;
 
         if (!parentIsStatement) {
 
@@ -149,7 +151,7 @@ public class AliasingTransfer extends CFTransfer {
                 if (factory.getAnnotatedType(param).hasAnnotation(LeakedToResult.class)) {
                     // If argument can leak to result, and parent is not a
                     // single statement, remove that node from store.
-                    store.clearValue(JavaExpression.fromNode(factory, arg));
+                    store.clearValue(JavaExpression.fromNode(arg));
                 }
             }
 
@@ -158,11 +160,10 @@ public class AliasingTransfer extends CFTransfer {
             AnnotatedExecutableType annotatedType = factory.getAnnotatedType(methodElement);
             AnnotatedDeclaredType receiverType = annotatedType.getReceiverType();
             if (receiverType != null && receiverType.hasAnnotation(LeakedToResult.class)) {
-                store.clearValue(JavaExpression.fromNode(factory, receiver));
+                store.clearValue(JavaExpression.fromNode(receiver));
             }
         }
-        // If parent is a statement, processPostconditions will handle the
-        // pseudo-assignments.
+        // If parent is a statement, processPostconditions will handle the pseudo-assignments.
         return super.visitMethodInvocation(n, in);
     }
 }

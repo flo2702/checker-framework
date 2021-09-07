@@ -2,19 +2,14 @@ package org.checkerframework.framework.type;
 
 import com.sun.source.tree.LambdaExpressionTree;
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.Tree.Kind;
 import com.sun.source.tree.VariableTree;
 import com.sun.tools.javac.code.Symbol;
-import java.util.List;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.TypeParameterElement;
-import javax.lang.model.element.VariableElement;
+
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedTypeVariable;
 import org.checkerframework.framework.type.visitor.AnnotatedTypeScanner;
 import org.checkerframework.framework.util.element.ClassTypeParamApplier;
+import org.checkerframework.framework.util.element.ElementAnnotationUtil.ErrorTypeKindException;
 import org.checkerframework.framework.util.element.ElementAnnotationUtil.UnexpectedAnnotationLocationException;
 import org.checkerframework.framework.util.element.MethodApplier;
 import org.checkerframework.framework.util.element.MethodTypeParamApplier;
@@ -26,6 +21,14 @@ import org.checkerframework.framework.util.element.VariableApplier;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.Pair;
+
+import java.util.List;
+
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.TypeParameterElement;
+import javax.lang.model.element.VariableElement;
 
 /**
  * Utility methods for adding the annotations that are stored in an Element to the type that
@@ -75,12 +78,17 @@ public class ElementAnnotationApplier {
             final Element element,
             final AnnotatedTypeFactory typeFactory) {
         try {
-            applyInternal(type, element, typeFactory);
-        } catch (UnexpectedAnnotationLocationException e) {
-            reportInvalidLocation(element, typeFactory);
+            try {
+                applyInternal(type, element, typeFactory);
+            } catch (UnexpectedAnnotationLocationException e) {
+                reportInvalidLocation(element, typeFactory);
+            }
+            // Also copy annotations from type parameters to their uses.
+            new TypeVarAnnotator().visit(type, typeFactory);
+        } catch (ErrorTypeKindException e) {
+            // Do nothing if an ERROR TypeKind was found.
+            // This is triggered by Issue #244.
         }
-        // Also copy annotations from type parameters to their uses.
-        new TypeVarAnnotator().visit(type, typeFactory);
     }
 
     /** Issues an "invalid.annotation.location.bytecode warning. */
@@ -187,7 +195,7 @@ public class ElementAnnotationApplier {
 
         if (paramDecl != null) {
             final Tree parentTree = typeFactory.getPath(paramDecl).getParentPath().getLeaf();
-            if (parentTree != null && parentTree.getKind() == Kind.LAMBDA_EXPRESSION) {
+            if (parentTree != null && parentTree.getKind() == Tree.Kind.LAMBDA_EXPRESSION) {
                 return Pair.of(paramDecl, (LambdaExpressionTree) parentTree);
             }
         }

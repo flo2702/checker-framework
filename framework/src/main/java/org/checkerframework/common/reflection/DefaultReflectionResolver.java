@@ -24,21 +24,7 @@ import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.Name;
 import com.sun.tools.javac.util.Names;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.ElementFilter;
+
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.reflection.qual.Invoke;
 import org.checkerframework.common.reflection.qual.MethodVal;
@@ -52,6 +38,23 @@ import org.checkerframework.javacutil.AnnotationProvider;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.TreeUtils;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.ElementFilter;
 
 /**
  * Default implementation of {@link ReflectionResolver}. It resolves calls to:
@@ -110,7 +113,8 @@ public class DefaultReflectionResolver implements ReflectionResolver {
      *
      * @param factory the {@link AnnotatedTypeFactory} of the underlying type system
      * @param tree the method invocation tree that has to be resolved
-     * @param origResult the original result from {@code factory.methodFromUse}.
+     * @param origResult the original result from {@code factory.methodFromUse}
+     * @return the resolved type of the call
      */
     private ParameterizedExecutableType resolveMethodCall(
             AnnotatedTypeFactory factory,
@@ -128,8 +132,7 @@ public class DefaultReflectionResolver implements ReflectionResolver {
         Set<? extends AnnotationMirror> receiverGlb = null;
         Set<? extends AnnotationMirror> paramsGlb = null;
 
-        // Iterate over all possible methods: lub return types, and glb receiver
-        // and parameter types
+        // Iterate over all possible methods: lub return types, and glb receiver and parameter types
         for (MethodInvocationTree resolvedTree : possibleMethods) {
             debugReflection("Resolved method invocation: " + resolvedTree);
             if (!checkMethodArguments(resolvedTree)) {
@@ -152,8 +155,8 @@ public class DefaultReflectionResolver implements ReflectionResolver {
             // argument to invoke(Object, Object[]))
             // Check for static methods whose receiver is null
             if (resolvedResult.executableType.getReceiverType() == null) {
-                // If the method is static the first argument to Method.invoke isn't used,
-                // so assume top.
+                // If the method is static the first argument to Method.invoke isn't used, so assume
+                // top.
                 receiverGlb =
                         glb(
                                 receiverGlb,
@@ -167,10 +170,9 @@ public class DefaultReflectionResolver implements ReflectionResolver {
                                 factory);
             }
 
-            // Glb parameter types.  All formal parameter types get
-            // combined together because Method#invoke takes as argument an
-            // array of parameter types, so there is no way to distinguish
-            // the types of different formal parameters.
+            // Glb parameter types.  All formal parameter types get combined together because
+            // Method#invoke takes as argument an array of parameter types, so there is no way to
+            // distinguish the types of different formal parameters.
             for (AnnotatedTypeMirror mirror : resolvedResult.executableType.getParameterTypes()) {
                 paramsGlb = glb(paramsGlb, mirror.getAnnotations(), factory);
             }
@@ -264,7 +266,8 @@ public class DefaultReflectionResolver implements ReflectionResolver {
      * @param factory the {@link AnnotatedTypeFactory} of the underlying type system
      * @param tree the method invocation tree (representing a constructor call) that has to be
      *     resolved
-     * @param origResult the original result from {@code factory.methodFromUse}.
+     * @param origResult the original result from {@code factory.methodFromUse}
+     * @return the resolved type of the call
      */
     private ParameterizedExecutableType resolveConstructorCall(
             AnnotatedTypeFactory factory,
@@ -281,8 +284,7 @@ public class DefaultReflectionResolver implements ReflectionResolver {
         Set<? extends AnnotationMirror> returnLub = null;
         Set<? extends AnnotationMirror> paramsGlb = null;
 
-        // Iterate over all possible constructors: lub return types and glb
-        // parameter types
+        // Iterate over all possible constructors: lub return types and glb parameter types
         for (JCNewClass resolvedTree : possibleConstructors) {
             debugReflection("Resolved constructor invocation: " + resolvedTree);
             if (!checkNewClassArguments(resolvedTree)) {
@@ -348,8 +350,6 @@ public class DefaultReflectionResolver implements ReflectionResolver {
         JavacScope scope = (JavacScope) trees.getScope(path);
         Env<AttrContext> env = scope.getEnv();
 
-        List<MethodInvocationTree> methods = new ArrayList<>();
-
         boolean unknown = isUnknownMethod(tree);
 
         AnnotationMirror estimate = getMethodVal(tree);
@@ -357,27 +357,30 @@ public class DefaultReflectionResolver implements ReflectionResolver {
         if (estimate == null) {
             debugReflection("MethodVal is unknown for: " + tree);
             debugReflection("UnknownMethod annotation: " + unknown);
-            return methods;
+            return Collections.emptyList();
         }
 
         debugReflection("MethodVal type system annotations: " + estimate);
 
         List<String> listClassNames =
-                AnnotationUtils.getElementValueArray(estimate, "className", String.class, true);
+                AnnotationUtils.getElementValueArray(
+                        estimate, reflectionFactory.methodValClassNameElement, String.class);
         List<String> listMethodNames =
-                AnnotationUtils.getElementValueArray(estimate, "methodName", String.class, true);
+                AnnotationUtils.getElementValueArray(
+                        estimate, reflectionFactory.methodValMethodNameElement, String.class);
         List<Integer> listParamLengths =
-                AnnotationUtils.getElementValueArray(estimate, "params", Integer.class, true);
-
+                AnnotationUtils.getElementValueArray(
+                        estimate, reflectionFactory.methodValParamsElement, Integer.class);
         assert listClassNames.size() == listMethodNames.size()
                 && listClassNames.size() == listParamLengths.size();
+
+        List<MethodInvocationTree> methods = new ArrayList<>();
         for (int i = 0; i < listClassNames.size(); ++i) {
             String className = listClassNames.get(i);
             String methodName = listMethodNames.get(i);
             int paramLength = listParamLengths.get(i);
 
-            // Get receiver, which is always the first argument of the invoke
-            // method
+            // Get receiver, which is always the first argument of the invoke method
             JCExpression receiver = methodInvocation.args.head;
             // The remaining list contains the arguments
             com.sun.tools.javac.util.List<JCExpression> args = methodInvocation.args.tail;
@@ -451,24 +454,25 @@ public class DefaultReflectionResolver implements ReflectionResolver {
         JavacScope scope = (JavacScope) trees.getScope(path);
         Env<AttrContext> env = scope.getEnv();
 
-        List<JCNewClass> constructors = new ArrayList<>();
-
         AnnotationMirror estimate = getMethodVal(tree);
 
         if (estimate == null) {
             debugReflection("MethodVal is unknown for: " + tree);
             debugReflection("UnknownMethod annotation: " + isUnknownMethod(tree));
-            return constructors;
+            return Collections.emptyList();
         }
 
         debugReflection("MethodVal type system annotations: " + estimate);
 
         List<String> listClassNames =
-                AnnotationUtils.getElementValueArray(estimate, "className", String.class, true);
+                AnnotationUtils.getElementValueArray(
+                        estimate, reflectionFactory.methodValClassNameElement, String.class);
         List<Integer> listParamLengths =
-                AnnotationUtils.getElementValueArray(estimate, "params", Integer.class, true);
-
+                AnnotationUtils.getElementValueArray(
+                        estimate, reflectionFactory.methodValParamsElement, Integer.class);
         assert listClassNames.size() == listParamLengths.size();
+
+        List<JCNewClass> constructors = new ArrayList<>();
         for (int i = 0; i < listClassNames.size(); ++i) {
             String className = listClassNames.get(i);
             int paramLength = listParamLengths.get(i);
@@ -512,13 +516,14 @@ public class DefaultReflectionResolver implements ReflectionResolver {
         Resolve resolve = Resolve.instance(context);
         Names names = Names.instance(context);
 
-        List<Symbol> result = new ArrayList<>();
         Symbol sym = getSymbol(className, env, names, resolve);
         if (!sym.exists()) {
             debugReflection("Unable to resolve class: " + className);
             return Collections.emptyList();
         }
 
+        // The common case is probably that `result` is a singleton at method exit.
+        List<Symbol> result = new ArrayList<>();
         ClassSymbol classSym = (ClassSymbol) sym;
         while (classSym != null) {
             for (Symbol s : classSym.getEnclosedElements()) {
@@ -557,15 +562,17 @@ public class DefaultReflectionResolver implements ReflectionResolver {
         Resolve resolve = Resolve.instance(context);
         Names names = Names.instance(context);
 
-        List<Symbol> result = new ArrayList<>();
         Symbol symClass = getSymbol(className, env, names, resolve);
         if (!symClass.exists()) {
             debugReflection("Unable to resolve class: " + className);
             return Collections.emptyList();
         }
 
+        // TODO: Should this be used instead of the below??
         ElementFilter.constructorsIn(symClass.getEnclosedElements());
 
+        // The common case is probably that `result` is a singleton at method exit.
+        List<Symbol> result = new ArrayList<>();
         for (Symbol s : symClass.getEnclosedElements()) {
             // Check all constructors
             if (s.getKind() == ElementKind.CONSTRUCTOR) {

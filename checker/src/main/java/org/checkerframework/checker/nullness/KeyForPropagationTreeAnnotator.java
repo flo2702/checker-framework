@@ -3,14 +3,16 @@ package org.checkerframework.checker.nullness;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.VariableTree;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.type.TypeKind;
+
 import org.checkerframework.checker.nullness.KeyForPropagator.PropagationDirection;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.treeannotator.TreeAnnotator;
 import org.checkerframework.javacutil.TreeUtils;
+
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.type.TypeKind;
 
 /**
  * For the following initializations we wish to propagate the annotations from the left-hand side to
@@ -53,11 +55,7 @@ public class KeyForPropagationTreeAnnotator extends TreeAnnotator {
         super(atypeFactory);
         this.keyForPropagator = propagationTreeAnnotator;
         keySetMethod =
-                TreeUtils.getMethod(
-                        java.util.Map.class.getCanonicalName(),
-                        "keySet",
-                        0,
-                        atypeFactory.getProcessingEnv());
+                TreeUtils.getMethod("java.util.Map", "keySet", 0, atypeFactory.getProcessingEnv());
     }
 
     /**

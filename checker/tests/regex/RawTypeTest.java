@@ -1,8 +1,9 @@
+import org.checkerframework.checker.regex.qual.*;
+
 import java.lang.ref.WeakReference;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.List;
-import org.checkerframework.checker.regex.qual.*;
 
 public class RawTypeTest {
 
@@ -53,6 +54,7 @@ public class RawTypeTest {
             m2(c);
         }
 
+        @SuppressWarnings("removal") // AccessController in JDK 17
         public void m4() {
             AccessController.doPrivileged(
                     new PrivilegedAction<Object>() {

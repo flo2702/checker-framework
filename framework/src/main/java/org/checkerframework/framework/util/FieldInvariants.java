@@ -1,14 +1,16 @@
 package org.checkerframework.framework.util;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import javax.lang.model.element.AnnotationMirror;
-import javax.tools.Diagnostic.Kind;
 import org.checkerframework.framework.source.DiagMessage;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.QualifierHierarchy;
 import org.checkerframework.javacutil.BugInCF;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.tools.Diagnostic.Kind;
 
 /**
  * Represents field invariants, which the user states by writing {@code @FieldInvariant}. Think of
@@ -20,8 +22,8 @@ import org.checkerframework.javacutil.BugInCF;
 public class FieldInvariants {
 
     /**
-     * A list of simple field names. A field may appear more than once in this list. In a
-     * well-formed FieldInvariants, has the same length as {@code qualifiers}.
+     * A list of simple field names. A field may appear more than once in this list. This list has
+     * the same length as {@code qualifiers}.
      */
     private final List<String> fields;
 

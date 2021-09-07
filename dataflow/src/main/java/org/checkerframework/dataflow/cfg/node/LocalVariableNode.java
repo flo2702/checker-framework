@@ -3,12 +3,15 @@ package org.checkerframework.dataflow.cfg.node;
 import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.VariableTree;
+
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.javacutil.TreeUtils;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
+
 import javax.lang.model.element.Element;
-import org.checkerframework.checker.nullness.qual.Nullable;
-import org.checkerframework.javacutil.TreeUtils;
 
 /**
  * A node for a local variable or a parameter:
@@ -29,19 +32,28 @@ public class LocalVariableNode extends Node {
     /** The receiver node for the local variable, {@code null} otherwise. */
     protected final @Nullable Node receiver;
 
-    /** Create a new local variable node for the given tree. */
-    public LocalVariableNode(Tree t) {
-        this(t, null);
+    /**
+     * Create a new local variable node for the given tree.
+     *
+     * @param tree thre tree for the local variable: a VariableTree or an IdentifierTree
+     */
+    public LocalVariableNode(Tree tree) {
+        this(tree, null);
     }
 
-    /** Create a new local variable node for the given tree and receiver. */
-    public LocalVariableNode(Tree t, @Nullable Node receiver) {
-        super(TreeUtils.typeOf(t));
+    /**
+     * Create a new local variable node for the given tree and receiver.
+     *
+     * @param tree the tree for the local variable: a VariableTree or an IdentifierTree
+     * @param receiver the receiver for the local variable, or null if none
+     */
+    public LocalVariableNode(Tree tree, @Nullable Node receiver) {
+        super(TreeUtils.typeOf(tree));
         // IdentifierTree for normal uses of the local variable or parameter,
-        // and VariableTree for the translation of an initializer block
-        assert t != null;
-        assert t instanceof IdentifierTree || t instanceof VariableTree;
-        this.tree = t;
+        // and VariableTree for declarations or the translation of an initializer block
+        assert tree != null;
+        assert tree instanceof IdentifierTree || tree instanceof VariableTree;
+        this.tree = tree;
         this.receiver = receiver;
     }
 

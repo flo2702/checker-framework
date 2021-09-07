@@ -1,15 +1,17 @@
 package org.checkerframework.framework.test;
 
+import org.checkerframework.framework.test.diagnostics.TestDiagnostic;
+import org.checkerframework.framework.test.diagnostics.TestDiagnosticUtils;
+import org.plumelib.util.StringsPlume;
+
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.StringJoiner;
+
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
-import org.checkerframework.framework.test.diagnostics.TestDiagnostic;
-import org.checkerframework.framework.test.diagnostics.TestDiagnosticUtils;
-import org.plumelib.util.StringsPlume;
 
 /**
  * Represents the test results from typechecking one or more Java files using the given
@@ -108,11 +110,11 @@ public class TypecheckResult {
 
         if (!unexpectedDiagnostics.isEmpty()) {
             int numUnexpected = unexpectedDiagnostics.size();
-            summaryBuilder.add(
-                    StringsPlume.nplural(numUnexpected, "unexpected diagnostic")
-                            + " "
-                            + (numUnexpected == 1 ? "was" : "were")
-                            + " found:");
+            if (numUnexpected == 1) {
+                summaryBuilder.add("1 unexpected diagnostic was found");
+            } else {
+                summaryBuilder.add(numUnexpected + " unexpected diagnostics were found");
+            }
 
             for (TestDiagnostic unexpected : unexpectedDiagnostics) {
                 summaryBuilder.add(unexpected.toString());

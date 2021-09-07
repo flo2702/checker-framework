@@ -2,15 +2,29 @@ package org.checkerframework.framework.type;
 
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.Tree;
+
+import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedArrayType;
+import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
+import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedPrimitiveType;
+import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedTypeVariable;
+import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedWildcardType;
+import org.checkerframework.framework.type.visitor.SimpleAnnotatedTypeVisitor;
+import org.checkerframework.javacutil.BugInCF;
+import org.checkerframework.javacutil.ElementUtils;
+import org.checkerframework.javacutil.TreeUtils;
+import org.checkerframework.javacutil.TypesUtils;
+import org.plumelib.util.CollectionsPlume;
+
 import java.io.Serializable;
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.TypeParameterElement;
@@ -18,18 +32,8 @@ import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.type.TypeVariable;
 import javax.lang.model.util.Types;
-import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedArrayType;
-import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
-import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedPrimitiveType;
-import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedTypeVariable;
-import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedWildcardType;
-import org.checkerframework.framework.type.visitor.AnnotatedTypeScanner;
-import org.checkerframework.framework.type.visitor.SimpleAnnotatedTypeVisitor;
-import org.checkerframework.javacutil.BugInCF;
-import org.checkerframework.javacutil.ElementUtils;
-import org.checkerframework.javacutil.TreeUtils;
-import org.checkerframework.javacutil.TypesUtils;
 
 /**
  * Finds the direct supertypes of an input AnnotatedTypeMirror. See <a
@@ -44,12 +48,15 @@ class SupertypeFinder {
     /**
      * See {@link Types#directSupertypes(TypeMirror)}.
      *
+     * @param type the type whose supertypes to return
+     * @return the immediate supertypes of {@code type}
      * @see Types#directSupertypes(TypeMirror)
      */
-    public static List<AnnotatedDeclaredType> directSuperTypes(AnnotatedDeclaredType type) {
+    public static List<AnnotatedDeclaredType> directSupertypes(AnnotatedDeclaredType type) {
         SupertypeFindingVisitor supertypeFindingVisitor =
                 new SupertypeFindingVisitor(type.atypeFactory);
-        List<AnnotatedDeclaredType> supertypes = supertypeFindingVisitor.visitDeclared(type, null);
+        List<AnnotatedDeclaredType> supertypes =
+                supertypeFindingVisitor.visitDeclared(type.asUse(), null);
         type.atypeFactory.postDirectSuperTypes(type, supertypes);
         return supertypes;
     }
@@ -58,9 +65,11 @@ class SupertypeFinder {
     /**
      * See {@link Types#directSupertypes(TypeMirror)}.
      *
+     * @param type the type whose supertypes to return
+     * @return the immediate supertypes of {@code type}
      * @see Types#directSupertypes(TypeMirror)
      */
-    public static final List<? extends AnnotatedTypeMirror> directSuperTypes(
+    public static final List<? extends AnnotatedTypeMirror> directSupertypes(
             AnnotatedTypeMirror type) {
         SupertypeFindingVisitor supertypeFindingVisitor =
                 new SupertypeFindingVisitor(type.atypeFactory);
@@ -69,21 +78,28 @@ class SupertypeFinder {
         return supertypes;
     }
 
+    /** Computes the direct supertypes of annotated types. */
     private static class SupertypeFindingVisitor
             extends SimpleAnnotatedTypeVisitor<List<? extends AnnotatedTypeMirror>, Void> {
-        private final Types types;
-        private final AnnotatedTypeFactory atypeFactory;
-        private final TypeParamReplacer typeParamReplacer;
 
+        /** Types util class. */
+        private final Types types;
+        /** Annotated type factory. */
+        private final AnnotatedTypeFactory atypeFactory;
+
+        /**
+         * Creates a {@code SupertypeFindingVisitor}.
+         *
+         * @param atypeFactory annotated type factory
+         */
         SupertypeFindingVisitor(AnnotatedTypeFactory atypeFactory) {
             this.atypeFactory = atypeFactory;
             this.types = atypeFactory.types;
-            this.typeParamReplacer = new TypeParamReplacer(types);
         }
 
         @Override
         public List<AnnotatedTypeMirror> defaultAction(AnnotatedTypeMirror t, Void p) {
-            return new ArrayList<>();
+            return Collections.emptyList();
         }
 
         /**
@@ -106,7 +122,7 @@ class SupertypeFinder {
          */
         @Override
         public List<AnnotatedTypeMirror> visitPrimitive(AnnotatedPrimitiveType type, Void p) {
-            List<AnnotatedTypeMirror> superTypes = new ArrayList<>();
+            List<AnnotatedTypeMirror> superTypes = new ArrayList<>(1);
             Set<AnnotationMirror> annotations = type.getAnnotations();
 
             // Find Boxed type
@@ -151,38 +167,19 @@ class SupertypeFinder {
 
         @Override
         public List<AnnotatedDeclaredType> visitDeclared(AnnotatedDeclaredType type, Void p) {
-            List<AnnotatedDeclaredType> supertypes = new ArrayList<>();
             // Set<AnnotationMirror> annotations = type.getAnnotations();
 
             TypeElement typeElement = (TypeElement) type.getUnderlyingType().asElement();
 
-            // Mapping of type variable to actual types
-            Map<TypeParameterElement, AnnotatedTypeMirror> mapping = new HashMap<>();
-
             if (type.getTypeArguments().size() != typeElement.getTypeParameters().size()) {
-                if (!type.wasRaw()) {
+                if (!type.isUnderlyingTypeRaw()) {
                     throw new BugInCF(
-                            "AnnotatedDeclaredType's element has a different number of type parameters than type.%ntype=%s%nelement=%s",
+                            "AnnotatedDeclaredType's element has a different number of type"
+                                    + " parameters than type.%ntype=%s%nelement=%s",
                             type, typeElement);
                 }
             }
-
-            AnnotatedDeclaredType enclosing = type;
-            while (enclosing != null) {
-                TypeElement enclosingTypeElement =
-                        (TypeElement) enclosing.getUnderlyingType().asElement();
-                List<AnnotatedTypeMirror> typeArgs = enclosing.getTypeArguments();
-                List<? extends TypeParameterElement> typeParams =
-                        enclosingTypeElement.getTypeParameters();
-                for (int i = 0; i < enclosing.getTypeArguments().size(); ++i) {
-                    AnnotatedTypeMirror typArg = typeArgs.get(i);
-                    TypeParameterElement ele = typeParams.get(i);
-                    mapping.put(ele, typArg);
-                }
-
-                enclosing = enclosing.getEnclosingType();
-            }
-
+            List<AnnotatedDeclaredType> supertypes = new ArrayList<>();
             ClassTree classTree = atypeFactory.trees.getTree(typeElement);
             // Testing against enum and annotation. Ideally we can simply use element!
             if (classTree != null) {
@@ -200,11 +197,56 @@ class SupertypeFinder {
                 supertypes.add(jlaAnnotation);
             }
 
+            Map<TypeVariable, AnnotatedTypeMirror> typeVarToTypeArg = getTypeVarToTypeArg(type);
+
+            List<AnnotatedDeclaredType> superTypesNew = new ArrayList<>();
             for (AnnotatedDeclaredType dt : supertypes) {
-                typeParamReplacer.visit(dt, mapping);
+                type.atypeFactory.initializeAtm(dt);
+                superTypesNew.add(
+                        (AnnotatedDeclaredType)
+                                atypeFactory
+                                        .getTypeVarSubstitutor()
+                                        .substitute(typeVarToTypeArg, dt));
             }
 
-            return supertypes;
+            return superTypesNew;
+        }
+
+        /**
+         * Creates a mapping from a type parameter to its corresponding annotated type argument for
+         * all type parameters of {@code type}, its enclosing types, and all super types of all
+         * {@code type}'s enclosing types.
+         *
+         * @param type a type
+         * @return a mapping from each type parameter to its corresponding annotated type argument
+         */
+        private Map<TypeVariable, AnnotatedTypeMirror> getTypeVarToTypeArg(
+                AnnotatedDeclaredType type) {
+            Map<TypeVariable, AnnotatedTypeMirror> mapping = new HashMap<>();
+            AnnotatedDeclaredType enclosing = type;
+            while (enclosing != null) {
+                TypeElement enclosingTypeElement =
+                        (TypeElement) enclosing.getUnderlyingType().asElement();
+                List<? extends TypeParameterElement> typeParams =
+                        enclosingTypeElement.getTypeParameters();
+                List<AnnotatedTypeMirror> typeArgs = enclosing.getTypeArguments();
+                for (int i = 0; i < enclosing.getTypeArguments().size(); ++i) {
+                    AnnotatedTypeMirror typArg = typeArgs.get(i);
+                    TypeParameterElement ele = typeParams.get(i);
+                    mapping.put((TypeVariable) ele.asType(), typArg);
+                }
+
+                @SuppressWarnings("interning:not.interned") // First time through type == enclosing.
+                boolean notType = enclosing != type;
+                if (notType) {
+                    for (AnnotatedDeclaredType enclSuper : directSupertypes(enclosing)) {
+                        mapping.putAll(getTypeVarToTypeArg(enclSuper));
+                    }
+                }
+
+                enclosing = enclosing.getEnclosingType();
+            }
+            return mapping;
         }
 
         private List<AnnotatedDeclaredType> supertypesFromElement(
@@ -224,13 +266,13 @@ class SupertypeFinder {
             }
 
             for (TypeMirror st : typeElement.getInterfaces()) {
-                if (type.wasRaw()) {
+                if (type.isUnderlyingTypeRaw()) {
                     st = types.erasure(st);
                 }
                 AnnotatedDeclaredType ast =
                         (AnnotatedDeclaredType) atypeFactory.toAnnotatedType(st, false);
                 supertypes.add(ast);
-                if (type.wasRaw()) {
+                if (type.isUnderlyingTypeRaw()) {
                     if (st.getKind() == TypeKind.DECLARED) {
                         final List<? extends TypeMirror> typeArgs =
                                 ((DeclaredType) st).getTypeArguments();
@@ -244,9 +286,9 @@ class SupertypeFinder {
             }
             ElementAnnotationApplier.annotateSupers(supertypes, typeElement);
 
-            if (type.wasRaw()) {
+            if (type.isUnderlyingTypeRaw()) {
                 for (AnnotatedDeclaredType adt : supertypes) {
-                    adt.setWasRaw();
+                    adt.setIsUnderlyingTypeRaw();
                 }
             }
             return supertypes;
@@ -273,18 +315,19 @@ class SupertypeFinder {
                                 != adt.getUnderlyingType().getTypeArguments().size()
                         && classTree.getSimpleName().contentEquals("")) {
                     // classTree is an anonymous class with a diamond.
-                    List<AnnotatedTypeMirror> args = new ArrayList<>();
-                    for (TypeParameterElement element :
-                            TypesUtils.getTypeElement(adt.getUnderlyingType())
-                                    .getTypeParameters()) {
-                        AnnotatedTypeMirror arg =
-                                AnnotatedTypeMirror.createType(
-                                        element.asType(), atypeFactory, false);
-                        // TODO: After #979 is fixed, calculate the correct type using inference.
-                        args.add(
-                                atypeFactory.getUninferredWildcardType(
-                                        (AnnotatedTypeVariable) arg));
-                    }
+                    List<AnnotatedTypeMirror> args =
+                            CollectionsPlume.mapList(
+                                    (TypeParameterElement element) -> {
+                                        AnnotatedTypeMirror arg =
+                                                AnnotatedTypeMirror.createType(
+                                                        element.asType(), atypeFactory, false);
+                                        // TODO: After #979 is fixed, calculate the correct type
+                                        // using inference.
+                                        return atypeFactory.getUninferredWildcardType(
+                                                (AnnotatedTypeVariable) arg);
+                                    },
+                                    TypesUtils.getTypeElement(adt.getUnderlyingType())
+                                            .getTypeParameters());
                     adt.setTypeArguments(args);
                 }
                 supertypes.add(adt);
@@ -294,9 +337,9 @@ class SupertypeFinder {
             if (elem.getKind() == ElementKind.ENUM) {
                 supertypes.add(createEnumSuperType(type, elem));
             }
-            if (type.wasRaw()) {
+            if (type.isUnderlyingTypeRaw()) {
                 for (AnnotatedDeclaredType adt : supertypes) {
-                    adt.setWasRaw();
+                    adt.setIsUnderlyingTypeRaw();
                 }
             }
             return supertypes;
@@ -364,7 +407,7 @@ class SupertypeFinder {
             serializableType.addAnnotations(annotations);
             superTypes.add(serializableType);
 
-            for (AnnotatedTypeMirror sup : type.getComponentType().directSuperTypes()) {
+            for (AnnotatedTypeMirror sup : type.getComponentType().directSupertypes()) {
                 ArrayType arrType = atypeFactory.types.getArrayType(sup.getUnderlyingType());
                 AnnotatedArrayType aarrType =
                         (AnnotatedArrayType) atypeFactory.toAnnotatedType(arrType, false);
@@ -378,88 +421,12 @@ class SupertypeFinder {
 
         @Override
         public List<AnnotatedTypeMirror> visitTypeVariable(AnnotatedTypeVariable type, Void p) {
-            List<AnnotatedTypeMirror> superTypes = new ArrayList<>();
-            superTypes.add(type.getUpperBound().deepCopy());
-            return superTypes;
+            return Collections.singletonList(type.getUpperBound().deepCopy());
         }
 
         @Override
         public List<AnnotatedTypeMirror> visitWildcard(AnnotatedWildcardType type, Void p) {
-            List<AnnotatedTypeMirror> superTypes = new ArrayList<>();
-            superTypes.add(type.getExtendsBound().deepCopy());
-            return superTypes;
-        }
-
-        /**
-         * Note: The explanation below is my interpretation of why we have this code. I am not sure
-         * if this was the author's original intent but I can see no other reasoning, exercise
-         * caution:
-         *
-         * <p>Classes may have type parameters that are used in extends or implements clauses. E.g.
-         * {@code class MyList<T> extends List<T>}
-         *
-         * <p>Direct supertypes will contain a type {@code List<T>} but the type T may become out of
-         * sync with the annotations on type {@code MyList<T>}. To keep them in-sync, we substitute
-         * out the copy of T with the same reference to T that is on {@code MyList<T>}
-         */
-        private static class TypeParamReplacer
-                extends AnnotatedTypeScanner<Void, Map<TypeParameterElement, AnnotatedTypeMirror>> {
-            private final Types types;
-
-            public TypeParamReplacer(Types types) {
-                this.types = types;
-            }
-
-            @Override
-            public Void visitDeclared(
-                    AnnotatedDeclaredType type,
-                    Map<TypeParameterElement, AnnotatedTypeMirror> mapping) {
-                if (visitedNodes.containsKey(type)) {
-                    return visitedNodes.get(type);
-                }
-                visitedNodes.put(type, null);
-                if (type.getEnclosingType() != null) {
-                    scan(type.getEnclosingType(), mapping);
-                }
-
-                List<AnnotatedTypeMirror> args = new ArrayList<>();
-                for (AnnotatedTypeMirror arg : type.getTypeArguments()) {
-                    Element elem = types.asElement(arg.getUnderlyingType());
-                    if ((elem != null)
-                            && (elem.getKind() == ElementKind.TYPE_PARAMETER)
-                            && mapping.containsKey(elem)) {
-                        AnnotatedTypeMirror other = mapping.get(elem).deepCopy();
-                        other.replaceAnnotations(arg.getAnnotationsField());
-                        args.add(other);
-                    } else {
-                        args.add(arg);
-                        scan(arg, mapping);
-                    }
-                }
-                type.setTypeArguments(args);
-
-                return null;
-            }
-
-            @Override
-            public Void visitArray(
-                    AnnotatedArrayType type,
-                    Map<TypeParameterElement, AnnotatedTypeMirror> mapping) {
-                AnnotatedTypeMirror comptype = type.getComponentType();
-                Element elem = types.asElement(comptype.getUnderlyingType());
-                AnnotatedTypeMirror other;
-                if ((elem != null)
-                        && (elem.getKind() == ElementKind.TYPE_PARAMETER)
-                        && mapping.containsKey(elem)) {
-                    other = mapping.get(elem);
-                    other.replaceAnnotations(comptype.getAnnotationsField());
-                    type.setComponentType(other);
-                } else {
-                    scan(type.getComponentType(), mapping);
-                }
-
-                return null;
-            }
+            return Collections.singletonList(type.getExtendsBound().deepCopy());
         }
     }
 }

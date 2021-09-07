@@ -4,19 +4,10 @@ import com.sun.source.tree.AnnotationTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.Tree.Kind;
 import com.sun.source.tree.TypeCastTree;
-import java.util.Collections;
-import java.util.List;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.ArrayType;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
+
 import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
+import org.checkerframework.checker.formatter.qual.FormatMethod;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
 import org.checkerframework.common.value.qual.IntRangeFromGTENegativeOne;
@@ -33,6 +24,18 @@ import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.ArrayType;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
 
 /** Visitor for the Constant Value type system. */
 public class ValueVisitor extends BaseTypeVisitor<ValueAnnotatedTypeFactory> {
@@ -69,6 +72,7 @@ public class ValueVisitor extends BaseTypeVisitor<ValueAnnotatedTypeFactory> {
     }
 
     @Override
+    @FormatMethod
     protected void commonAssignmentCheck(
             AnnotatedTypeMirror varType,
             AnnotatedTypeMirror valueType,
@@ -189,8 +193,8 @@ public class ValueVisitor extends BaseTypeVisitor<ValueAnnotatedTypeFactory> {
                 // the other argument will be defaulted to Long.MIN_VALUE or Long.MAX_VALUE
                 // accordingly.
                 if (args.size() == 2) {
-                    long from = AnnotationUtils.getElementValue(anno, "from", Long.class, true);
-                    long to = AnnotationUtils.getElementValue(anno, "to", Long.class, true);
+                    long from = getTypeFactory().getIntRangeFromValue(anno);
+                    long to = getTypeFactory().getIntRangeToValue(anno);
                     if (from > to) {
                         checker.reportError(node, "from.greater.than.to");
                         return null;
@@ -202,8 +206,9 @@ public class ValueVisitor extends BaseTypeVisitor<ValueAnnotatedTypeFactory> {
             case ValueAnnotatedTypeFactory.DOUBLEVAL_NAME:
             case ValueAnnotatedTypeFactory.INTVAL_NAME:
             case ValueAnnotatedTypeFactory.STRINGVAL_NAME:
+                @SuppressWarnings("deprecation") // concrete annotation class is not known
                 List<Object> values =
-                        AnnotationUtils.getElementValueArray(anno, "value", Object.class, true);
+                        AnnotationUtils.getElementValueArray(anno, "value", Object.class, false);
 
                 if (values.isEmpty()) {
                     checker.reportWarning(node, "no.values.given");
@@ -219,7 +224,7 @@ public class ValueVisitor extends BaseTypeVisitor<ValueAnnotatedTypeFactory> {
                     return null;
                 } else if (AnnotationUtils.areSameByName(
                         anno, ValueAnnotatedTypeFactory.ARRAYLEN_NAME)) {
-                    List<Integer> arrayLens = ValueAnnotatedTypeFactory.getArrayLength(anno);
+                    List<Integer> arrayLens = getTypeFactory().getArrayLength(anno);
                     if (Collections.min(arrayLens) < 0) {
                         checker.reportWarning(
                                 node, "negative.arraylen", Collections.min(arrayLens));
@@ -228,8 +233,8 @@ public class ValueVisitor extends BaseTypeVisitor<ValueAnnotatedTypeFactory> {
                 }
                 break;
             case ValueAnnotatedTypeFactory.ARRAYLENRANGE_NAME:
-                int from = AnnotationUtils.getElementValue(anno, "from", Integer.class, true);
-                int to = AnnotationUtils.getElementValue(anno, "to", Integer.class, true);
+                long from = getTypeFactory().getArrayLenRangeFromValue(anno);
+                long to = getTypeFactory().getArrayLenRangeToValue(anno);
                 if (from > to) {
                     checker.reportError(node, "from.greater.than.to");
                     return null;
@@ -239,7 +244,9 @@ public class ValueVisitor extends BaseTypeVisitor<ValueAnnotatedTypeFactory> {
                 }
                 break;
             case ValueAnnotatedTypeFactory.MATCHES_REGEX_NAME:
-                List<String> regexes = ValueAnnotatedTypeFactory.getStringValues(anno);
+                List<String> regexes =
+                        AnnotationUtils.getElementValueArray(
+                                anno, atypeFactory.matchesRegexValueElement, String.class);
                 for (String regex : regexes) {
                     try {
                         Pattern.compile(regex);
@@ -257,7 +264,7 @@ public class ValueVisitor extends BaseTypeVisitor<ValueAnnotatedTypeFactory> {
 
     @Override
     public Void visitTypeCast(TypeCastTree node, Void p) {
-        if (node.getExpression().getKind() == Kind.NULL_LITERAL) {
+        if (node.getExpression().getKind() == Tree.Kind.NULL_LITERAL) {
             return null;
         }
 
@@ -276,7 +283,7 @@ public class ValueVisitor extends BaseTypeVisitor<ValueAnnotatedTypeFactory> {
                 && exprAnno != null
                 && atypeFactory.isIntRange(castAnno)
                 && atypeFactory.isIntRange(exprAnno)) {
-            final Range castRange = ValueAnnotatedTypeFactory.getRange(castAnno);
+            final Range castRange = atypeFactory.getRange(castAnno);
             final TypeKind castTypeKind = castType.getKind();
             if (castTypeKind == TypeKind.BYTE && castRange.isByteEverything()) {
                 return p;
@@ -297,7 +304,7 @@ public class ValueVisitor extends BaseTypeVisitor<ValueAnnotatedTypeFactory> {
                 // Range.ignoreOverflow is only set if this checker is ignoring overflow.
                 // In that case, do not warn if the range of the expression encompasses
                 // the whole type being casted to (i.e. the warning is actually about overflow).
-                Range exprRange = ValueAnnotatedTypeFactory.getRange(exprAnno);
+                Range exprRange = atypeFactory.getRange(exprAnno);
                 if (castTypeKind == TypeKind.BYTE
                         || castTypeKind == TypeKind.CHAR
                         || castTypeKind == TypeKind.SHORT
@@ -352,8 +359,8 @@ public class ValueVisitor extends BaseTypeVisitor<ValueAnnotatedTypeFactory> {
             }
         } else if (AnnotationUtils.areSameByName(
                 anno, ValueAnnotatedTypeFactory.ARRAYLENRANGE_NAME)) {
-            int from = AnnotationUtils.getElementValue(anno, "from", Integer.class, true);
-            int to = AnnotationUtils.getElementValue(anno, "to", Integer.class, true);
+            long from = getTypeFactory().getArrayLenRangeFromValue(anno);
+            long to = getTypeFactory().getArrayLenRangeToValue(anno);
             if (from > to) {
                 checker.reportError(tree, "from.greater.than.to");
                 return false;
@@ -406,7 +413,7 @@ public class ValueVisitor extends BaseTypeVisitor<ValueAnnotatedTypeFactory> {
             // If the method is static, issue no warning.  This is incorrect in the case of a
             // constructor or a static method in an inner class.
             if (!ElementUtils.isStatic(method)) {
-                receiverType = ElementUtils.getType(ElementUtils.enclosingClass(method));
+                receiverType = ElementUtils.getType(ElementUtils.enclosingTypeElement(method));
             }
             if (receiverType != null
                     && receiverType.getKind() != TypeKind.NONE

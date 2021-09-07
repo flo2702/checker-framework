@@ -1,10 +1,5 @@
 package org.checkerframework.common.subtyping;
 
-import java.lang.annotation.Annotation;
-import java.util.Arrays;
-import java.util.LinkedHashSet;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
 import org.checkerframework.common.basetype.BaseAnnotatedTypeFactory;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.subtyping.qual.Unqualified;
@@ -17,6 +12,13 @@ import org.checkerframework.framework.util.defaults.QualifierDefaults;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.UserError;
 import org.plumelib.reflection.Signatures;
+
+import java.lang.annotation.Annotation;
+import java.util.Arrays;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
 
 /** Defines {@link #createSupportedTypeQualifiers}. */
 public class SubtypingAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
@@ -37,8 +39,6 @@ public class SubtypingAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         // load externally declared annotations
         loader = createAnnotationClassLoader();
 
-        Set<Class<? extends Annotation>> qualSet = new LinkedHashSet<>();
-
         String qualNames = checker.getOption("quals");
         String qualDirectories = checker.getOption("qualDirs");
 
@@ -46,6 +46,8 @@ public class SubtypingAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
             throw new UserError(
                     "SubtypingChecker: missing required option. Use -Aquals or -AqualDirs.");
         }
+
+        Set<Class<? extends Annotation>> qualSet = new LinkedHashSet<>();
 
         // load individually named qualifiers
         if (qualNames != null) {

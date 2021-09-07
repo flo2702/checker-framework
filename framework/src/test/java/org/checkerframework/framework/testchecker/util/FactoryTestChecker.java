@@ -4,6 +4,15 @@ import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.Tree;
 import com.sun.tools.javac.tree.JCTree;
+
+import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
+import org.checkerframework.common.basetype.BaseTypeChecker;
+import org.checkerframework.common.basetype.BaseTypeVisitor;
+import org.checkerframework.framework.source.SourceChecker;
+import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
+import org.checkerframework.javacutil.BugInCF;
+import org.checkerframework.javacutil.TreeUtils;
+
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
@@ -15,17 +24,11 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 import javax.annotation.processing.SupportedOptions;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.tools.JavaFileObject;
-import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
-import org.checkerframework.common.basetype.BaseTypeChecker;
-import org.checkerframework.common.basetype.BaseTypeVisitor;
-import org.checkerframework.framework.source.SourceChecker;
-import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
-import org.checkerframework.javacutil.BugInCF;
-import org.checkerframework.javacutil.TreeUtils;
 
 /**
  * A specialized checker for testing purposes. It compares an expression's annotated type to an
@@ -68,10 +71,6 @@ import org.checkerframework.javacutil.TreeUtils;
  * -Afactory} command-line argument (e.g. {@code
  * -Afactory=checkers.nullness.NullnessAnnotatedTypeFactory}). The factory needs to have a
  * constructor of the form {@code <init>(ProcessingEnvironment, CompilationUnitTree)}.
- */
-/*
- * The code here is one of the most ugliest I have ever written.  I should revise
- * it in the future.  - Mahmood
  */
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
 @SupportedOptions({"checker"})
@@ -273,7 +272,7 @@ public class FactoryTestChecker extends BaseTypeChecker {
                     if (!actualType.equals(expectedType)) {
 
                         // The key is added above using a setProperty call, which is not supported
-                        // by the CompilerMessageChecker
+                        // by the CompilerMessagesChecker.
                         @SuppressWarnings("compilermessages")
                         @CompilerMessageKey String key = "type.unexpected";
                         FactoryTestChecker.this.reportError(

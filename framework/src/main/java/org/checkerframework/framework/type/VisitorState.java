@@ -4,6 +4,7 @@ import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.util.TreePath;
+
 import org.checkerframework.dataflow.qual.SideEffectFree;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.javacutil.Pair;
@@ -107,6 +108,8 @@ public class VisitorState {
 
     /**
      * Returns the assignment context.
+     *
+     * <p>NOTE: This method is known to be buggy.
      *
      * @return the assignment context
      */

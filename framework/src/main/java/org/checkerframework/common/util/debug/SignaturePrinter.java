@@ -3,23 +3,7 @@ package org.checkerframework.common.util.debug;
 import com.sun.source.util.TreePath;
 import com.sun.tools.javac.processing.JavacProcessingEnvironment;
 import com.sun.tools.javac.util.Context;
-import java.io.PrintStream;
-import java.lang.reflect.Constructor;
-import java.util.List;
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.annotation.processing.SupportedAnnotationTypes;
-import javax.annotation.processing.SupportedOptions;
-import javax.annotation.processing.SupportedSourceVersion;
-import javax.lang.model.SourceVersion;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Name;
-import javax.lang.model.element.PackageElement;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.TypeParameterElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.util.AbstractElementVisitor7;
+
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.checker.signature.qual.BinaryName;
 import org.checkerframework.framework.source.SourceChecker;
@@ -33,6 +17,25 @@ import org.checkerframework.javacutil.AbstractTypeProcessor;
 import org.checkerframework.javacutil.AnnotationProvider;
 import org.checkerframework.javacutil.UserError;
 import org.plumelib.reflection.Signatures;
+
+import java.io.PrintStream;
+import java.lang.reflect.Constructor;
+import java.util.List;
+
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.annotation.processing.SupportedAnnotationTypes;
+import javax.annotation.processing.SupportedOptions;
+import javax.annotation.processing.SupportedSourceVersion;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Name;
+import javax.lang.model.element.PackageElement;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.TypeParameterElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.util.AbstractElementVisitor8;
 
 /**
  * Outputs the method signatures of a class with fully annotated types.
@@ -127,7 +130,9 @@ public class SignaturePrinter extends AbstractTypeProcessor {
     }
 
     ////////// Printer //////////
-    static class ElementPrinter extends AbstractElementVisitor7<Void, Void> {
+    /** Element printer. */
+    static class ElementPrinter extends AbstractElementVisitor8<Void, Void> {
+        /** String used for indentation. */
         private static final String INDENTION = "    ";
 
         private final PrintStream out;
@@ -243,6 +248,9 @@ public class SignaturePrinter extends AbstractTypeProcessor {
                 case ENUM:
                     return "enum";
                 default:
+                    if (e.getKind().name().equals("RECORD")) {
+                        return "record";
+                    }
                     throw new IllegalArgumentException("Not a type element: " + e.getKind());
             }
         }
@@ -273,15 +281,20 @@ public class SignaturePrinter extends AbstractTypeProcessor {
             return null;
         }
 
+        /**
+         * Print the supertypes.
+         *
+         * @param dt the type whos supertypes to print
+         */
         private void printSupers(AnnotatedDeclaredType dt) {
-            if (dt.directSuperTypes().isEmpty()) {
+            if (dt.directSupertypes().isEmpty()) {
                 return;
             }
 
             out.print("extends ");
 
             boolean isntFirst = false;
-            for (AnnotatedDeclaredType st : dt.directSuperTypes()) {
+            for (AnnotatedDeclaredType st : dt.directSupertypes()) {
                 if (isntFirst) {
                     out.print(", ");
                 }

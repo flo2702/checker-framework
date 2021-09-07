@@ -1,9 +1,11 @@
 package org.checkerframework.dataflow.cfg.node;
 
-import com.sun.source.tree.Tree.Kind;
+import com.sun.source.tree.Tree;
 import com.sun.source.tree.UnaryTree;
-import java.util.Objects;
+
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import java.util.Objects;
 
 /**
  * A node for the bitwise complement operation:
@@ -14,9 +16,15 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  */
 public class BitwiseComplementNode extends UnaryOperationNode {
 
+    /**
+     * Constructs a {@link BitwiseComplementNode}.
+     *
+     * @param tree the tree of the bitwise complement
+     * @param operand the operand of the bitwise complement
+     */
     public BitwiseComplementNode(UnaryTree tree, Node operand) {
         super(tree, operand);
-        assert tree.getKind() == Kind.BITWISE_COMPLEMENT;
+        assert tree.getKind() == Tree.Kind.BITWISE_COMPLEMENT;
     }
 
     @Override

@@ -1,8 +1,8 @@
 package org.checkerframework.dataflow.util;
 
-import java.util.LinkedHashSet;
-import java.util.Objects;
 import org.checkerframework.javacutil.BugInCF;
+
+import java.util.LinkedHashSet;
 
 /**
  * A set that is more efficient than HashSet for 0 and 1 elements. Uses {@code Objects.equals} for
@@ -28,18 +28,27 @@ public final class MostlySingleton<T extends Object> extends AbstractMostlySingl
                 value = e;
                 return true;
             case SINGLETON:
-                state = State.ANY;
-                set = new LinkedHashSet<>();
-                assert value != null : "@AssumeAssertion(nullness): previous add is non-null";
-                set.add(value);
-                value = null;
+                assert value != null : "@AssumeAssertion(nullness): SINGLETON => value != null";
+                if (value.equals(e)) {
+                    return false;
+                }
+                makeNonSingleton();
                 // fall through
             case ANY:
-                assert set != null : "@AssumeAssertion(nullness): set initialized before";
+                assert set != null : "@AssumeAssertion(nullness): ANY => value != null";
                 return set.add(e);
             default:
                 throw new BugInCF("Unhandled state " + state);
         }
+    }
+
+    /** Switch the representation of this from SINGLETON to ANY. */
+    private void makeNonSingleton() {
+        state = State.ANY;
+        set = new LinkedHashSet<>();
+        assert value != null : "@AssumeAssertion(nullness): SINGLETON => value != null";
+        set.add(value);
+        value = null;
     }
 
     @Override
@@ -48,7 +57,8 @@ public final class MostlySingleton<T extends Object> extends AbstractMostlySingl
             case EMPTY:
                 return false;
             case SINGLETON:
-                return Objects.equals(o, value);
+                assert value != null : "@AssumeAssertion(nullness): SINGLETON => value != null";
+                return value.equals(o);
             case ANY:
                 assert set != null : "@AssumeAssertion(nullness): set initialized before";
                 return set.contains(o);

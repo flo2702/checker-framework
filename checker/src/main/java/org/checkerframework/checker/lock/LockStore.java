@@ -1,9 +1,5 @@
 package org.checkerframework.checker.lock;
 
-import java.util.ArrayList;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.ExecutableElement;
 import org.checkerframework.checker.lock.LockAnnotatedTypeFactory.SideEffectAnnotation;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.cfg.node.MethodInvocationNode;
@@ -21,6 +17,12 @@ import org.checkerframework.framework.source.SourceChecker;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.QualifierHierarchy;
 import org.checkerframework.javacutil.AnnotationUtils;
+
+import java.util.ArrayList;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.ExecutableElement;
 
 /**
  * The Lock Store behaves like CFAbstractStore but requires the ability to insert exact annotations.
@@ -172,7 +174,7 @@ public class LockStore extends CFAbstractStore<CFValue, LockStore> {
     protected boolean isSideEffectFree(
             AnnotatedTypeFactory atypeFactory, ExecutableElement method) {
         LockAnnotatedTypeFactory lockAnnotatedTypeFactory = (LockAnnotatedTypeFactory) atypeFactory;
-        SourceChecker checker = lockAnnotatedTypeFactory.getContext().getChecker();
+        SourceChecker checker = lockAnnotatedTypeFactory.getChecker();
         return checker.hasOption("assumeSideEffectFree")
                 || checker.hasOption("assumePure")
                 || lockAnnotatedTypeFactory.methodSideEffectAnnotation(method, false)
@@ -191,9 +193,9 @@ public class LockStore extends CFAbstractStore<CFValue, LockStore> {
         if (!isSideEffectFree(atypeFactory, method)) {
             // After the call to super.updateForMethodCall, only final fields are left in
             // fieldValues (if the method called is side-effecting). For the LockPossiblyHeld
-            // hierarchy, even a final field might be locked or unlocked by a side-effecting
-            // method.  So, final fields must be set to @LockPossiblyHeld, but the annotation in
-            // the GuardedBy hierarchy should not be changed.
+            // hierarchy, even a final field might be locked or unlocked by a side-effecting method.
+            //  So, final fields must be set to @LockPossiblyHeld, but the annotation in the
+            // GuardedBy hierarchy should not be changed.
             for (FieldAccess field : new ArrayList<>(fieldValues.keySet())) {
                 CFValue newValue = changeLockAnnoToTop(field, fieldValues.get(field));
                 if (newValue != null) {
@@ -226,17 +228,17 @@ public class LockStore extends CFAbstractStore<CFValue, LockStore> {
     }
 
     @Override
-    public void insertValue(JavaExpression je, @Nullable CFValue value) {
-        if (value == null) {
-            // No need to insert a null abstract value because it represents
-            // top and top is also the default value.
+    public void insertValue(
+            JavaExpression je, @Nullable CFValue value, boolean permitNondeterministic) {
+        if (!shouldInsert(je, value, permitNondeterministic)) {
             return;
         }
+
         // Even with concurrent semantics enabled, a @LockHeld value must always be
         // stored for fields and @Pure method calls. This is sound because:
-        // -Another thread can never release the lock on the current thread, and
-        // -Locks are assumed to be effectively final, hence another thread will not
-        // side effect the lock expression that has value @LockHeld.
+        //  * Another thread can never release the lock on the current thread, and
+        //  * Locks are assumed to be effectively final, hence another thread will not
+        //    side effect the lock expression that has value @LockHeld.
         if (hasLockHeld(value)) {
             if (je instanceof FieldAccess) {
                 FieldAccess fieldAcc = (FieldAccess) je;
@@ -255,6 +257,6 @@ public class LockStore extends CFAbstractStore<CFValue, LockStore> {
             }
         }
 
-        super.insertValue(je, value);
+        super.insertValue(je, value, permitNondeterministic);
     }
 }

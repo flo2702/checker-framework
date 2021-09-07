@@ -1,11 +1,5 @@
 package org.checkerframework.dataflow.cfg.visualize;
 
-import java.util.HashMap;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.StringJoiner;
 import org.checkerframework.checker.nullness.qual.KeyFor;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.analysis.AbstractValue;
@@ -23,6 +17,13 @@ import org.checkerframework.dataflow.expression.FieldAccess;
 import org.checkerframework.dataflow.expression.LocalVariable;
 import org.checkerframework.dataflow.expression.MethodCall;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.StringJoiner;
+
 /** Generate the String representation of a control flow graph. */
 public class StringCFGVisualizer<
                 V extends AbstractValue<V>, S extends Store<S>, T extends TransferFunction<V, S>>
@@ -37,9 +38,7 @@ public class StringCFGVisualizer<
     public Map<String, Object> visualize(
             ControlFlowGraph cfg, Block entry, @Nullable Analysis<V, S, T> analysis) {
         String stringGraph = visualizeGraph(cfg, entry, analysis);
-        Map<String, Object> res = new HashMap<>();
-        res.put("stringGraph", stringGraph);
-        return res;
+        return Collections.singletonMap("stringGraph", stringGraph);
     }
 
     @SuppressWarnings("keyfor:enhancedfor.type.incompatible")

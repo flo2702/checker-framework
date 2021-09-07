@@ -1,7 +1,11 @@
 package org.checkerframework.framework.test.diagnostics;
 
+import org.checkerframework.checker.nullness.qual.EnsuresNonNullIf;
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.javacutil.Pair;
+import org.plumelib.util.CollectionsPlume;
+
 import java.io.File;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -9,11 +13,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
 import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
-import org.checkerframework.checker.nullness.qual.EnsuresNonNullIf;
-import org.checkerframework.checker.nullness.qual.Nullable;
-import org.checkerframework.javacutil.Pair;
 
 /** A set of utilities and factory methods useful for working with TestDiagnostics. */
 public class TestDiagnosticUtils {
@@ -70,17 +72,17 @@ public class TestDiagnosticUtils {
      * @param filename the file containing the diagnostic (and the error)
      * @param lineNumber the line number of the line immediately below the diagnostic comment in the
      *     Java file
-     * @param stringFromjavaFile the string containing the diagnostic
+     * @param stringFromJavaFile the string containing the diagnostic
      * @return a new TestDiagnostic
      */
     public static TestDiagnostic fromJavaFileComment(
-            String filename, long lineNumber, String stringFromjavaFile) {
+            String filename, long lineNumber, String stringFromJavaFile) {
         return fromPatternMatching(
                 DIAGNOSTIC_IN_JAVA_PATTERN,
                 DIAGNOSTIC_WARNING_IN_JAVA_PATTERN,
                 filename,
                 lineNumber,
-                stringFromjavaFile);
+                stringFromJavaFile);
     }
     /**
      * Instantiate a diagnostic from output produced by the Java compiler. The resulting diagnostic
@@ -89,9 +91,8 @@ public class TestDiagnosticUtils {
     public static TestDiagnostic fromJavaxToolsDiagnostic(
             String diagnosticString, boolean noMsgText) {
         // It would be nice not to parse this from the diagnostic string.
-        // However, the interface provides no way to know when an [unchecked] or similar
-        // message is added to the reported error.  That is, when doing diagnostic.toString
-        // the message may contain an [unchecked] even though getMessage does not report one.
+        // However, diagnostic.toString() may contain "[unchecked]" even though getMessage() does
+        // not.
         // Since we want to match the error messages reported by javac exactly, we must parse.
         Pair<String, String> trimmed = formatJavaxToolString(diagnosticString, noMsgText);
         return fromPatternMatching(
@@ -103,22 +104,22 @@ public class TestDiagnosticUtils {
     }
 
     /**
-     * Instantiate the diagnostic from a Jspecify string that would appear in a Java file, e.g.:
+     * Instantiate the diagnostic from a JSpecify string that would appear in a Java file, e.g.:
      * "jspecify_some_category".
      *
      * @param filename the file containing the diagnostic (and the error)
      * @param lineNumber the line number of the line immediately below the diagnostic comment in the
      *     Java file
-     * @param stringFromjavaFile the string containing the diagnostic
+     * @param stringFromJavaFile the string containing the diagnostic
      * @return a new TestDiagnostic
      */
-    public static TestDiagnostic fromJspecifyFileComment(
-            String filename, long lineNumber, String stringFromjavaFile) {
+    public static TestDiagnostic fromJSpecifyFileComment(
+            String filename, long lineNumber, String stringFromJavaFile) {
         return new TestDiagnostic(
                 filename,
                 lineNumber,
-                DiagnosticKind.Jspecify,
-                stringFromjavaFile,
+                DiagnosticKind.JSpecify,
+                stringFromJavaFile,
                 /*isFixable=*/ false,
                 /*omitParentheses=*/ true);
     }
@@ -145,20 +146,20 @@ public class TestDiagnosticUtils {
         final boolean isFixable;
         final boolean noParentheses;
         long lineNo = -1;
-        int groupOffset = 1;
+        int capturingGroupOffset = 1;
 
         if (lineNumber != null) {
             lineNo = lineNumber;
-            groupOffset = 0;
+            capturingGroupOffset = 0;
         }
 
         Matcher diagnosticMatcher = diagnosticPattern.matcher(diagnosticString);
         if (diagnosticMatcher.matches()) {
             Pair<DiagnosticKind, Boolean> categoryToFixable =
-                    parseCategoryString(diagnosticMatcher.group(1 + groupOffset));
+                    parseCategoryString(diagnosticMatcher.group(1 + capturingGroupOffset));
             kind = categoryToFixable.first;
             isFixable = categoryToFixable.second;
-            String msg = diagnosticMatcher.group(2 + groupOffset).trim();
+            String msg = diagnosticMatcher.group(2 + capturingGroupOffset).trim();
             noParentheses =
                     msg.equals("") || msg.charAt(0) != '(' || msg.charAt(msg.length() - 1) != ')';
             message = noParentheses ? msg : msg.substring(1, msg.length() - 1);
@@ -172,7 +173,7 @@ public class TestDiagnosticUtils {
             if (warningMatcher.matches()) {
                 kind = DiagnosticKind.Warning;
                 isFixable = false;
-                message = warningMatcher.group(1 + groupOffset);
+                message = warningMatcher.group(1 + capturingGroupOffset);
                 noParentheses = true;
 
                 if (lineNumber == null) {
@@ -206,27 +207,50 @@ public class TestDiagnosticUtils {
         return new TestDiagnostic(filename, lineNo, kind, message, isFixable, noParentheses);
     }
 
+    /**
+     * Given a javax diagnostic, return a pair of (trimmed, fileame), where "trimmed" is the first
+     * line of the message, without the leading filename.
+     *
+     * @param original a javax diagnostic
+     * @param noMsgText whether to do work; if false, this returns a pair of (argument, "").
+     * @return the diagnostic, split into message and filename
+     */
     public static Pair<String, String> formatJavaxToolString(String original, boolean noMsgText) {
         String trimmed = original;
         String filename = "";
         if (noMsgText) {
-            // Only keep the first line of the error or warning, unless it is a thrown exception
-            // "unexpected Throwable" or it is a Checker Error (contains "Compilation unit").
-            if (!trimmed.contains("unexpected Throwable")
-                    && !trimmed.contains("Compilation unit")) {
-                if (trimmed.contains(System.lineSeparator())) {
-                    trimmed = trimmed.substring(0, trimmed.indexOf(System.lineSeparator()));
+            if (!retainAllLines(trimmed)) {
+                int lineSepPos = trimmed.indexOf(System.lineSeparator());
+                if (lineSepPos != -1) {
+                    trimmed = trimmed.substring(0, lineSepPos);
                 }
 
-                if (trimmed.contains(".java:")) {
-                    int start = trimmed.lastIndexOf(File.separator);
-                    filename = trimmed.substring(start + 1, trimmed.indexOf(".java:") + 5).trim();
-                    trimmed = trimmed.substring(trimmed.indexOf(".java:") + 5).trim();
+                int extensionPos = trimmed.indexOf(".java:");
+                if (extensionPos != -1) {
+                    int basenameStart = trimmed.lastIndexOf(File.separator);
+                    filename = trimmed.substring(basenameStart + 1, extensionPos + 5).trim();
+                    trimmed = trimmed.substring(extensionPos + 5).trim();
                 }
             }
         }
 
         return Pair.of(trimmed, filename);
+    }
+
+    /**
+     * Returns true if all lines of the message should be shown, false if only the first line should
+     * be shown.
+     *
+     * @param message a diagnostic message
+     * @return true if all lines of the message should be shown
+     */
+    private static boolean retainAllLines(String message) {
+        // Retain all if it is a thrown exception "unexpected Throwable" or it is a Checker
+        // Framework
+        // Error (contains "Compilation unit") or is OutOfMemoryError.
+        return message.contains("unexpected Throwable")
+                || message.contains("Compilation unit")
+                || message.contains("OutOfMemoryError");
     }
 
     /**
@@ -241,7 +265,7 @@ public class TestDiagnosticUtils {
         }
         DiagnosticKind categoryEnum = DiagnosticKind.fromParseString(category);
         if (categoryEnum == null) {
-            throw new Error("Unparseable category: " + category);
+            throw new Error("Unparsable category: " + category);
         }
 
         return Pair.of(categoryEnum, isFixable);
@@ -265,10 +289,10 @@ public class TestDiagnosticUtils {
      * <em>immediately after</em> a curly brace. The only place to put the expected diagnostic
      * message is on the line with the curly brace.
      *
-     * <p>This implementation replaces "... { // ::" by "// ::", converting the end-of-line
-     * diagnostic message to a beginning-of-line one that the rest of the code can handle. It is
-     * rather specific (to avoid false positive matches, such as when "// ::" is commented out in
-     * source code). It could be extended in the future if such an extension is necessary.
+     * <p>This implementation replaces "{ // ::" by "// ::", converting the end-of-line diagnostic
+     * message to a beginning-of-line one that the rest of the code can handle. It is rather
+     * specific (to avoid false positive matches, such as when "// ::" is commented out in source
+     * code). It could be extended in the future if such an extension is necessary.
      */
     public static String handleEndOfLineJavaDiagnostic(String originalLine) {
         int curlyIndex = originalLine.indexOf("{ // ::");
@@ -314,10 +338,11 @@ public class TestDiagnosticUtils {
         if (trimmedLine.startsWith("// ::")) {
             String restOfLine = trimmedLine.substring(5); // drop the "// ::"
             String[] diagnosticStrs = restOfLine.split("::");
-            List<TestDiagnostic> diagnostics = new ArrayList<>(diagnosticStrs.length);
-            for (String diagnostic : diagnosticStrs) {
-                diagnostics.add(fromJavaFileComment(filename, errorLine, diagnostic));
-            }
+            List<TestDiagnostic> diagnostics =
+                    CollectionsPlume.mapList(
+                            (String diagnostic) ->
+                                    fromJavaFileComment(filename, errorLine, diagnostic),
+                            diagnosticStrs);
             return new TestDiagnosticLine(
                     filename, errorLine, line, Collections.unmodifiableList(diagnostics));
 
@@ -339,7 +364,7 @@ public class TestDiagnosticUtils {
                     filename, lineNumber, line, Collections.singletonList(diagnostic));
         } else if (trimmedLine.startsWith("// jspecify_")) {
             TestDiagnostic diagnostic =
-                    fromJspecifyFileComment(filename, errorLine, trimmedLine.substring(3));
+                    fromJSpecifyFileComment(filename, errorLine, trimmedLine.substring(3));
             return new TestDiagnosticLine(
                     filename, errorLine, line, Collections.singletonList(diagnostic));
         } else {
@@ -388,13 +413,12 @@ public class TestDiagnosticUtils {
     /**
      * Converts the given diagnostics to strings (as they would appear in a source file
      * individually).
+     *
+     * @param diagnostics a list of diagnostics
+     * @return a list of the diagnastics as they would appear in a source file
      */
     public static List<String> diagnosticsToString(List<TestDiagnostic> diagnostics) {
-        final List<String> strings = new ArrayList<>(diagnostics.size());
-        for (TestDiagnostic diagnostic : diagnostics) {
-            strings.add(diagnostic.toString());
-        }
-        return strings;
+        return CollectionsPlume.mapList(TestDiagnostic::toString, diagnostics);
     }
 
     public static void removeDiagnosticsOfKind(

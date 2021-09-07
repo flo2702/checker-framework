@@ -8,9 +8,12 @@ import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.ListBuffer;
 import com.sun.tools.javac.util.Names;
-import java.util.StringTokenizer;
-import javax.annotation.processing.ProcessingEnvironment;
+
 import org.checkerframework.javacutil.Pair;
+
+import java.util.StringTokenizer;
+
+import javax.annotation.processing.ProcessingEnvironment;
 
 /**
  * A utility class for parsing Java expression snippets, and converting them to proper Javac AST
@@ -53,7 +56,7 @@ public class TreeParser {
     /**
      * Parses the snippet in the string as an internal Javac AST expression node.
      *
-     * @param s the java snippet
+     * @param s the Java snippet
      * @return the AST corresponding to the snippet
      */
     public ExpressionTree parseTree(String s) {

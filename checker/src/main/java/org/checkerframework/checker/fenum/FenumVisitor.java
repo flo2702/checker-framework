@@ -6,10 +6,7 @@ import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.SwitchTree;
 import com.sun.source.tree.Tree;
-import java.util.Collections;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.ExecutableElement;
+
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
@@ -17,6 +14,13 @@ import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclared
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
 import org.checkerframework.framework.type.QualifierHierarchy;
 import org.checkerframework.javacutil.TreeUtils;
+
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.ExecutableElement;
 
 public class FenumVisitor extends BaseTypeVisitor<FenumAnnotatedTypeFactory> {
     public FenumVisitor(BaseTypeChecker checker) {
@@ -49,10 +53,14 @@ public class FenumVisitor extends BaseTypeVisitor<FenumAnnotatedTypeFactory> {
         AnnotatedTypeMirror exprType = atypeFactory.getAnnotatedType(expr);
 
         for (CaseTree caseExpr : node.getCases()) {
-            ExpressionTree realCaseExpr = caseExpr.getExpression();
-            if (realCaseExpr != null) {
+            List<? extends ExpressionTree> realCaseExprs =
+                    TreeUtils.caseTreeGetExpressions(caseExpr);
+            // Check all the case options against the switch expression type:
+            for (ExpressionTree realCaseExpr : realCaseExprs) {
                 AnnotatedTypeMirror caseType = atypeFactory.getAnnotatedType(realCaseExpr);
 
+                // There is currently no "switch.type.incompatible" message key, so it is treated
+                // identically to "type.incompatible".
                 this.commonAssignmentCheck(
                         exprType, caseType, caseExpr, "switch.type.incompatible");
             }
@@ -82,10 +90,9 @@ public class FenumVisitor extends BaseTypeVisitor<FenumAnnotatedTypeFactory> {
     @Override
     public boolean isValidUse(
             AnnotatedDeclaredType declarationType, AnnotatedDeclaredType useType, Tree tree) {
-        // The checker calls this method to compare the annotation used in a
-        // type to the modifier it adds to the class declaration. As our default
-        // modifier is FenumBottom, this results in an error when a non-subtype
-        // is used. Can we use FenumTop as default instead?
+        // The checker calls this method to compare the annotation used in a type to the modifier it
+        // adds to the class declaration. As our default modifier is FenumBottom, this results in an
+        // error when a non-subtype is used. Can we use FenumTop as default instead?
         return true;
     }
 }

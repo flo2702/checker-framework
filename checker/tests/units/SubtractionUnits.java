@@ -1,5 +1,40 @@
-import org.checkerframework.checker.units.UnitsTools;
-import org.checkerframework.checker.units.qual.*;
+import org.checkerframework.checker.units.qual.A;
+import org.checkerframework.checker.units.qual.Acceleration;
+import org.checkerframework.checker.units.qual.Area;
+import org.checkerframework.checker.units.qual.C;
+import org.checkerframework.checker.units.qual.Current;
+import org.checkerframework.checker.units.qual.Force;
+import org.checkerframework.checker.units.qual.K;
+import org.checkerframework.checker.units.qual.Length;
+import org.checkerframework.checker.units.qual.Luminance;
+import org.checkerframework.checker.units.qual.Mass;
+import org.checkerframework.checker.units.qual.N;
+import org.checkerframework.checker.units.qual.Substance;
+import org.checkerframework.checker.units.qual.Temperature;
+import org.checkerframework.checker.units.qual.Time;
+import org.checkerframework.checker.units.qual.Volume;
+import org.checkerframework.checker.units.qual.cd;
+import org.checkerframework.checker.units.qual.g;
+import org.checkerframework.checker.units.qual.h;
+import org.checkerframework.checker.units.qual.kN;
+import org.checkerframework.checker.units.qual.kg;
+import org.checkerframework.checker.units.qual.km;
+import org.checkerframework.checker.units.qual.km2;
+import org.checkerframework.checker.units.qual.km3;
+import org.checkerframework.checker.units.qual.kmPERh;
+import org.checkerframework.checker.units.qual.m;
+import org.checkerframework.checker.units.qual.m2;
+import org.checkerframework.checker.units.qual.m3;
+import org.checkerframework.checker.units.qual.mPERs;
+import org.checkerframework.checker.units.qual.mPERs2;
+import org.checkerframework.checker.units.qual.min;
+import org.checkerframework.checker.units.qual.mm;
+import org.checkerframework.checker.units.qual.mm2;
+import org.checkerframework.checker.units.qual.mm3;
+import org.checkerframework.checker.units.qual.mol;
+import org.checkerframework.checker.units.qual.s;
+import org.checkerframework.checker.units.qual.t;
+import org.checkerframework.checker.units.util.UnitsTools;
 
 public class SubtractionUnits {
     // Subtraction is legal when the operands have the same units.
@@ -35,6 +70,11 @@ public class SubtractionUnits {
         @K int bKelvin = 5 * UnitsTools.K;
         @K int sKelvin = aKelvin - bKelvin;
 
+        // Kilonewton
+        @kN int aKilonewton = 5 * UnitsTools.kN;
+        @kN int bKilonewton = 5 * UnitsTools.kN;
+        @kN int sKiloewton = aKilonewton - bKilonewton;
+
         // Kilogram
         @kg int aKilogram = 5 * UnitsTools.kg;
         @kg int bKilogram = 5 * UnitsTools.kg;
@@ -50,6 +90,11 @@ public class SubtractionUnits {
         @km2 int bSquareKilometer = 5 * UnitsTools.km2;
         @km2 int sSquareKilometer = aSquareKilometer - bSquareKilometer;
 
+        // Cubic kilometer
+        @km3 int aCubicKilometer = 5 * UnitsTools.km3;
+        @km3 int bCubicKilometer = 5 * UnitsTools.km3;
+        @km3 int sCubicKilometer = aCubicKilometer - bCubicKilometer;
+
         // Kilometer per hour
         @kmPERh int aKilometerPerHour = 5 * UnitsTools.kmPERh;
         @kmPERh int bKilometerPerHour = 5 * UnitsTools.kmPERh;
@@ -64,6 +109,11 @@ public class SubtractionUnits {
         @m2 int aSquareMeter = 5 * UnitsTools.m2;
         @m2 int bSquareMeter = 5 * UnitsTools.m2;
         @m2 int sSquareMeter = aSquareMeter - bSquareMeter;
+
+        // Cubic meter
+        @m3 int aCubicMeter = 5 * UnitsTools.m3;
+        @m3 int bCubicMeter = 5 * UnitsTools.m3;
+        @m3 int sCubicMeter = aCubicMeter - bCubicMeter;
 
         // Meter per second
         @mPERs int aMeterPerSecond = 5 * UnitsTools.mPERs;
@@ -90,10 +140,20 @@ public class SubtractionUnits {
         @mm2 int bSquareMillimeter = 5 * UnitsTools.mm2;
         @mm2 int sSquareMillimeter = aSquareMillimeter - bSquareMillimeter;
 
+        // Cubic millimeter
+        @mm3 int aCubicMillimeter = 5 * UnitsTools.mm3;
+        @mm3 int bCubicMillimeter = 5 * UnitsTools.mm3;
+        @mm3 int sCubicMillimeter = aCubicMillimeter - bCubicMillimeter;
+
         // Mole
         @mol int aMole = 5 * UnitsTools.mol;
         @mol int bMole = 5 * UnitsTools.mol;
         @mol int sMole = aMole - bMole;
+
+        // Newton
+        @N int aNewton = 5 * UnitsTools.N;
+        @N int bNewton = 5 * UnitsTools.N;
+        @N int sNewton = aNewton - bNewton;
 
         // Second
         @s int aSecond = 5 * UnitsTools.s;
@@ -101,9 +161,9 @@ public class SubtractionUnits {
         @s int sSecond = aSecond - bSecond;
     }
 
-    // Subtraction is illegal when the operands have different units or one
-    // is unqualified.  In these tests, we cycle between the result and
-    // the first or second operand having an incorrect type.
+    // Subtraction is illegal when the operands have different units or one is unqualified.  In
+    // these tests, we cycle between the result and the first or second operand having an incorrect
+    // type.
     void bad() {
         // Dimensions
         // Acceleration
@@ -117,6 +177,10 @@ public class SubtractionUnits {
         // Current
         @Current int aCurrent = 5 * UnitsTools.A;
         @Current int bCurrent = 5 * UnitsTools.A;
+
+        // Force
+        @Force int aForce = 5 * UnitsTools.N;
+        @Force int bForce = 5 * UnitsTools.N;
 
         // Length
         @Length int aLength = 5 * UnitsTools.m;
@@ -141,6 +205,10 @@ public class SubtractionUnits {
         // Time
         @Time int aTime = 5 * UnitsTools.min;
         @Time int bTime = 5 * UnitsTools.h;
+
+        // Volume
+        @Volume int aVolume = 5 * UnitsTools.m3;
+        @Volume int bVolume = 5 * UnitsTools.km3;
 
         // Dimensions
         // :: error: (assignment.type.incompatible)
@@ -178,6 +246,14 @@ public class SubtractionUnits {
         // :: error: (assignment.type.incompatible)
         @Time int sTime = aArea - bTime;
 
+        // Volume
+        // :: error: (assignment.type.incompatible)
+        @Volume int sVolume = aVolume - bArea;
+
+        // Force
+        // :: error: (assignment.type.incompatible)
+        sMass = aForce - bForce;
+
         // Units
         // Amperes
         @A int aAmpere = 5 * UnitsTools.A;
@@ -203,6 +279,10 @@ public class SubtractionUnits {
         @K int aKelvin = 5 * UnitsTools.K;
         @K int bKelvin = 5 * UnitsTools.K;
 
+        // Kilonewton
+        @kN int aKilonewton = 5 * UnitsTools.kN;
+        @kN int bKilonewton = 5 * UnitsTools.kN;
+
         // Kilogram
         @kg int aKilogram = 5 * UnitsTools.kg;
         @kg int bKilogram = 5 * UnitsTools.kg;
@@ -215,6 +295,10 @@ public class SubtractionUnits {
         @km2 int aSquareKilometer = 5 * UnitsTools.km2;
         @km2 int bSquareKilometer = 5 * UnitsTools.km2;
 
+        // Cubic kilometer
+        @km3 int aCubicKilometer = 5 * UnitsTools.km3;
+        @km3 int bCubicKilometer = 5 * UnitsTools.km3;
+
         // Kilometer per hour
         @kmPERh int aKilometerPerHour = 5 * UnitsTools.kmPERh;
         @kmPERh int bKilometerPerHour = 5 * UnitsTools.kmPERh;
@@ -226,6 +310,10 @@ public class SubtractionUnits {
         // Square meter
         @m2 int aSquareMeter = 5 * UnitsTools.m2;
         @m2 int bSquareMeter = 5 * UnitsTools.m2;
+
+        // Cubic meter
+        @m3 int aCubicMeter = 5 * UnitsTools.m3;
+        @m3 int bCubicMeter = 5 * UnitsTools.m3;
 
         // Meter per second
         @mPERs int aMeterPerSecond = 5 * UnitsTools.mPERs;
@@ -247,6 +335,10 @@ public class SubtractionUnits {
         @mm2 int aSquareMillimeter = 5 * UnitsTools.mm2;
         @mm2 int bSquareMillimeter = 5 * UnitsTools.mm2;
 
+        // Cubic millimeter
+        @mm3 int aCubicMillimeter = 5 * UnitsTools.mm3;
+        @mm3 int bCubicMillimeter = 5 * UnitsTools.mm3;
+
         // Mole
         @mol int aMole = 5 * UnitsTools.mol;
         @mol int bMole = 5 * UnitsTools.mol;
@@ -254,6 +346,14 @@ public class SubtractionUnits {
         // Second
         @s int aSecond = 5 * UnitsTools.s;
         @s int bSecond = 5 * UnitsTools.s;
+
+        // Metric Tons
+        @t int aMetricTon = 5 * UnitsTools.t;
+        @t int bMetricTon = 5 * UnitsTools.t;
+
+        // Newton
+        @N int aNewton = 5 * UnitsTools.N;
+        @N int bNewton = 5 * UnitsTools.N;
 
         // Units
         // Amperes
@@ -292,6 +392,10 @@ public class SubtractionUnits {
         // :: error: (assignment.type.incompatible)
         @km2 int sSquareKilometer = aSquareKilometer - bAmpere;
 
+        // Cubic kilometer
+        // :: error: (assignment.type.incompatible)
+        @km3 int sCubicKilometer = aCubicKilometer - bAmpere;
+
         // Kilometer per hour
         // :: error: (assignment.type.incompatible)
         @mPERs int sMeterPerSecond = aKilometerPerHour - bKilometerPerHour;
@@ -303,6 +407,10 @@ public class SubtractionUnits {
         // Square meter
         // :: error: (assignment.type.incompatible)
         @m2 int sSquareMeter = aSquareMeter - bGram;
+
+        // Cubic meter
+        // :: error: (assignment.type.incompatible)
+        @m3 int sCubicMeter = aCubicMeter - bGram;
 
         // Meter per second
         // :: error: (assignment.type.incompatible)
@@ -331,5 +439,17 @@ public class SubtractionUnits {
         // Second
         // :: error: (assignment.type.incompatible)
         @s int sSecond = aSecond - bSquareKilometer;
+
+        // Newton
+        // :: error: (assignment.type.incompatible)
+        sKilogram = aNewton - bNewton;
+
+        // Kilonewton
+        // :: error: (assignment.type.incompatible)
+        @kN int sKilonewton = aKilonewton - bNewton;
+
+        // Metric Ton
+        // :: error: (assignment.type.incompatible)
+        @N int sNewton = aNewton - bMetricTon;
     }
 }

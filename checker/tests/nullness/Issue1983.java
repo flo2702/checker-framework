@@ -1,13 +1,14 @@
 // Test case for Issue 1983:
 // https://github.com/typetools/checker-framework/issues/1983
 
-import java.util.List;
-import java.util.function.Function;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-@SuppressWarnings("initialization.fields.uninitialized")
+import java.util.List;
+import java.util.function.Function;
+
 public class Issue1983 {
 
+    @SuppressWarnings("initialization.field.uninitialized")
     Converter<String> converter;
 
     void test(List<Object[]> params) {

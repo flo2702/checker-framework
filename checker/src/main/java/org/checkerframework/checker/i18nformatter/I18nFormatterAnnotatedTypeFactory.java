@@ -2,22 +2,14 @@ package org.checkerframework.checker.i18nformatter;
 
 import com.sun.source.tree.LiteralTree;
 import com.sun.source.tree.Tree;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.InputStream;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Properties;
-import java.util.ResourceBundle;
-import javax.lang.model.element.AnnotationMirror;
+
 import org.checkerframework.checker.i18nformatter.qual.I18nConversionCategory;
 import org.checkerframework.checker.i18nformatter.qual.I18nFormat;
 import org.checkerframework.checker.i18nformatter.qual.I18nFormatBottom;
 import org.checkerframework.checker.i18nformatter.qual.I18nFormatFor;
 import org.checkerframework.checker.i18nformatter.qual.I18nInvalidFormat;
 import org.checkerframework.checker.i18nformatter.qual.I18nUnknownFormat;
+import org.checkerframework.checker.i18nformatter.util.I18nFormatUtil;
 import org.checkerframework.checker.signature.qual.CanonicalName;
 import org.checkerframework.common.basetype.BaseAnnotatedTypeFactory;
 import org.checkerframework.common.basetype.BaseTypeChecker;
@@ -30,8 +22,21 @@ import org.checkerframework.framework.type.treeannotator.TreeAnnotator;
 import org.checkerframework.framework.util.QualifierKind;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
-import org.checkerframework.javacutil.BugInCF;
+import org.checkerframework.javacutil.TypeSystemError;
 import org.plumelib.reflection.Signatures;
+
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.InputStream;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Properties;
+import java.util.ResourceBundle;
+
+import javax.lang.model.element.AnnotationMirror;
 
 /**
  * Adds {@link I18nFormat} to the type of tree, if it is a {@code String} or {@code char} literal
@@ -260,9 +265,11 @@ public class I18nFormatterAnnotatedTypeFactory extends BaseAnnotatedTypeFactory 
                 return true;
             } else if ((subKind == I18NINVALIDFORMAT_KIND && superKind == I18NINVALIDFORMAT_KIND)
                     || (subKind == I18NFORMATFOR_KIND && superKind == I18NFORMATFOR_KIND)) {
-                return AnnotationUtils.sameElementValues(subAnno, superAnno);
+                return Objects.equals(
+                        treeUtil.getI18nInvalidFormatValue(subAnno),
+                        treeUtil.getI18nInvalidFormatValue(superAnno));
             }
-            throw new BugInCF("Unexpected QualifierKinds: %s %s", subKind, superKind);
+            throw new TypeSystemError("Unexpected QualifierKinds: %s %s", subKind, superKind);
         }
 
         @Override

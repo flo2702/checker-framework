@@ -28,7 +28,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.checker.nullness.qual.PolyNull;
 import org.checkerframework.checker.signature.qual.FullyQualifiedName;
 import org.checkerframework.common.basetype.BaseTypeChecker;
-import org.checkerframework.common.wholeprograminference.WholeProgramInference;
 import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeFormatter;
@@ -38,7 +37,7 @@ import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclared
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedNoType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedPrimitiveType;
-import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedWildcardType;
+import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedTypeVariable;
 import org.checkerframework.framework.type.QualifierHierarchy;
 import org.checkerframework.framework.type.treeannotator.ListTreeAnnotator;
 import org.checkerframework.framework.type.treeannotator.LiteralTreeAnnotator;
@@ -52,13 +51,14 @@ import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.framework.util.QualifierKind;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
-import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.Pair;
 import org.checkerframework.javacutil.TreeUtils;
+import org.checkerframework.javacutil.TypeSystemError;
 import org.checkerframework.javacutil.TypesUtils;
 
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
@@ -97,12 +97,16 @@ public class NullnessAnnotatedTypeFactory
 
     /** The Class.getCanonicalName() method. */
     protected final ExecutableElement classGetCanonicalName;
+    /** The Arrays.copyOf() methods that operate on arrays of references. */
+    private final List<ExecutableElement> copyOfMethods;
 
     /** Cache for the nullness annotations. */
     protected final Set<Class<? extends Annotation>> nullnessAnnos;
 
     // List is in alphabetical order.  If you update it, also update
-    // ../../../../../../../../docs/manual/nullness-checker.tex .
+    // ../../../../../../../../docs/manual/nullness-checker.tex
+    // and make a pull request for variables NONNULL_ANNOTATIONS and BASE_COPYABLE_ANNOTATIONS in
+    // https://github.com/rzwitserloot/lombok/blob/master/src/core/lombok/core/handlers/HandlerUtil.java .
     /** Aliases for {@code @Nonnull}. */
     private static final List<@FullyQualifiedName String> NONNULL_ALIASES =
             Arrays.asList(
@@ -125,7 +129,7 @@ public class NullnessAnnotatedTypeFactory
                     "javax.annotation.Nonnull",
                     // https://javaee.github.io/javaee-spec/javadocs/javax/validation/constraints/NotNull.html
                     "javax.validation.constraints.NotNull",
-                    // https://github.com/rzwitserloot/lombok/blob/master/src/core/lombok/NonNull.java
+                    // https://github.com/projectlombok/lombok/blob/master/src/core/lombok/NonNull.java
                     "lombok.NonNull",
                     // https://search.maven.org/search?q=a:checker-compat-qual
                     "org.checkerframework.checker.nullness.compatqual.NonNullDecl",
@@ -187,9 +191,9 @@ public class NullnessAnnotatedTypeFactory
                     "org.jetbrains.annotations.Nullable",
                     // http://svn.code.sf.net/p/jmlspecs/code/JMLAnnotations/trunk/src/org/jmlspecs/annotation/Nullable.java
                     "org.jmlspecs.annotation.Nullable",
-                    // https://github.com/jspecify/jspecify/tree/main/src/main/java/org/jspecify/annotations
-                    "org.jspecify.annotations.Nullable",
-                    "org.jspecify.annotations.NullnessUnspecified",
+                    // https://github.com/jspecify/jspecify/tree/main/src/main/java/org/jspecify/nullness
+                    "org.jspecify.nullness.Nullable",
+                    "org.jspecify.nullness.NullnessUnspecified",
                     // http://bits.netbeans.org/8.2/javadoc/org-netbeans-api-annotations-common/org/netbeans/api/annotations/common/CheckForNull.html
                     "org.netbeans.api.annotations.common.CheckForNull",
                     // http://bits.netbeans.org/8.2/javadoc/org-netbeans-api-annotations-common/org/netbeans/api/annotations/common/NullAllowed.html
@@ -207,7 +211,7 @@ public class NullnessAnnotatedTypeFactory
     public NullnessAnnotatedTypeFactory(BaseTypeChecker checker) {
         super(checker);
 
-        Set<Class<? extends Annotation>> tempNullnessAnnos = new LinkedHashSet<>();
+        Set<Class<? extends Annotation>> tempNullnessAnnos = new LinkedHashSet<>(4);
         tempNullnessAnnos.add(NonNull.class);
         tempNullnessAnnos.add(MonotonicNonNull.class);
         tempNullnessAnnos.add(Nullable.class);
@@ -237,11 +241,12 @@ public class NullnessAnnotatedTypeFactory
                 new SystemGetPropertyHandler(processingEnv, this, permitClearProperty);
 
         classGetCanonicalName =
-                TreeUtils.getMethod(
-                        java.lang.Class.class.getCanonicalName(),
-                        "getCanonicalName",
-                        0,
-                        processingEnv);
+                TreeUtils.getMethod("java.lang.Class", "getCanonicalName", 0, processingEnv);
+        copyOfMethods =
+                Arrays.asList(
+                        TreeUtils.getMethod(
+                                "java.util.Arrays", "copyOf", processingEnv, "T[]", "int"),
+                        TreeUtils.getMethod("java.util.Arrays", "copyOf", 3, processingEnv));
 
         postInit();
 
@@ -299,7 +304,7 @@ public class NullnessAnnotatedTypeFactory
             NullnessStore store,
             TreePath path,
             boolean isStatic,
-            List<? extends AnnotationMirror> receiverAnnotations) {
+            Collection<? extends AnnotationMirror> receiverAnnotations) {
         Pair<List<VariableTree>, List<VariableTree>> result =
                 super.getUninitializedFields(store, path, isStatic, receiverAnnotations);
         // Filter out primitives.  They have the @NonNull annotation, but this checker issues no
@@ -312,9 +317,8 @@ public class NullnessAnnotatedTypeFactory
     }
 
     @Override
-    protected NullnessAnalysis createFlowAnalysis(
-            List<Pair<VariableElement, NullnessValue>> fieldValues) {
-        return new NullnessAnalysis(checker, this, fieldValues);
+    protected NullnessAnalysis createFlowAnalysis() {
+        return new NullnessAnalysis(checker, this);
     }
 
     @Override
@@ -323,7 +327,11 @@ public class NullnessAnnotatedTypeFactory
         return new NullnessTransfer((NullnessAnalysis) analysis);
     }
 
-    /** @return an AnnotatedTypeFormatter that does not print the qualifiers on null literals */
+    /**
+     * Returns an AnnotatedTypeFormatter that does not print the qualifiers on null literals.
+     *
+     * @return an AnnotatedTypeFormatter that does not print the qualifiers on null literals
+     */
     @Override
     protected AnnotatedTypeFormatter createAnnotatedTypeFormatter() {
         boolean printVerboseGenerics = checker.hasOption("printVerboseGenerics");
@@ -355,17 +363,19 @@ public class NullnessAnnotatedTypeFactory
 
     @Override
     public void adaptGetClassReturnTypeToReceiver(
-            final AnnotatedExecutableType getClassType, final AnnotatedTypeMirror receiverType) {
+            final AnnotatedExecutableType getClassType,
+            final AnnotatedTypeMirror receiverType,
+            ExpressionTree tree) {
 
-        super.adaptGetClassReturnTypeToReceiver(getClassType, receiverType);
+        super.adaptGetClassReturnTypeToReceiver(getClassType, receiverType, tree);
 
-        // Make the wildcard always @NonNull, regardless of the declared type.
+        // Make the captured wildcard always @NonNull, regardless of the declared type.
 
         final AnnotatedDeclaredType returnAdt =
                 (AnnotatedDeclaredType) getClassType.getReturnType();
         final List<AnnotatedTypeMirror> typeArgs = returnAdt.getTypeArguments();
-        final AnnotatedWildcardType classWildcardArg = (AnnotatedWildcardType) typeArgs.get(0);
-        classWildcardArg.getExtendsBoundField().replaceAnnotation(NONNULL);
+        AnnotatedTypeVariable classWildcardArg = (AnnotatedTypeVariable) typeArgs.get(0);
+        classWildcardArg.getUpperBound().replaceAnnotation(NONNULL);
     }
 
     @Override
@@ -488,9 +498,8 @@ public class NullnessAnnotatedTypeFactory
             assert elt != null;
 
             if (elt.getKind() == ElementKind.EXCEPTION_PARAMETER) {
-                // TODO: It's surprising that we have to do this in
-                // both visitVariable and visitIdentifier. This should
-                // already be handled by applying the defaults anyway.
+                // TODO: It's surprising that we have to do this in both visitVariable and
+                // visitIdentifier. This should already be handled by applying the defaults anyway.
                 // case 9. exception parameter
                 type.replaceAnnotation(NONNULL);
             }
@@ -542,6 +551,31 @@ public class NullnessAnnotatedTypeFactory
                 componentType.replaceAnnotation(INITIALIZED);
             }
             return null;
+        }
+
+        @Override
+        public Void visitMethodInvocation(MethodInvocationTree tree, AnnotatedTypeMirror type) {
+            if (TreeUtils.isMethodInvocation(tree, copyOfMethods, processingEnv)) {
+                List<? extends ExpressionTree> args = tree.getArguments();
+                ExpressionTree lengthArg = args.get(1);
+                if (TreeUtils.isArrayLengthAccess(lengthArg)) {
+                    // TODO: This syntactic test may not be not correct if the array expression has
+                    // a side effect that affects the array length.  This code could require that
+                    // the expression has no method calls, assignments, etc.
+                    ExpressionTree arrayArg = args.get(0);
+                    if (TreeUtils.sameTree(
+                            arrayArg, ((MemberSelectTree) lengthArg).getExpression())) {
+                        AnnotatedArrayType arrayArgType =
+                                (AnnotatedArrayType) getAnnotatedType(arrayArg);
+                        AnnotatedTypeMirror arrayArgComponentType = arrayArgType.getComponentType();
+                        // Maybe this call is only necessary if argNullness is @NonNull.
+                        ((AnnotatedArrayType) type)
+                                .getComponentType()
+                                .replaceAnnotations(arrayArgComponentType.getAnnotations());
+                    }
+                }
+            }
+            return super.visitMethodInvocation(tree, type);
         }
     }
 
@@ -640,7 +674,7 @@ public class NullnessAnnotatedTypeFactory
                     || !superKind.isInSameHierarchyAs(NULLABLE)) {
                 return this.isSubtypeInitialization(subAnno, subKind, superAnno, superKind);
             }
-            throw new BugInCF(
+            throw new TypeSystemError(
                     "Unexpected annotations isSubtypeWithElements(%s, %s)", subAnno, superAnno);
         }
 
@@ -655,7 +689,8 @@ public class NullnessAnnotatedTypeFactory
                     || !qualifierKind2.isInSameHierarchyAs(NULLABLE)) {
                 return this.leastUpperBoundInitialization(a1, qualifierKind1, a2, qualifierKind2);
             }
-            throw new BugInCF("Unexpected annotations leastUpperBoundWithElements(%s, %s)", a1, a2);
+            throw new TypeSystemError(
+                    "Unexpected annotations leastUpperBoundWithElements(%s, %s)", a1, a2);
         }
 
         @Override
@@ -670,9 +705,29 @@ public class NullnessAnnotatedTypeFactory
                 return this.greatestLowerBoundInitialization(
                         a1, qualifierKind1, a2, qualifierKind2);
             }
-            throw new BugInCF(
+            throw new TypeSystemError(
                     "Unexpected annotations greatestLowerBoundWithElements(%s, %s)", a1, a2);
         }
+    }
+
+    /**
+     * Returns true if some annotation on the given type, or in the given list, is a nullness
+     * annotation such as @NonNull, @Nullable, @MonotonicNonNull, etc.
+     *
+     * <p>This method ignores aliases of nullness annotations that are declaration annotations,
+     * because they may apply to inner types.
+     *
+     * @param annoTrees a list of annotations that the the Java parser attached to the
+     *     variable/method declaration; null if this type is not from such a location. This is a
+     *     list of extra annotations to check, in addition to those on the type.
+     * @param typeTree the type whose annotations to test
+     * @return true if some annotation is a nullness annotation
+     */
+    protected boolean containsNullnessAnnotation(
+            List<? extends AnnotationTree> annoTrees, Tree typeTree) {
+        List<? extends AnnotationTree> annos =
+                TreeUtils.getExplicitAnnotationTrees(annoTrees, typeTree);
+        return containsNullnessAnnotation(annos);
     }
 
     /**
@@ -682,17 +737,15 @@ public class NullnessAnnotatedTypeFactory
      * <p>This method ignores aliases of nullness annotations that are declaration annotations,
      * because they may apply to inner types.
      *
-     * @param annoTrees a list of annotations on a variable/method declaration; null if this type is
-     *     not from such a location
-     * @param typeTree the type whose annotations to test
+     * <p>Clients that are processing a field or variable definition, or a method return type,
+     * should call {@link #containsNullnessAnnotation(List, Tree)} instead.
+     *
+     * @param annoTrees a list of annotations to check
      * @return true if some annotation is a nullness annotation
+     * @see #containsNullnessAnnotation(List, Tree)
      */
-    protected boolean containsNullnessAnnotation(
-            List<? extends AnnotationTree> annoTrees, Tree typeTree) {
-        List<? extends AnnotationTree> annos =
-                TreeUtils.getExplicitAnnotationTrees(annoTrees, typeTree);
-
-        for (AnnotationTree annoTree : annos) {
+    protected boolean containsNullnessAnnotation(List<? extends AnnotationTree> annoTrees) {
+        for (AnnotationTree annoTree : annoTrees) {
             AnnotationMirror am = TreeUtils.annotationFromAnnotationTree(annoTree);
             if (isNullnessAnnotation(am) && !AnnotationUtils.isDeclarationAnnotation(am)) {
                 return true;
@@ -743,6 +796,8 @@ public class NullnessAnnotatedTypeFactory
         return AnnotationUtils.areSameByName(am, NULLABLE);
     }
 
+    // If a reference field has no initializer, then its default value is null.  Treat that as
+    // @MonotonicNonNull rather than as @Nullable.
     @Override
     public AnnotatedTypeMirror getDefaultValueAnnotatedType(TypeMirror typeMirror) {
         AnnotatedTypeMirror result = super.getDefaultValueAnnotatedType(typeMirror);
@@ -752,8 +807,104 @@ public class NullnessAnnotatedTypeFactory
         return result;
     }
 
+    /* NO-AFU
+    // If
+    //  1. rhs is @Nullable
+    //  2. lhs is a field of this
+    //  3. in a constructor, initializer block, or field initializer
+    // then change rhs to @MonotonicNonNull.
     @Override
-    public WholeProgramInference createWholeProgramInference() {
-        return new NullnessWholeProgramInferenceScenes(this);
+    public void wpiAdjustForUpdateField(
+            Tree lhsTree, Element element, String fieldName, AnnotatedTypeMirror rhsATM) {
+        if (!rhsATM.hasAnnotation(Nullable.class)) {
+            return;
+        }
+        TreePath lhsPath = getPath(lhsTree);
+        TypeElement enclosingClassOfLhs =
+                TreeUtils.elementFromDeclaration(TreePathUtil.enclosingClass(lhsPath));
+        ClassSymbol enclosingClassOfField = ((VarSymbol) element).enclClass();
+        if (enclosingClassOfLhs.equals(enclosingClassOfField)
+                && TreePathUtil.inConstructor(lhsPath)) {
+            rhsATM.replaceAnnotation(MONOTONIC_NONNULL);
+        }
     }
+
+    // If
+    //  1. rhs is @MonotonicNonNull
+    // then change rhs to @Nullable
+    @Override
+    public void wpiAdjustForUpdateNonField(AnnotatedTypeMirror rhsATM) {
+        if (rhsATM.hasAnnotation(MonotonicNonNull.class)) {
+            rhsATM.replaceAnnotation(NULLABLE);
+        }
+    }
+
+    // This implementation overrides the superclass implementation to:
+    //  * check for @MonotonicNonNull
+    //  * output @RequiresNonNull rather than @RequiresQualifier.
+    @Override
+    protected @Nullable AnnotationMirror createRequiresOrEnsuresQualifier(
+            String expression,
+            AnnotationMirror qualifier,
+            AnnotatedTypeMirror declaredType,
+            Analysis.BeforeOrAfter preOrPost,
+            @Nullable List<AnnotationMirror> preconds) {
+        // TODO: This does not handle the possibility that the user set a different default
+        // annotation.
+        if (!(declaredType.hasAnnotation(NULLABLE)
+                || declaredType.hasAnnotation(POLYNULL)
+                || declaredType.hasAnnotation(MONOTONIC_NONNULL))) {
+            return null;
+        }
+
+        if (preOrPost == BeforeOrAfter.AFTER
+                && declaredType.hasAnnotation(MONOTONIC_NONNULL)
+                && preconds.contains(requiresNonNullAnno(expression))) {
+            // The postcondition is implied by the precondition and the field being
+            // @MonotonicNonNull.
+            return null;
+        }
+
+        if (AnnotationUtils.areSameByName(
+                qualifier, "org.checkerframework.checker.nullness.qual.NonNull")) {
+            if (preOrPost == BeforeOrAfter.BEFORE) {
+                return requiresNonNullAnno(expression);
+            } else {
+                return ensuresNonNullAnno(expression);
+            }
+        }
+        return super.createRequiresOrEnsuresQualifier(
+                expression, qualifier, declaredType, preOrPost, preconds);
+    }
+    */
+
+    /* NO-AFU
+     * Returns a {@code RequiresNonNull("...")} annotation for the given expression.
+     *
+     * @param expression an expression
+     * @return a {@code RequiresNonNull("...")} annotation for the given expression
+     */
+    /* NO-AFU
+    private AnnotationMirror requiresNonNullAnno(String expression) {
+        AnnotationBuilder builder = new AnnotationBuilder(processingEnv, RequiresNonNull.class);
+        builder.setValue("value", new String[] {expression});
+        AnnotationMirror am = builder.build();
+        return am;
+    }
+    */
+
+    /* NO-AFU
+     * Returns a {@code EnsuresNonNull("...")} annotation for the given expression.
+     *
+     * @param expression an expression
+     * @return a {@code EnsuresNonNull("...")} annotation for the given expression
+     */
+    /* NO-AFU
+    private AnnotationMirror ensuresNonNullAnno(String expression) {
+        AnnotationBuilder builder = new AnnotationBuilder(processingEnv, EnsuresNonNull.class);
+        builder.setValue("value", new String[] {expression});
+        AnnotationMirror am = builder.build();
+        return am;
+    }
+    */
 }

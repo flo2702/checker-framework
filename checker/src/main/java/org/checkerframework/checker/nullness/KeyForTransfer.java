@@ -1,8 +1,5 @@
 package org.checkerframework.checker.nullness;
 
-import java.util.LinkedHashSet;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
 import org.checkerframework.checker.nullness.qual.KeyFor;
 import org.checkerframework.dataflow.analysis.TransferInput;
 import org.checkerframework.dataflow.analysis.TransferResult;
@@ -11,6 +8,15 @@ import org.checkerframework.dataflow.cfg.node.Node;
 import org.checkerframework.dataflow.expression.JavaExpression;
 import org.checkerframework.framework.flow.CFAbstractTransfer;
 import org.checkerframework.javacutil.AnnotationUtils;
+import org.checkerframework.javacutil.TreeUtils;
+
+import java.util.Collections;
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.ExecutableElement;
 
 /**
  * KeyForTransfer ensures that java.util.Map.put and containsKey cause the appropriate @KeyFor
@@ -18,8 +24,20 @@ import org.checkerframework.javacutil.AnnotationUtils;
  */
 public class KeyForTransfer extends CFAbstractTransfer<KeyForValue, KeyForStore, KeyForTransfer> {
 
+    /** The KeyFor.value element/field. */
+    ExecutableElement keyForValueElement;
+
+    /**
+     * Creates a new KeyForTransfer.
+     *
+     * @param analysis the analysis
+     */
     public KeyForTransfer(KeyForAnalysis analysis) {
         super(analysis);
+
+        ProcessingEnvironment processingEnv =
+                ((KeyForAnnotatedTypeFactory) analysis.getTypeFactory()).getProcessingEnv();
+        keyForValueElement = TreeUtils.getMethod(KeyFor.class, "value", 0, processingEnv);
     }
 
     /*
@@ -38,9 +56,9 @@ public class KeyForTransfer extends CFAbstractTransfer<KeyForValue, KeyForStore,
         if (factory.isMapContainsKey(node) || factory.isMapPut(node)) {
 
             Node receiver = node.getTarget().getReceiver();
-            JavaExpression receiverJe = JavaExpression.fromNode(factory, receiver);
+            JavaExpression receiverJe = JavaExpression.fromNode(receiver);
             String mapName = receiverJe.toString();
-            JavaExpression keyExpr = JavaExpression.fromNode(factory, node.getArgument(0));
+            JavaExpression keyExpr = JavaExpression.fromNode(node.getArgument(0));
 
             LinkedHashSet<String> keyForMaps = new LinkedHashSet<>();
             keyForMaps.add(mapName);
@@ -57,8 +75,10 @@ public class KeyForTransfer extends CFAbstractTransfer<KeyForValue, KeyForStore,
             AnnotationMirror am = factory.createKeyForAnnotationMirrorWithValue(keyForMaps);
 
             if (factory.isMapContainsKey(node)) {
+                // method is Map.containsKey
                 result.getThenStore().insertValue(keyExpr, am);
-            } else { // method is Map.put
+            } else {
+                // method is Map.put
                 result.getThenStore().insertValue(keyExpr, am);
                 result.getElseStore().insertValue(keyExpr, am);
             }
@@ -67,13 +87,18 @@ public class KeyForTransfer extends CFAbstractTransfer<KeyForValue, KeyForStore,
         return result;
     }
 
-    /** @return the String value of a KeyFor, this will throw an exception */
+    /**
+     * Returns the elements/arguments of a {@code @KeyFor} annotation.
+     *
+     * @param keyFor a {@code @KeyFor} annotation
+     * @return the elements/arguments of a {@code @KeyFor} annotation
+     */
     private Set<String> getKeys(final AnnotationMirror keyFor) {
         if (keyFor.getElementValues().isEmpty()) {
-            return new LinkedHashSet<>();
+            return Collections.emptySet();
         }
 
         return new LinkedHashSet<>(
-                AnnotationUtils.getElementValueArray(keyFor, "value", String.class, true));
+                AnnotationUtils.getElementValueArray(keyFor, keyForValueElement, String.class));
     }
 }

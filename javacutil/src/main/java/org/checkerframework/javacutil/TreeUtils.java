@@ -6,9 +6,9 @@ import com.sun.source.tree.ArrayAccessTree;
 import com.sun.source.tree.AssignmentTree;
 import com.sun.source.tree.BinaryTree;
 import com.sun.source.tree.BlockTree;
+import com.sun.source.tree.CaseTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompoundAssignmentTree;
-import com.sun.source.tree.ConditionalExpressionTree;
 import com.sun.source.tree.ExpressionStatementTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.IdentifierTree;
@@ -23,11 +23,12 @@ import com.sun.source.tree.ParenthesizedTree;
 import com.sun.source.tree.PrimitiveTypeTree;
 import com.sun.source.tree.StatementTree;
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.Tree.Kind;
+import com.sun.source.tree.TreeVisitor;
 import com.sun.source.tree.TypeCastTree;
 import com.sun.source.tree.TypeParameterTree;
+import com.sun.source.tree.UnionTypeTree;
 import com.sun.source.tree.VariableTree;
-import com.sun.source.util.TreePath;
+import com.sun.source.util.SimpleTreeVisitor;
 import com.sun.tools.javac.code.Flags;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symbol.MethodSymbol;
@@ -53,34 +54,45 @@ import com.sun.tools.javac.tree.JCTree.JCTypeParameter;
 import com.sun.tools.javac.tree.TreeInfo;
 import com.sun.tools.javac.tree.TreeMaker;
 import com.sun.tools.javac.util.Context;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.List;
-import java.util.Set;
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
-import javax.lang.model.element.Name;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.ElementFilter;
+
 import org.checkerframework.checker.interning.qual.PolyInterned;
 import org.checkerframework.checker.nullness.qual.EnsuresNonNullIf;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.checker.signature.qual.FullyQualifiedName;
 import org.checkerframework.dataflow.qual.Pure;
+import org.plumelib.util.CollectionsPlume;
 import org.plumelib.util.UniqueIdMap;
 
-/** A utility class made for helping to analyze a given {@code Tree}. */
-// TODO: This class needs significant restructuring
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
+import java.util.StringJoiner;
+
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.SourceVersion;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Name;
+import javax.lang.model.element.NestingKind;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.ElementFilter;
+
+/**
+ * Utility methods for analyzing a javac {@code Tree}.
+ *
+ * @see TreePathUtil
+ */
 public final class TreeUtils {
 
     // Class cannot be instantiated.
@@ -90,6 +102,46 @@ public final class TreeUtils {
 
     /** Unique IDs for trees. */
     public static final UniqueIdMap<Tree> treeUids = new UniqueIdMap<>();
+
+    /** Whether we are running on at least Java 12. */
+    private static final boolean atLeastJava12;
+
+    /** The CaseTree.getExpression method for Java up to 11; null otherwise. */
+    private static final @Nullable Method CASETREE_GETEXPRESSION;
+
+    /** The CaseTree.getExpressions method for Java 12 and higher; null otherwise. */
+    private static final @Nullable Method CASETREE_GETEXPRESSIONS;
+
+    /** The value of Flags.GENERATED_MEMBER which does not exist in Java 9 or 11. */
+    private static final long Flags_GENERATED_MEMBER = 16777216;
+
+    /** The value of Flags.RECORD which does not exist in Java 9 or 11. */
+    private static final long Flags_RECORD = 2305843009213693952L;
+
+    static {
+        final SourceVersion latestSource = SourceVersion.latest();
+        SourceVersion java12;
+        try {
+            java12 = SourceVersion.valueOf("RELEASE_12");
+        } catch (IllegalArgumentException e) {
+            java12 = null;
+        }
+        atLeastJava12 = java12 != null && latestSource.ordinal() >= java12.ordinal();
+
+        try {
+            if (atLeastJava12) {
+                CASETREE_GETEXPRESSIONS = CaseTree.class.getDeclaredMethod("getExpressions");
+                CASETREE_GETEXPRESSION = null;
+            } else {
+                CASETREE_GETEXPRESSION = CaseTree.class.getDeclaredMethod("getExpression");
+                CASETREE_GETEXPRESSIONS = null;
+            }
+        } catch (Exception e) {
+            Error err = new AssertionError("Unexpected error in TreeUtils static initializer");
+            err.initCause(e);
+            throw err;
+        }
+    }
 
     /**
      * Checks if the provided method is a constructor method or no.
@@ -129,7 +181,7 @@ public final class TreeUtils {
      * @return true iff tree is a call to the given method
      */
     private static boolean isNamedMethodCall(String name, MethodInvocationTree tree) {
-        return getMethodName(tree.getMethodSelect()).equals(name);
+        return getMethodName(tree.getMethodSelect()).contentEquals(name);
     }
 
     /**
@@ -184,166 +236,6 @@ public final class TreeUtils {
     }
 
     /**
-     * Gets the first enclosing tree in path, of the specified kind.
-     *
-     * @param path the path defining the tree node
-     * @param kind the kind of the desired tree
-     * @return the enclosing tree of the given type as given by the path, {@code null} otherwise
-     */
-    public static @Nullable Tree enclosingOfKind(final TreePath path, final Tree.Kind kind) {
-        return enclosingOfKind(path, EnumSet.of(kind));
-    }
-
-    /**
-     * Gets the first enclosing tree in path, with any one of the specified kinds.
-     *
-     * @param path the path defining the tree node
-     * @param kinds the set of kinds of the desired tree
-     * @return the enclosing tree of the given type as given by the path, {@code null} otherwise
-     */
-    public static @Nullable Tree enclosingOfKind(final TreePath path, final Set<Tree.Kind> kinds) {
-        TreePath p = path;
-
-        while (p != null) {
-            Tree leaf = p.getLeaf();
-            assert leaf != null; /*nninvariant*/
-            if (kinds.contains(leaf.getKind())) {
-                return leaf;
-            }
-            p = p.getParentPath();
-        }
-
-        return null;
-    }
-
-    /**
-     * Gets path to the first enclosing class tree, where class is defined by the classTreeKinds
-     * method.
-     *
-     * @param path the path defining the tree node
-     * @return the path to the enclosing class tree, {@code null} otherwise
-     */
-    public static @Nullable TreePath pathTillClass(final TreePath path) {
-        return pathTillOfKind(path, classTreeKinds());
-    }
-
-    /**
-     * Gets path to the first enclosing tree of the specified kind.
-     *
-     * @param path the path defining the tree node
-     * @param kind the kind of the desired tree
-     * @return the path to the enclosing tree of the given type, {@code null} otherwise
-     */
-    public static @Nullable TreePath pathTillOfKind(final TreePath path, final Tree.Kind kind) {
-        return pathTillOfKind(path, EnumSet.of(kind));
-    }
-
-    /**
-     * Gets path to the first enclosing tree with any one of the specified kinds.
-     *
-     * @param path the path defining the tree node
-     * @param kinds the set of kinds of the desired tree
-     * @return the path to the enclosing tree of the given type, {@code null} otherwise
-     */
-    public static @Nullable TreePath pathTillOfKind(
-            final TreePath path, final Set<Tree.Kind> kinds) {
-        TreePath p = path;
-
-        while (p != null) {
-            Tree leaf = p.getLeaf();
-            assert leaf != null; /*nninvariant*/
-            if (kinds.contains(leaf.getKind())) {
-                return p;
-            }
-            p = p.getParentPath();
-        }
-
-        return null;
-    }
-
-    /**
-     * Gets the first enclosing tree in path, of the specified class.
-     *
-     * @param path the path defining the tree node
-     * @param treeClass the class of the desired tree
-     * @return the enclosing tree of the given type as given by the path, {@code null} otherwise
-     */
-    public static <T extends Tree> @Nullable T enclosingOfClass(
-            final TreePath path, final Class<T> treeClass) {
-        TreePath p = path;
-
-        while (p != null) {
-            Tree leaf = p.getLeaf();
-            if (treeClass.isInstance(leaf)) {
-                return treeClass.cast(leaf);
-            }
-            p = p.getParentPath();
-        }
-
-        return null;
-    }
-
-    /**
-     * Gets the enclosing class of the tree node defined by the given {@link TreePath}. It returns a
-     * {@link Tree}, from which {@code checkers.types.AnnotatedTypeMirror} or {@link Element} can be
-     * obtained.
-     *
-     * @param path the path defining the tree node
-     * @return the enclosing class (or interface) as given by the path, or {@code null} if one does
-     *     not exist
-     */
-    public static @Nullable ClassTree enclosingClass(final TreePath path) {
-        return (ClassTree) enclosingOfKind(path, classTreeKinds());
-    }
-
-    /**
-     * Gets the enclosing variable of a tree node defined by the given {@link TreePath}.
-     *
-     * @param path the path defining the tree node
-     * @return the enclosing variable as given by the path, or {@code null} if one does not exist
-     */
-    public static @Nullable VariableTree enclosingVariable(final TreePath path) {
-        return (VariableTree) enclosingOfKind(path, Tree.Kind.VARIABLE);
-    }
-
-    /**
-     * Gets the enclosing method of the tree node defined by the given {@link TreePath}. It returns
-     * a {@link Tree}, from which an {@code checkers.types.AnnotatedTypeMirror} or {@link Element}
-     * can be obtained.
-     *
-     * @param path the path defining the tree node
-     * @return the enclosing method as given by the path, or {@code null} if one does not exist
-     */
-    public static @Nullable MethodTree enclosingMethod(final TreePath path) {
-        return (MethodTree) enclosingOfKind(path, Tree.Kind.METHOD);
-    }
-
-    /**
-     * Gets the enclosing method or lambda expression of the tree node defined by the given {@link
-     * TreePath}. It returns a {@link Tree}, from which an {@code
-     * checkers.types.AnnotatedTypeMirror} or {@link Element} can be obtained.
-     *
-     * @param path the path defining the tree node
-     * @return the enclosing method or lambda as given by the path, or {@code null} if one does not
-     *     exist
-     */
-    public static @Nullable Tree enclosingMethodOrLambda(final TreePath path) {
-        return enclosingOfKind(path, EnumSet.of(Tree.Kind.METHOD, Kind.LAMBDA_EXPRESSION));
-    }
-
-    public static @Nullable BlockTree enclosingTopLevelBlock(TreePath path) {
-        TreePath parpath = path.getParentPath();
-        while (parpath != null && !classTreeKinds.contains(parpath.getLeaf().getKind())) {
-            path = parpath;
-            parpath = parpath.getParentPath();
-        }
-        if (path.getLeaf().getKind() == Tree.Kind.BLOCK) {
-            return (BlockTree) path.getLeaf();
-        }
-        return null;
-    }
-
-    /**
      * If the given tree is a parenthesized tree, return the enclosed non-parenthesized tree.
      * Otherwise, return the same tree.
      *
@@ -358,92 +250,6 @@ public final class TreeUtils {
             t = ((ParenthesizedTree) t).getExpression();
         }
         return t;
-    }
-
-    /**
-     * Gets the first enclosing tree in path, that is not a parenthesis.
-     *
-     * @param path the path defining the tree node
-     * @return a pair of a non-parenthesis tree that contains the argument, and its child that is
-     *     the argument or is a parenthesized version of it
-     */
-    public static Pair<Tree, Tree> enclosingNonParen(final TreePath path) {
-        TreePath parentPath = path.getParentPath();
-        Tree enclosing = parentPath.getLeaf();
-        Tree enclosingChild = path.getLeaf();
-        while (enclosing.getKind() == Kind.PARENTHESIZED) {
-            parentPath = parentPath.getParentPath();
-            enclosingChild = enclosing;
-            enclosing = parentPath.getLeaf();
-        }
-        return Pair.of(enclosing, enclosingChild);
-    }
-
-    /**
-     * Returns the tree with the assignment context for the treePath leaf node. (Does not handle
-     * pseudo-assignment of an argument to a parameter or a receiver expression to a receiver.)
-     *
-     * <p>The assignment context for the {@code treePath} is the leaf of its parent, if the parent
-     * is one of the following trees:
-     *
-     * <ul>
-     *   <li>AssignmentTree
-     *   <li>CompoundAssignmentTree
-     *   <li>MethodInvocationTree
-     *   <li>NewArrayTree
-     *   <li>NewClassTree
-     *   <li>ReturnTree
-     *   <li>VariableTree
-     * </ul>
-     *
-     * If the parent is a ConditionalExpressionTree we need to distinguish two cases: If the leaf is
-     * either the then or else branch of the ConditionalExpressionTree, then recurse on the parent.
-     * If the leaf is the condition of the ConditionalExpressionTree, then return null to not
-     * consider this assignment context.
-     *
-     * <p>If the leaf is a ParenthesizedTree, then recurse on the parent.
-     *
-     * <p>Otherwise, null is returned.
-     *
-     * @return the assignment context as described, {@code null} otherwise
-     */
-    public static @Nullable Tree getAssignmentContext(final TreePath treePath) {
-        TreePath parentPath = treePath.getParentPath();
-
-        if (parentPath == null) {
-            return null;
-        }
-
-        Tree parent = parentPath.getLeaf();
-        switch (parent.getKind()) {
-            case PARENTHESIZED:
-                return getAssignmentContext(parentPath);
-            case CONDITIONAL_EXPRESSION:
-                ConditionalExpressionTree cet = (ConditionalExpressionTree) parent;
-                @SuppressWarnings("interning:not.interned") // AST node comparison
-                boolean conditionIsLeaf = (cet.getCondition() == treePath.getLeaf());
-                if (conditionIsLeaf) {
-                    // The assignment context for the condition is simply boolean.
-                    // No point in going on.
-                    return null;
-                }
-                // Otherwise use the context of the ConditionalExpressionTree.
-                return getAssignmentContext(parentPath);
-            case ASSIGNMENT:
-            case METHOD_INVOCATION:
-            case NEW_ARRAY:
-            case NEW_CLASS:
-            case RETURN:
-            case VARIABLE:
-                return parent;
-            default:
-                // 11 Tree.Kinds are CompoundAssignmentTrees,
-                // so use instanceof rather than listing all 11.
-                if (parent instanceof CompoundAssignmentTree) {
-                    return parent;
-                }
-                return null;
-        }
     }
 
     /**
@@ -552,36 +358,34 @@ public final class TreeUtils {
     }
 
     /**
-     * Returns the ExecutableElement for the called method, from a call. Might return null if no
-     * element wasfound.
+     * Returns the ExecutableElement for the called method, from a call.
      *
      * @param node a method call
      * @return the ExecutableElement for the called method
      */
-    public static @Nullable ExecutableElement elementFromUse(MethodInvocationTree node) {
+    @Pure
+    public static ExecutableElement elementFromUse(MethodInvocationTree node) {
         Element el = TreeUtils.elementFromTree(node);
-        if (el instanceof ExecutableElement) {
-            return (ExecutableElement) el;
-        } else {
-            return null;
+        if (!(el instanceof ExecutableElement)) {
+            throw new BugInCF("Method elements should be ExecutableElement. Found: %s", el);
         }
+        return (ExecutableElement) el;
     }
 
     /**
-     * Gets the ExecutableElement for the called constrctor, from a constructor invocation. Might
-     * return null if no element was found.
+     * Gets the ExecutableElement for the called constructor, from a constructor invocation.
      *
      * @param node a constructor invocation
      * @return the ExecutableElement for the called constructor
      * @see #constructor(NewClassTree)
      */
-    public static @Nullable ExecutableElement elementFromUse(NewClassTree node) {
+    @Pure
+    public static ExecutableElement elementFromUse(NewClassTree node) {
         Element el = TreeUtils.elementFromTree(node);
-        if (el instanceof ExecutableElement) {
-            return (ExecutableElement) el;
-        } else {
-            return null;
+        if (!(el instanceof ExecutableElement)) {
+            throw new BugInCF("Constructor elements should  be ExecutableElement. Found: %s", el);
         }
+        return (ExecutableElement) el;
     }
 
     /**
@@ -655,35 +459,29 @@ public final class TreeUtils {
      * synthetic argument to the constructor that is the enclosing expression of the NewClassTree.
      * Suppose a programmer writes:
      *
-     * <pre><code>
-     *     class Outer {
-     *         class Inner { }
-     *         void method() {
-     *             this.new Inner(){};
-     *         }
+     * <pre>{@code class Outer {
+     *   class Inner { }
+     *     void method() {
+     *       this.new Inner(){};
      *     }
-     * </code></pre>
+     * }}</pre>
      *
      * Java 9 javac creates the following synthetic tree for {@code this.new Inner(){}}:
      *
-     * <pre><code>
-     *    new Inner(this) {
-     *         (.Outer x0) {
-     *             x0.super();
-     *         }
-     *    }
-     * </code></pre>
+     * <pre>{@code new Inner(this) {
+     *   (.Outer x0) {
+     *     x0.super();
+     *   }
+     * }}</pre>
      *
      * Java 11 javac creates a different tree without the synthetic argument for {@code this.new
-     * Inner(){}}:
+     * Inner(){}}; the first line in the below code differs:
      *
-     * <pre><code>
-     *    this.new Inner() {
-     *         (.Outer x0) {
-     *             x0.super();
-     *         }
-     *    }
-     * </code></pre>
+     * <pre>{@code this.new Inner() {
+     *   (.Outer x0) {
+     *     x0.super();
+     *   }
+     * }}</pre>
      *
      * @param tree a new class tree
      * @return true if {@code tree} has a synthetic argument
@@ -693,7 +491,7 @@ public final class TreeUtils {
             return false;
         }
         for (Tree member : tree.getClassBody().getMembers()) {
-            if (member.getKind() == Kind.METHOD && isConstructor((MethodTree) member)) {
+            if (member.getKind() == Tree.Kind.METHOD && isConstructor((MethodTree) member)) {
                 MethodTree methodTree = (MethodTree) member;
                 StatementTree f = methodTree.getBody().getStatements().get(0);
                 return TreeUtils.getReceiverTree(((ExpressionStatementTree) f).getExpression())
@@ -769,20 +567,42 @@ public final class TreeUtils {
      * Determine whether the given class contains an explicit constructor.
      *
      * @param node a class tree
-     * @return true, iff there is an explicit constructor
+     * @return true iff there is an explicit constructor
      */
     public static boolean hasExplicitConstructor(ClassTree node) {
         TypeElement elem = TreeUtils.elementFromDeclaration(node);
-
-        for (ExecutableElement ee : ElementFilter.constructorsIn(elem.getEnclosedElements())) {
-            MethodSymbol ms = (MethodSymbol) ee;
-            long mod = ms.flags();
-
-            if ((mod & Flags.SYNTHETIC) == 0) {
+        for (ExecutableElement constructorElt :
+                ElementFilter.constructorsIn(elem.getEnclosedElements())) {
+            if (!isSynthetic(constructorElt)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Returns true if the given method is synthetic. Also returns true if the method is a generated
+     * default constructor, which does not appear in source code but is not considered synthetic.
+     *
+     * @param ee a method or constructor element
+     * @return true iff the given method is synthetic
+     */
+    public static boolean isSynthetic(ExecutableElement ee) {
+        MethodSymbol ms = (MethodSymbol) ee;
+        long mod = ms.flags();
+        // GENERATEDCONSTR is for generated constructors, which do not have SYNTHETIC set.
+        return (mod & (Flags.SYNTHETIC | Flags.GENERATEDCONSTR)) != 0;
+    }
+
+    /**
+     * Returns true if the given method is synthetic.
+     *
+     * @param node a method declaration tree
+     * @return true iff the given method is synthetic
+     */
+    public static boolean isSynthetic(MethodTree node) {
+        ExecutableElement ee = TreeUtils.elementFromDeclaration(node);
+        return isSynthetic(ee);
     }
 
     /**
@@ -994,6 +814,26 @@ public final class TreeUtils {
      * matching method. If more than one method takes the same number of formal parameters, then use
      * {@link #getMethod(String, String, ProcessingEnvironment, String...)}.
      *
+     * @param type the class that contains the method
+     * @param methodName the name of the method
+     * @param params the number of formal parameters
+     * @param env the processing environment
+     * @return the ExecutableElement for the specified method
+     */
+    public static ExecutableElement getMethod(
+            Class<?> type, String methodName, int params, ProcessingEnvironment env) {
+        String typeName = type.getCanonicalName();
+        if (typeName == null) {
+            throw new BugInCF("class %s has no canonical name", type);
+        }
+        return getMethod(typeName, methodName, params, env);
+    }
+
+    /**
+     * Returns the ExecutableElement for a method declaration. Errs if there is not exactly one
+     * matching method. If more than one method takes the same number of formal parameters, then use
+     * {@link #getMethod(String, String, ProcessingEnvironment, String...)}.
+     *
      * @param typeName the class that contains the method
      * @param methodName the name of the method
      * @param params the number of formal parameters
@@ -1075,6 +915,24 @@ public final class TreeUtils {
     /**
      * Returns the ExecutableElement for a method declaration. Errs if there is no matching method.
      *
+     * @param type the class that contains the method
+     * @param methodName the name of the method
+     * @param env the processing environment
+     * @param paramTypes the method's formal parameter types
+     * @return the ExecutableElement for the specified method
+     */
+    public static ExecutableElement getMethod(
+            Class<?> type, String methodName, ProcessingEnvironment env, String... paramTypes) {
+        String typeName = type.getCanonicalName();
+        if (typeName == null) {
+            throw new BugInCF("class %s has no canonical name", type);
+        }
+        return getMethod(typeName, methodName, env, paramTypes);
+    }
+
+    /**
+     * Returns the ExecutableElement for a method declaration. Errs if there is no matching method.
+     *
      * @param typeName the class that contains the method
      * @param methodName the name of the method
      * @param env the processing environment
@@ -1105,14 +963,34 @@ public final class TreeUtils {
                 }
             }
         }
+        List<String> candidates = new ArrayList<>();
+        for (ExecutableElement exec : ElementFilter.methodsIn(typeElt.getEnclosedElements())) {
+            if (exec.getSimpleName().contentEquals(methodName)) {
+                candidates.add(executableElementToString(exec));
+            }
+        }
+        if (candidates.isEmpty()) {
+            for (ExecutableElement exec : ElementFilter.methodsIn(typeElt.getEnclosedElements())) {
+                candidates.add(executableElementToString(exec));
+            }
+        }
         throw new BugInCF(
-                "TreeUtils.getMethod: found no match for "
-                        + typeName
-                        + "."
-                        + methodName
-                        + "("
-                        + Arrays.toString(paramTypes)
-                        + ")");
+                "TreeUtils.getMethod: found no match for %s.%s(%s); candidates: %s",
+                typeName, methodName, Arrays.toString(paramTypes), candidates);
+    }
+
+    /**
+     * Formats the ExecutableElement in the way that getMethod() expects it.
+     *
+     * @param exec an executable element
+     * @return the ExecutableElement, formatted in the way that getMethod() expects it
+     */
+    private static String executableElementToString(ExecutableElement exec) {
+        StringJoiner result = new StringJoiner(", ", exec.getSimpleName() + "(", ")");
+        for (VariableElement param : exec.getParameters()) {
+            result.add(TypeAnnotationUtils.unannotatedType(param.asType()).toString());
+        }
+        return result.toString();
     }
 
     /**
@@ -1140,7 +1018,7 @@ public final class TreeUtils {
     }
 
     /**
-     * Determine whether {@code tree} is a class literal, such as.
+     * Determine whether {@code tree} is a class literal, such as
      *
      * <pre>
      *   <em>Object</em> . <em>class</em>
@@ -1156,18 +1034,21 @@ public final class TreeUtils {
     }
 
     /**
-     * Determine whether {@code tree} is a field access expressions, such as.
+     * Determine whether {@code tree} is a field access expression, such as
      *
      * <pre>
      *   <em>f</em>
      *   <em>obj</em> . <em>f</em>
      * </pre>
      *
+     * This method currently also returns true for class literals and qualified this.
+     *
+     * @param tree a tree that might be a field access
      * @return true iff if tree is a field access expression (implicit or explicit)
      */
     public static boolean isFieldAccess(Tree tree) {
         if (tree.getKind() == Tree.Kind.MEMBER_SELECT) {
-            // explicit field access
+            // explicit member access (or a class literal or a qualified this)
             MemberSelectTree memberSelect = (MemberSelectTree) tree;
             assert isUseOfElement(memberSelect) : "@AssumeAssertion(nullness): tree kind";
             Element el = TreeUtils.elementFromUse(memberSelect);
@@ -1186,9 +1067,11 @@ public final class TreeUtils {
 
     /**
      * Compute the name of the field that the field access {@code tree} accesses. Requires {@code
-     * tree} to be a field access, as determined by {@code isFieldAccess}.
+     * tree} to be a field access, as determined by {@code isFieldAccess} (which currently also
+     * returns true for class literals and qualified this).
      *
-     * @return the name of the field accessed by {@code tree}.
+     * @param tree a field access tree
+     * @return the name of the field accessed by {@code tree}
      */
     public static String getFieldName(Tree tree) {
         assert isFieldAccess(tree);
@@ -1236,7 +1119,8 @@ public final class TreeUtils {
      * Compute the name of the method that the method access {@code tree} accesses. Requires {@code
      * tree} to be a method access, as determined by {@code isMethodAccess}.
      *
-     * @return the name of the method accessed by {@code tree}.
+     * @param tree a method access tree
+     * @return the name of the method accessed by {@code tree}
      */
     public static String getMethodName(Tree tree) {
         assert isMethodAccess(tree);
@@ -1336,43 +1220,13 @@ public final class TreeUtils {
     }
 
     /**
-     * Returns whether or not the leaf of the tree path is in a static scope.
-     *
-     * @param path TreePath whose leaf may or may not be in static scope
-     * @return true if the leaf of the tree path is in a static scope
-     */
-    public static boolean isTreeInStaticScope(TreePath path) {
-        MethodTree enclosingMethod = TreeUtils.enclosingMethod(path);
-
-        if (enclosingMethod != null) {
-            return enclosingMethod.getModifiers().getFlags().contains(Modifier.STATIC);
-        }
-        // no enclosing method, check for static or initializer block
-        BlockTree block = enclosingTopLevelBlock(path);
-        if (block != null) {
-            return block.isStatic();
-        }
-
-        // check if its in a variable initializer
-        Tree t = enclosingVariable(path);
-        if (t != null) {
-            return ((VariableTree) t).getModifiers().getFlags().contains(Modifier.STATIC);
-        }
-        ClassTree classTree = enclosingClass(path);
-        if (classTree != null) {
-            return classTree.getModifiers().getFlags().contains(Modifier.STATIC);
-        }
-        return false;
-    }
-
-    /**
      * Returns whether or not tree is an access of array length.
      *
      * @param tree tree to check
      * @return true if tree is an access of array length
      */
     public static boolean isArrayLengthAccess(Tree tree) {
-        if (tree.getKind() == Kind.MEMBER_SELECT
+        if (tree.getKind() == Tree.Kind.MEMBER_SELECT
                 && isFieldAccess(tree)
                 && getFieldName(tree).equals("length")) {
             ExpressionTree expressionTree = ((MemberSelectTree) tree).getExpression();
@@ -1384,38 +1238,68 @@ public final class TreeUtils {
     }
 
     /**
-     * Determines whether or not the node referred to by the given {@link TreePath} is an anonymous
-     * constructor (the constructor for an anonymous class.
+     * Determines whether or not the node referred to by the given {@link MethodTree} is an
+     * anonymous constructor (the constructor for an anonymous class.
      *
-     * @param method the {@link TreePath} for a node that may be an anonymous constructor
+     * @param method a method tree that may be an anonymous constructor
      * @return true if the given path points to an anonymous constructor, false if it does not
      */
     public static boolean isAnonymousConstructor(final MethodTree method) {
-        @Nullable Element e = elementFromTree(method);
-        if (!(e instanceof Symbol)) {
+        Element e = elementFromTree(method);
+        if (e == null || e.getKind() != ElementKind.CONSTRUCTOR) {
             return false;
         }
+        TypeElement typeElement = (TypeElement) e.getEnclosingElement();
+        return typeElement.getNestingKind() == NestingKind.ANONYMOUS;
+    }
 
-        if ((((@NonNull Symbol) e).flags() & Flags.ANONCONSTR) != 0) {
-            return true;
+    /**
+     * Returns true if the given {@link MethodTree} is a compact canonical constructor (the
+     * constructor for a record where the parameters are implicitly declared and implicitly assigned
+     * to the record's fields). This may be an explicitly declared compact canonical constructor or
+     * an implicitly generated one.
+     *
+     * @param method a method tree that may be a compact canonical constructor
+     * @return true if the given method is a compact canonical constructor
+     */
+    public static boolean isCompactCanonicalRecordConstructor(final MethodTree method) {
+        Symbol s = (Symbol) elementFromTree(method);
+        if (s == null) {
+            throw new BugInCF(
+                    "TreeUtils.isCompactCanonicalRecordConstructor: null symbol for method tree: "
+                            + method);
         }
+        return (s.flags() & Flags_RECORD) != 0;
+    }
 
-        return false;
+    /**
+     * Returns true if the given {@link Tree} is part of a record that has been automatically
+     * generated by the compiler. This can be a field that is derived from the record's header field
+     * list, or an automatically generated canonical constructor.
+     *
+     * @param member the {@link Tree} for a member of a record
+     * @return true if the given path is generated by the compiler
+     */
+    public static boolean isAutoGeneratedRecordMember(final Tree member) {
+        Symbol s = (Symbol) elementFromTree(member);
+        if (s == null) {
+            throw new BugInCF(
+                    "TreeUtils.isAutoGeneratedRecordMember: null symbol for tree: " + member);
+        }
+        // Generated constructors seem to get GENERATEDCONSTR even though the documentation
+        // seems to imply they would get GENERATED_MEMBER like the fields do:
+        return (s.flags() & (Flags_GENERATED_MEMBER | Flags.GENERATEDCONSTR)) != 0;
     }
 
     /**
      * Converts the given AnnotationTrees to AnnotationMirrors.
      *
-     * @param annoTreess list of annotation trees to convert to annotation mirrors
+     * @param annoTrees list of annotation trees to convert to annotation mirrors
      * @return list of annotation mirrors that represent the given annotation trees
      */
     public static List<AnnotationMirror> annotationsFromTypeAnnotationTrees(
-            List<? extends AnnotationTree> annoTreess) {
-        List<AnnotationMirror> annotations = new ArrayList<>(annoTreess.size());
-        for (AnnotationTree anno : annoTreess) {
-            annotations.add(TreeUtils.annotationFromAnnotationTree(anno));
-        }
-        return annotations;
+            List<? extends AnnotationTree> annoTrees) {
+        return CollectionsPlume.mapList(TreeUtils::annotationFromAnnotationTree, annoTrees);
     }
 
     /**
@@ -1476,13 +1360,14 @@ public final class TreeUtils {
     /**
      * Returns true if the tree is the declaration or use of a local variable.
      *
+     * @param tree the tree to check
      * @return true if the tree is the declaration or use of a local variable
      */
     public static boolean isLocalVariable(Tree tree) {
-        if (tree.getKind() == Kind.VARIABLE) {
+        if (tree.getKind() == Tree.Kind.VARIABLE) {
             return elementFromDeclaration((VariableTree) tree).getKind()
                     == ElementKind.LOCAL_VARIABLE;
-        } else if (tree.getKind() == Kind.IDENTIFIER) {
+        } else if (tree.getKind() == Tree.Kind.IDENTIFIER) {
             ExpressionTree etree = (ExpressionTree) tree;
             assert isUseOfElement(etree) : "@AssumeAssertion(nullness): tree kind";
             return elementFromUse(etree).getKind() == ElementKind.LOCAL_VARIABLE;
@@ -1522,10 +1407,10 @@ public final class TreeUtils {
      * typed lambda. (See JLS 15.27.1)
      *
      * @param tree any kind of tree
-     * @return true iff {@code tree} is an implicitly typed lambda.
+     * @return true iff {@code tree} is an implicitly typed lambda
      */
     public static boolean isImplicitlyTypedLambda(Tree tree) {
-        return tree.getKind() == Kind.LAMBDA_EXPRESSION
+        return tree.getKind() == Tree.Kind.LAMBDA_EXPRESSION
                 && ((JCLambda) tree).paramKind == ParameterKind.IMPLICIT;
     }
 
@@ -1534,7 +1419,7 @@ public final class TreeUtils {
      * to the compiler logic.
      *
      * @param node the expression to be checked
-     * @return true if {@code node} has the constant value true.
+     * @return true if {@code node} has the constant value true
      */
     public static boolean isExprConstTrue(final ExpressionTree node) {
         assert node instanceof JCExpression;
@@ -1592,6 +1477,31 @@ public final class TreeUtils {
     }
 
     /**
+     * Given a javac ExpressionTree representing a fully qualified name such as "java.lang.Object",
+     * creates a String containing the name.
+     *
+     * @param nameExpr an ExpressionTree representing a fully qualified name
+     * @return a String representation of the fully qualified name
+     */
+    public static String nameExpressionToString(ExpressionTree nameExpr) {
+        TreeVisitor<String, Void> visitor =
+                new SimpleTreeVisitor<String, Void>() {
+                    @Override
+                    public String visitIdentifier(IdentifierTree node, Void p) {
+                        return node.toString();
+                    }
+
+                    @Override
+                    public String visitMemberSelect(MemberSelectTree node, Void p) {
+                        return node.getExpression().accept(this, null)
+                                + "."
+                                + node.getIdentifier().toString();
+                    }
+                };
+        return nameExpr.accept(visitor, null);
+    }
+
+    /**
      * Returns true if the binary operator may do a widening primitive conversion. See <a
      * href="https://docs.oracle.com/javase/specs/jls/se11/html/jls-5.html">JLS chapter 5</a>.
      *
@@ -1606,7 +1516,7 @@ public final class TreeUtils {
             case RIGHT_SHIFT_ASSIGNMENT:
             case UNSIGNED_RIGHT_SHIFT:
             case UNSIGNED_RIGHT_SHIFT_ASSIGNMENT:
-                // Strictly speaking,  these operators do unary promotion on each argument
+                // Strictly speaking, these operators do unary promotion on each argument
                 // separately.
                 return true;
 
@@ -1645,12 +1555,13 @@ public final class TreeUtils {
      * Returns the annotations explicitly written on the given type.
      *
      * @param annoTrees annotations written before a variable/method declaration; null if this type
-     *     is not from such a location
+     *     is not from such a location. This might contain type annotations that the Java parser
+     *     attached to the declaration rather than to the type.
      * @param typeTree the type whose annotations to return
      * @return the annotations explicitly written on the given type
      */
     public static List<? extends AnnotationTree> getExplicitAnnotationTrees(
-            List<? extends AnnotationTree> annoTrees, Tree typeTree) {
+            @Nullable List<? extends AnnotationTree> annoTrees, Tree typeTree) {
         while (true) {
             switch (typeTree.getKind()) {
                 case IDENTIFIER:
@@ -1676,6 +1587,12 @@ public final class TreeUtils {
                 case PARAMETERIZED_TYPE:
                     typeTree = ((ParameterizedTypeTree) typeTree).getType();
                     break;
+                case UNION_TYPE:
+                    List<AnnotationTree> result = new ArrayList<>();
+                    for (Tree alternative : ((UnionTypeTree) typeTree).getTypeAlternatives()) {
+                        result.addAll(getExplicitAnnotationTrees(null, alternative));
+                    }
+                    return result;
                 default:
                     throw new BugInCF(
                             "what typeTree? %s %s %s",
@@ -1712,7 +1629,11 @@ public final class TreeUtils {
             case BOOLEAN:
                 return TreeUtils.createLiteral(TypeTag.BOOLEAN, false, typeMirror, processingEnv);
             default:
-                return TreeUtils.createLiteral(TypeTag.BOT, null, typeMirror, processingEnv);
+                return TreeUtils.createLiteral(
+                        TypeTag.BOT,
+                        null,
+                        processingEnv.getTypeUtils().getNullType(),
+                        processingEnv);
         }
     }
 
@@ -1758,5 +1679,140 @@ public final class TreeUtils {
                     return false;
             }
         }
+    }
+
+    /**
+     * Returns true if two expressions originating from the same scope are identical, i.e. they are
+     * syntactically represented in the same way (modulo parentheses) and represent the same value.
+     *
+     * <p>If the expression includes one or more method calls, assumes the method calls are
+     * deterministic.
+     *
+     * @param expr1 the first expression to compare
+     * @param expr2 the second expression to compare; expr2 must originate from the same scope as
+     *     expr1
+     * @return true if the expressions expr1 and expr2 are syntactically identical
+     */
+    public static boolean sameTree(ExpressionTree expr1, ExpressionTree expr2) {
+        expr1 = TreeUtils.withoutParens(expr1);
+        expr2 = TreeUtils.withoutParens(expr2);
+        // Converting to a string in order to compare is somewhat inefficient, and it doesn't handle
+        // internal parentheses.  We could create a visitor instead.
+        return expr1.getKind() == expr2.getKind() && expr1.toString().equals(expr2.toString());
+    }
+
+    /**
+     * Get the list of expressions from a case expression. In JDK 11 and earlier, this is a
+     * singleton list. In JDK 12 onwards, there can be multiple expressions per case.
+     *
+     * @param caseTree the case expression to get the expressions from
+     * @return the list of expressions in the case
+     */
+    public static List<? extends ExpressionTree> caseTreeGetExpressions(CaseTree caseTree) {
+        try {
+            if (atLeastJava12) {
+                @SuppressWarnings({"unchecked", "nullness"})
+                @NonNull List<? extends ExpressionTree> result =
+                        (List<? extends ExpressionTree>) CASETREE_GETEXPRESSIONS.invoke(caseTree);
+                return result;
+            } else {
+                @SuppressWarnings({"nullness"})
+                ExpressionTree expression =
+                        (ExpressionTree) CASETREE_GETEXPRESSION.invoke(caseTree);
+                if (expression == null) {
+                    return Collections.emptyList();
+                } else {
+                    return Collections.singletonList(expression);
+                }
+            }
+        } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+            Error err = new AssertionError("Unexpected error in caseTreeGetExpressions");
+            err.initCause(e);
+            throw err;
+        }
+    }
+
+    /**
+     * Returns true if the given method/constructor invocation is a varargs invocation.
+     *
+     * @param tree a method/constructor invocation
+     * @return true if the given method/constructor invocation is a varargs invocation
+     */
+    public static boolean isVarArgs(Tree tree) {
+        switch (tree.getKind()) {
+            case METHOD_INVOCATION:
+                return isVarArgs((MethodInvocationTree) tree);
+            case NEW_CLASS:
+                return isVarArgs((NewClassTree) tree);
+            default:
+                throw new BugInCF("Unexpected kind of tree: " + tree);
+        }
+    }
+
+    /**
+     * Returns true if the given method invocation is a varargs invocation.
+     *
+     * @param invok the method invocation
+     * @return true if the given method invocation is a varargs invocation
+     */
+    public static boolean isVarArgs(MethodInvocationTree invok) {
+        return isVarArgs(elementFromUse(invok), invok.getArguments());
+    }
+
+    /**
+     * Returns true if the given constructor invocation is a varargs invocation.
+     *
+     * @param newClassTree the constructor invocation
+     * @return true if the given method invocation is a varargs invocation
+     */
+    public static boolean isVarArgs(NewClassTree newClassTree) {
+        return isVarArgs(elementFromUse(newClassTree), newClassTree.getArguments());
+    }
+
+    /**
+     * Returns true if a method/constructor invocation is a varargs invocation.
+     *
+     * @param method the method or constructor
+     * @param args the arguments passed at the invocation
+     * @return true if the given method/constructor invocation is a varargs invocation
+     */
+    private static boolean isVarArgs(
+            ExecutableElement method, List<? extends ExpressionTree> args) {
+        if (!method.isVarArgs()) {
+            return false;
+        }
+
+        List<? extends VariableElement> parameters = method.getParameters();
+        if (parameters.size() != args.size()) {
+            return true;
+        }
+
+        TypeMirror lastArgType = typeOf(args.get(args.size() - 1));
+        if (lastArgType.getKind() == TypeKind.NULL) {
+            return false;
+        }
+        if (lastArgType.getKind() != TypeKind.ARRAY) {
+            return true;
+        }
+
+        TypeMirror varargsParamType = parameters.get(parameters.size() - 1).asType();
+        return TypesUtils.getArrayDepth(varargsParamType) != TypesUtils.getArrayDepth(lastArgType);
+    }
+
+    /**
+     * Calls getKind() on the given tree, but returns CLASS if the Kind is RECORD. This is needed
+     * because the Checker Framework runs on JDKs before the RECORD item was added, so RECORD can't
+     * be used in case statements, and usually we want to treat them the same as classes.
+     *
+     * @param tree the tree to get the kind for
+     * @return the kind of the tree, but CLASS if the kind was RECORD
+     */
+    public static Tree.Kind getKindRecordAsClass(Tree tree) {
+        Tree.Kind kind = tree.getKind();
+        // Must use String comparison because we may be on an older JDK:
+        if (kind.name().equals("RECORD")) {
+            kind = Tree.Kind.CLASS;
+        }
+        return kind;
     }
 }

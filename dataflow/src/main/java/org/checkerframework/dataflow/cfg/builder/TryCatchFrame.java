@@ -1,14 +1,17 @@
 package org.checkerframework.dataflow.cfg.builder;
 
+import org.checkerframework.javacutil.Pair;
+
 import java.util.List;
 import java.util.Set;
 import java.util.StringJoiner;
+
 import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.type.TypeVariable;
 import javax.lang.model.type.UnionType;
 import javax.lang.model.util.Types;
-import org.checkerframework.javacutil.Pair;
 
 /**
  * A TryCatchFrame contains an ordered list of catch labels that apply to exceptions with specific
@@ -52,24 +55,22 @@ class TryCatchFrame implements TryFrame {
      */
     @Override
     public boolean possibleLabels(TypeMirror thrown, Set<Label> labels) {
-        // A conservative approach would be to say that every catch block
-        // might execute for any thrown exception, but we try to do better.
+        // A conservative approach would be to say that every catch block might execute for any
+        // thrown exception, but we try to do better.
         //
         // We rely on several assumptions that seem to hold as of Java 7.
-        // 1) An exception parameter in a catch block must be either
-        //    a declared type or a union composed of declared types,
-        //    all of which are subtypes of Throwable.
-        // 2) A thrown type must either be a declared type or a variable
-        //    that extends a declared type, which is a subtype of Throwable.
+        // 1) An exception parameter in a catch block must be either a declared type or a union
+        // composed of declared types, all of which are subtypes of Throwable.
+        // 2) A thrown type must either be a declared type or a variable that extends a declared
+        // type, which is a subtype of Throwable.
         //
-        // Under those assumptions, if the thrown type (or its bound) is
-        // a subtype of the caught type (or one of its alternatives), then
-        // the catch block must apply and none of the later ones can apply.
-        // Otherwise, if the thrown type (or its bound) is a supertype
-        // of the caught type (or one of its alternatives), then the catch
-        // block may apply, but so may later ones.
-        // Otherwise, the thrown type and the caught type are unrelated
-        // declared types, so they do not overlap on any non-null value.
+        // Under those assumptions, if the thrown type (or its bound) is a subtype of the caught
+        // type (or one of its alternatives), then the catch block must apply and none of the later
+        // ones can apply.
+        // Otherwise, if the thrown type (or its bound) is a supertype of the caught type (or one of
+        // its alternatives), then the catch block may apply, but so may later ones.
+        // Otherwise, the thrown type and the caught type are unrelated declared types, so they do
+        // not overlap on any non-null value.
 
         while (!(thrown instanceof DeclaredType)) {
             assert thrown instanceof TypeVariable
@@ -83,7 +84,7 @@ class TryCatchFrame implements TryFrame {
             TypeMirror caught = pair.first;
             boolean canApply = false;
 
-            if (caught instanceof DeclaredType) {
+            if (caught.getKind() == TypeKind.DECLARED) {
                 DeclaredType declaredCaught = (DeclaredType) caught;
                 if (types.isSubtype(declaredThrown, declaredCaught)) {
                     // No later catch blocks can apply.
@@ -93,11 +94,11 @@ class TryCatchFrame implements TryFrame {
                     canApply = true;
                 }
             } else {
-                assert caught instanceof UnionType
+                assert caught.getKind() == TypeKind.UNION
                         : "caught type must be a union or a declared type";
                 UnionType caughtUnion = (UnionType) caught;
                 for (TypeMirror alternative : caughtUnion.getAlternatives()) {
-                    assert alternative instanceof DeclaredType
+                    assert alternative.getKind() == TypeKind.DECLARED
                             : "alternatives of an caught union type must be declared types";
                     DeclaredType declaredAlt = (DeclaredType) alternative;
                     if (types.isSubtype(declaredThrown, declaredAlt)) {

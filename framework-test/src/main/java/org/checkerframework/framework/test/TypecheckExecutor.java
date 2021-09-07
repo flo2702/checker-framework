@@ -1,28 +1,48 @@
 package org.checkerframework.framework.test;
 
-import java.io.File;
-import java.io.StringWriter;
-import java.util.ArrayList;
-import java.util.List;
-import javax.tools.DiagnosticCollector;
-import javax.tools.JavaCompiler;
-import javax.tools.JavaFileObject;
-import javax.tools.StandardJavaFileManager;
-import javax.tools.ToolProvider;
 import org.checkerframework.framework.test.diagnostics.JavaDiagnosticReader;
 import org.checkerframework.framework.test.diagnostics.TestDiagnostic;
 import org.checkerframework.javacutil.SystemUtil;
 import org.plumelib.util.StringsPlume;
 
+import java.io.File;
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.List;
+
+import javax.tools.DiagnosticCollector;
+import javax.tools.JavaCompiler;
+import javax.tools.JavaFileObject;
+import javax.tools.StandardJavaFileManager;
+import javax.tools.ToolProvider;
+
 /** Used by the Checker Framework test suite to run the framework and generate a test result. */
 public class TypecheckExecutor {
 
+    /** Creates a new TypecheckExecutor. */
     public TypecheckExecutor() {}
 
-    /** Runs a typechecking test using the given configuration and returns the test result. */
+    /**
+     * Runs a typechecking test using the given configuration and returns the test result.
+     *
+     * @param configuration the test configuration
+     * @return the test result
+     */
     public TypecheckResult runTest(TestConfiguration configuration) {
-        CompilationResult result = compile(configuration);
-        return interpretResults(configuration, result);
+        try {
+            CompilationResult result = compile(configuration);
+            return interpretResults(configuration, result);
+        } catch (OutOfMemoryError e) {
+            String message =
+                    String.format(
+                            "Max memory = %d, total memory = %d, free memory = %d.",
+                            Runtime.getRuntime().maxMemory(),
+                            Runtime.getRuntime().totalMemory(),
+                            Runtime.getRuntime().freeMemory());
+            System.out.println(message);
+            System.err.println(message);
+            throw new Error(message, e);
+        }
     }
 
     /**
@@ -74,6 +94,8 @@ public class TypecheckExecutor {
 
         nonJvmOptions.add("-ApermitMissingJdk");
         nonJvmOptions.add("-Anocheckjdk"); // temporary, for backward compatibility
+
+        nonJvmOptions.add("-AnoJreVersionCheck");
 
         options.addAll(nonJvmOptions);
 

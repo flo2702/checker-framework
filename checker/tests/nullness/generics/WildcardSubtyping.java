@@ -1,10 +1,11 @@
+import org.checkerframework.checker.nullness.qual.*;
+
 import java.lang.annotation.Annotation;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.checkerframework.checker.nullness.qual.*;
 
 class Utils {
 
@@ -56,7 +57,6 @@ class UseMyGeneric {
 class MyGenericExactBounds<@NonNull T extends @NonNull Number> {}
 
 class UseMyGenericExactBounds {
-    // :: error: (type.argument.type.incompatible)
     MyGenericExactBounds<? extends @Nullable Object> wildcardOutsideUBError =
             new MyGenericExactBounds<>();
     MyGenericExactBounds<? extends @NonNull Object> wildcardOutside = new MyGenericExactBounds<>();

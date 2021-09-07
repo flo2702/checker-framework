@@ -1,9 +1,11 @@
 package org.checkerframework.dataflow.cfg.node;
 
-import com.sun.source.tree.Tree.Kind;
+import com.sun.source.tree.Tree;
 import com.sun.source.tree.UnaryTree;
-import java.util.Objects;
+
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import java.util.Objects;
 
 /**
  * A node for the unary minus operation:
@@ -14,9 +16,15 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  */
 public class NumericalMinusNode extends UnaryOperationNode {
 
+    /**
+     * Constructs a {@link NumericalMinusNode}.
+     *
+     * @param tree the unary tree
+     * @param operand the operand of the unary minus
+     */
     public NumericalMinusNode(UnaryTree tree, Node operand) {
         super(tree, operand);
-        assert tree.getKind() == Kind.UNARY_MINUS;
+        assert tree.getKind() == Tree.Kind.UNARY_MINUS;
     }
 
     @Override

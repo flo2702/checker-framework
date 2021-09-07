@@ -1,5 +1,11 @@
 package org.checkerframework.framework.util;
 
+import org.checkerframework.checker.signature.qual.FullyQualifiedName;
+import org.checkerframework.javacutil.BugInCF;
+import org.checkerframework.javacutil.SystemUtil;
+import org.checkerframework.javacutil.UserError;
+import org.plumelib.util.CollectionsPlume;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -9,6 +15,7 @@ import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -17,10 +24,6 @@ import java.util.jar.JarInputStream;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
-import org.checkerframework.checker.signature.qual.FullyQualifiedName;
-import org.checkerframework.javacutil.BugInCF;
-import org.checkerframework.javacutil.SystemUtil;
-import org.checkerframework.javacutil.UserError;
 
 /**
  * This class behaves similarly to javac. CheckerMain does the following:
@@ -48,11 +51,14 @@ import org.checkerframework.javacutil.UserError;
  */
 public class CheckerMain {
 
-    /** Any exception thrown by the Checker Framework escapes to the command line. */
+    /**
+     * Any exception thrown by the Checker Framework escapes to the command line.
+     *
+     * @param args command-line arguments
+     */
     public static void main(String[] args) {
         final File pathToThisJar = new File(findPathTo(CheckerMain.class, false));
-        ArrayList<String> alargs = new ArrayList<>(args.length);
-        alargs.addAll(Arrays.asList(args));
+        ArrayList<String> alargs = new ArrayList<>(Arrays.asList(args));
         final CheckerMain program = new CheckerMain(pathToThisJar, alargs);
         final int exitStatus = program.invokeCompiler();
         System.exit(exitStatus);
@@ -67,6 +73,10 @@ public class CheckerMain {
     /** The path to checker-qual.jar. */
     protected final File checkerQualJar;
 
+    /** The path to checker-util.jar. */
+    protected final File checkerUtilJar;
+
+    /** Compilation bootclasspath. */
     private final List<String> compilationBootclasspath;
 
     private final List<String> runtimeClasspath;
@@ -96,6 +106,12 @@ public class CheckerMain {
     public static final String CHECKER_QUAL_PATH_OPT = "-checkerQualJar";
 
     /**
+     * Option name for specifying an alternative checker-util.jar location. The accompanying value
+     * MUST be the path to the jar file (NOT the path to its encompassing directory)
+     */
+    public static final String CHECKER_UTIL_PATH_OPT = "-checkerUtilJar";
+
+    /**
      * Option name for specifying an alternative javac.jar location. The accompanying value MUST be
      * the path to the jar file (NOT the path to its encompassing directory)
      */
@@ -123,6 +139,10 @@ public class CheckerMain {
                 extractFileArg(
                         CHECKER_QUAL_PATH_OPT, new File(searchPath, "checker-qual.jar"), args);
 
+        this.checkerUtilJar =
+                extractFileArg(
+                        CHECKER_UTIL_PATH_OPT, new File(searchPath, "checker-util.jar"), args);
+
         this.javacJar = extractFileArg(JAVAC_PATH_OPT, new File(searchPath, "javac.jar"), args);
 
         this.compilationBootclasspath = createCompilationBootclasspath(args);
@@ -139,10 +159,9 @@ public class CheckerMain {
     /** Assert that required jars exist. */
     protected void assertValidState() {
         if (SystemUtil.getJreVersion() < 9) {
-            assertFilesExist(Arrays.asList(javacJar, checkerJar, checkerQualJar));
+            assertFilesExist(Arrays.asList(javacJar, checkerJar, checkerQualJar, checkerUtilJar));
         } else {
-            // TODO: once the jdk11 jars exist, check for them.
-            assertFilesExist(Arrays.asList(checkerJar, checkerQualJar));
+            assertFilesExist(Arrays.asList(checkerJar, checkerQualJar, checkerUtilJar));
         }
     }
 
@@ -175,12 +194,21 @@ public class CheckerMain {
     protected List<String> createCpOpts(final List<String> argsList) {
         final List<String> extractedOpts = extractCpOpts(argsList);
         extractedOpts.add(0, this.checkerQualJar.getAbsolutePath());
+        extractedOpts.add(0, this.checkerUtilJar.getAbsolutePath());
+
         return extractedOpts;
     }
 
-    // Assumes that createCpOpts has already been run.
+    /**
+     * Returns processor path options.
+     *
+     * <p>This method assumes that createCpOpts has already been run.
+     *
+     * @param argsList arguments
+     * @return processor path options
+     */
     protected List<String> createPpOpts(final List<String> argsList) {
-        final List<String> extractedOpts = extractPpOpts(argsList);
+        final List<String> extractedOpts = new ArrayList<>(extractPpOpts(argsList));
         if (extractedOpts.isEmpty()) {
             // If processorpath is not provided, then javac uses the classpath.
             // CheckerMain always supplies a processorpath, so if the user
@@ -188,6 +216,8 @@ public class CheckerMain {
             extractedOpts.addAll(this.cpOpts);
         }
         extractedOpts.add(0, this.checkerJar.getAbsolutePath());
+        extractedOpts.add(0, this.checkerUtilJar.getAbsolutePath());
+
         return extractedOpts;
     }
 
@@ -370,8 +400,6 @@ public class CheckerMain {
      * @return the arguments that should be put on the processorpath when calling javac.jar
      */
     protected static List<String> extractPpOpts(final List<String> args) {
-        List<String> actualArgs = new ArrayList<>();
-
         String path = null;
 
         for (int i = 0; i < args.size(); i++) {
@@ -384,10 +412,10 @@ public class CheckerMain {
         }
 
         if (path != null) {
-            actualArgs.add(path);
+            return Collections.singletonList(path);
+        } else {
+            return Collections.emptyList();
         }
-
-        return actualArgs;
     }
 
     protected void addMainToArgs(final List<String> args) {
@@ -405,9 +433,34 @@ public class CheckerMain {
         if (SystemUtil.getJreVersion() == 8) {
             args.add("-Xbootclasspath/p:" + String.join(File.pathSeparator, runtimeClasspath));
         } else {
+            // See comments in build.gradle
             args.addAll(
+                    // Keep this list in sync with the lists in checker-framework/build.gradle in
+                    // compilerArgsForRunningCFs, the sections with labels
+                    // "javac-jdk11-non-modularized", "maven", and "sbt" in the manual, and in the
+                    // checker-framework-gradle-plugin, CheckerFrameworkPlugin#applyToProject
                     Arrays.asList(
-                            "--illegal-access=warn",
+                            // These are required in Java 16+ because the --illegal-access option is
+                            // set to deny by default.  None of these packages are accessed via
+                            // reflection, so the module only needs to be exported, but not opened.
+                            "--add-exports",
+                            "jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
+                            "--add-exports",
+                            "jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
+                            "--add-exports",
+                            "jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
+                            "--add-exports",
+                            "jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED",
+                            "--add-exports",
+                            "jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED",
+                            "--add-exports",
+                            "jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED",
+                            "--add-exports",
+                            "jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
+                            "--add-exports",
+                            "jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED",
+                            // Required because the Checker Framework reflectively accesses private
+                            // members in com.sun.tools.javac.comp.
                             "--add-opens",
                             "jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED"));
         }
@@ -483,16 +536,15 @@ public class CheckerMain {
         }
     }
 
-    /** Return all the .jar and .JAR files in the given directory. */
+    /**
+     * Returns all the .jar and .JAR files in the given directory.
+     *
+     * @param directory a directory
+     * @return all the .jar and .JAR files in the given directory
+     */
     private List<String> jarFiles(String directory) {
         File dir = new File(directory);
-        File[] jarFiles =
-                dir.listFiles((d, name) -> name.endsWith(".jar") || name.endsWith(".JAR"));
-        List<String> result = new ArrayList<>(jarFiles.length);
-        for (File jarFile : jarFiles) {
-            result.add(jarFile.toString());
-        }
-        return result;
+        return Arrays.asList(dir.list((d, name) -> name.endsWith(".jar") || name.endsWith(".JAR")));
     }
 
     /** Invoke the compiler with all relevant jars on its classpath and/or bootclasspath. */
@@ -603,7 +655,7 @@ public class CheckerMain {
         final List<String> content = new ArrayList<>();
         for (final File file : files) {
             try {
-                content.addAll(SystemUtil.readFile(file));
+                content.addAll(Files.readAllLines(file.toPath()));
             } catch (final IOException exc) {
                 throw new RuntimeException("Could not open file: " + file.getAbsolutePath(), exc);
             }
@@ -646,14 +698,17 @@ public class CheckerMain {
             throw new IllegalStateException(
                     "This class has been loaded remotely via the "
                             + protocol
-                            + " protocol. Only loading from a jar on the local file system is supported.");
+                            + " protocol. Only loading from a jar on the local file system is"
+                            + " supported.");
         }
 
         int idx = uri.indexOf('!');
         // Sanity check
         if (idx == -1) {
             throw new IllegalStateException(
-                    "You appear to have loaded this class from a local jar file, but I can't make sense of the URL!");
+                    "You appear to have loaded this class from a local jar file, but URI has no"
+                            + " \"!\": "
+                            + uri);
         }
 
         try {
@@ -691,13 +746,12 @@ public class CheckerMain {
                     throw new UserError(
                             "Could not find "
                                     + missingFile.getAbsolutePath()
-                                    + ". This may be because you built the Checker Framework under Java 11 but are running it under Java 8.");
+                                    + ". This may be because you built the Checker Framework under"
+                                    + " Java 11 but are running it under Java 8.");
                 }
             }
-            List<String> missingAbsoluteFilenames = new ArrayList<>(missingFiles.size());
-            for (File missingFile : missingFiles) {
-                missingAbsoluteFilenames.add(missingFile.getAbsolutePath());
-            }
+            List<String> missingAbsoluteFilenames =
+                    CollectionsPlume.mapList(File::getAbsolutePath, missingFiles);
             throw new RuntimeException(
                     "The following files could not be located: "
                             + String.join(", ", missingAbsoluteFilenames));
@@ -799,7 +853,6 @@ public class CheckerMain {
             }
             checkerJarIs.close();
         } catch (IOException e) {
-            // When using CheckerDevelMain we might not have a checker.jar file built yet.
             // Issue a warning instead of aborting execution.
             System.err.printf(
                     "Could not read %s. Shorthand processor names will not work.%n", checkerJar);

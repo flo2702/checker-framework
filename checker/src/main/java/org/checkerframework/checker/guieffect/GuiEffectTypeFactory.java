@@ -8,17 +8,7 @@ import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.ParenthesizedTree;
 import com.sun.source.tree.Tree;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
+
 import org.checkerframework.checker.guieffect.qual.AlwaysSafe;
 import org.checkerframework.checker.guieffect.qual.PolyUI;
 import org.checkerframework.checker.guieffect.qual.PolyUIEffect;
@@ -36,10 +26,23 @@ import org.checkerframework.framework.type.treeannotator.ListTreeAnnotator;
 import org.checkerframework.framework.type.treeannotator.TreeAnnotator;
 import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.javacutil.AnnotationBuilder;
-import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.TreeUtils;
+import org.checkerframework.javacutil.TypeSystemError;
 import org.checkerframework.javacutil.TypesUtils;
+
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
 
 /** Annotated type factory for the GUI Effect Checker. */
 public class GuiEffectTypeFactory extends BaseAnnotatedTypeFactory {
@@ -134,8 +137,7 @@ public class GuiEffectTypeFactory extends BaseAnnotatedTypeFactory {
         }
 
         // Anon inner classes should not inherit the package annotation, since
-        // they're so often used for closures to run async on background
-        // threads.
+        // they're so often used for closures to run async on background threads.
         if (isAnonymousType(cls)) {
             // However, we need to look into Anonymous class effect inference
             if (uiAnonClasses.contains(cls)) {
@@ -252,10 +254,9 @@ public class GuiEffectTypeFactory extends BaseAnnotatedTypeFactory {
             return new Effect(UIEffect.class);
         }
 
-        // Anonymous inner types should just get the effect of the parent by
-        // default, rather than annotating every instance. Unless it's
-        // implementing a polymorphic supertype, in which case we still want the
-        // developer to be explicit.
+        // Anonymous inner types should just get the effect of the parent by default, rather than
+        // annotating every instance. Unless it's implementing a polymorphic supertype, in which
+        // case we still want the developer to be explicit.
         if (isAnonymousType(targetClassElt)) {
             boolean canInheritParentEffects = true; // Refine this for polymorphic parents
             DeclaredType directSuper = (DeclaredType) targetClassElt.getSuperclass();
@@ -311,7 +312,7 @@ public class GuiEffectTypeFactory extends BaseAnnotatedTypeFactory {
                 }
                 srcType = callerReceiver;
             } else {
-                throw new BugInCF("Unexpected getMethodSelect() kind at callsite " + node);
+                throw new TypeSystemError("Unexpected getMethodSelect() kind at callsite " + node);
             }
 
             // Instantiate type-polymorphic effects
@@ -460,7 +461,7 @@ public class GuiEffectTypeFactory extends BaseAnnotatedTypeFactory {
             AnnotatedTypeMirror.AnnotatedExecutableType overriddenMethod =
                     AnnotatedTypes.asMemberOf(types, this, overriddenType, pair.getValue());
             ExecutableElement overriddenMethodElt = pair.getValue();
-            if (debugSpew)
+            if (debugSpew) {
                 System.err.println(
                         "Found "
                                 + declaringType
@@ -470,6 +471,7 @@ public class GuiEffectTypeFactory extends BaseAnnotatedTypeFactory {
                                 + overriddenType
                                 + "::"
                                 + overriddenMethod);
+            }
             Effect eff = getDeclaredEffect(overriddenMethodElt);
             if (eff.isSafe()) {
                 safeOverriden = overriddenMethodElt;
@@ -477,18 +479,18 @@ public class GuiEffectTypeFactory extends BaseAnnotatedTypeFactory {
                     checker.reportError(
                             errorNode,
                             "override.effect.invalid",
-                            overridingMethod,
                             declaringType,
-                            safeOverriden,
-                            overriddenType);
+                            overridingMethod,
+                            overriddenType,
+                            safeOverriden);
                 } else if (isPolyUI) {
                     checker.reportError(
                             errorNode,
                             "override.effect.invalid.polymorphic",
-                            overridingMethod,
                             declaringType,
-                            safeOverriden,
-                            overriddenType);
+                            overridingMethod,
+                            overriddenType,
+                            safeOverriden);
                 }
             } else if (eff.isUI()) {
                 uiOverriden = overriddenMethodElt;
@@ -496,9 +498,8 @@ public class GuiEffectTypeFactory extends BaseAnnotatedTypeFactory {
                 assert eff.isPoly();
                 polyOverriden = overriddenMethodElt;
                 if (isUI) {
-                    // Need to special case an anonymous class with @UI on
-                    // the decl, because "new @UI Runnable {...}" parses as
-                    // @UI on an anon class decl extending Runnable
+                    // Need to special case an anonymous class with @UI on the decl, because "new
+                    // @UI Runnable {...}" parses as @UI on an anon class decl extending Runnable
                     boolean isAnonInstantiation =
                             isAnonymousType(declaringType)
                                     && (fromElement(declaringType).hasAnnotation(UI.class)
@@ -507,10 +508,10 @@ public class GuiEffectTypeFactory extends BaseAnnotatedTypeFactory {
                         checker.reportError(
                                 errorNode,
                                 "override.effect.invalid.nonui",
-                                overridingMethod,
                                 declaringType,
-                                polyOverriden,
-                                overriddenType);
+                                overridingMethod,
+                                overriddenType,
+                                polyOverriden);
                     }
                 }
             }
@@ -523,12 +524,12 @@ public class GuiEffectTypeFactory extends BaseAnnotatedTypeFactory {
             checker.reportWarning(
                     errorNode,
                     "override.effect.warning.inheritance",
-                    overridingMethod,
                     declaringType,
-                    uiOverriden.toString(),
-                    uiOverriden.getEnclosingElement().asType().toString(),
-                    safeOverriden.toString(),
-                    safeOverriden.getEnclosingElement().asType().toString());
+                    overridingMethod,
+                    uiOverriden.getEnclosingElement().asType(),
+                    uiOverriden,
+                    safeOverriden.getEnclosingElement().asType(),
+                    safeOverriden);
         }
 
         Effect min =

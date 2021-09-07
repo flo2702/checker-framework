@@ -1,39 +1,60 @@
+plugins {
+    id 'java-library'
+}
+
 dependencies {
-    implementation project(':javacutil')
-    implementation project(':checker-qual')
-    implementation 'org.plumelib:plume-util:1.3.0'
+    api project(':javacutil')
+    api project(':checker-qual')
+
+    // Node implements org.plumelib.util.UniqueId, so this dependency must be "api".
+    api 'org.plumelib:plume-util:1.5.8'
+
+    // External dependencies:
+    // If you add an external dependency, you must shadow its packages both in the dataflow-shaded
+    // artifact (see shadowJar block below) and also in checker.jar (see the comment in
+    // ../build.gradle in the shadowJar block).
 }
 
-shadowJar {
-    archiveFileName = "dataflow-shaded.jar"
-    relocate 'org.checkerframework.dataflow', 'org.checkerframework.shaded.dataflow'
-    relocate 'org.checkerframework.javacutil', 'org.checkerframework.shaded.javacutil'
-}
+// Shadowing Test Sources and Dependencies
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
-artifacts {
-    archives shadowJar
-}
+/**
+ * Creates a task with name dataflow${shadedPkgName} that creates a shaded dataflow jar. The packages will be shaded to
+ * "org.checkerframework.{@code shadedPkgName}" and the jar name is dataflow-${shadedPkgName}.jar.
+ * @param shadedPkgName
+ * @return
+ */
+def createDataflowShaded(shadedPkgName) {
+    tasks.create(name: "dataflow${shadedPkgName}Jar", type: ShadowJar, dependsOn: compileJava, group: 'Build') {
+        description "Builds dataflow-${shadedPkgName}.jar."
+        includeEmptyDirs = false
+        archivesBaseName = "dataflow-${shadedPkgName}"
+        // Without this line, the Maven artifact will have the classifier "all".
+        archiveClassifier.set('')
 
-task deployArtifactsToLocalRepo(dependsOn: jar) {
-    description "Deploys ${jar.archiveFileName.get()} to the local Maven repository"
-    dependsOn ('jar', 'shadowJar')
+        from shadowJar.source
+        configurations = shadowJar.configurations
 
-    doLast {
-        mvnDeployToLocalRepo(project, "${pomFiles}/dataflow-pom.xml")
-        mvnDeployToLocalRepo(shadowJar.archiveFile.get().toString(), "${pomFiles}/dataflow-shaded-pom.xml")
+        destinationDirectory = file("${buildDir}/shadow/dataflow${shadedPkgName}")
+
+
+        relocate('org.checkerframework', "org.checkerframework.${shadedPkgName}") {
+            // Shade all Checker Framework packages, except for the dataflow qualifiers.
+            exclude 'org.checkerframework.dataflow.qual.*'
+        }
+
+        // Relocate external dependencies
+        relocate 'org.plumelib', "org.checkerframework.${shadedPkgName}.org.plumelib"
     }
 }
 
-task deployArtifactsToSonatype {
-    description "Deploys ${jar.archiveFileName.get()} to the Sonatype repository"
-    dependsOn ('jar', 'sourcesJar', 'javadocJar', 'shadowJar')
-    doLast {
-        mvnSignAndDeployMultipleToSonatype(project, "${pomFiles}/dataflow-pom.xml")
-        mvnSignAndDeployMultipleToSonatype(shadowJar.archiveFile.get().toString(), sourcesJar.archiveFile.get().toString(), javadocJar.archiveFile.get().toString(), "${pomFiles}/dataflow-shaded-pom.xml")
-    }
-}
+// Creates a new shaded dataflow artifact.  To add a new one, add a new method call below, and add
+// the new jar to publishing and signing blocks.
+createDataflowShaded('shaded')
+createDataflowShaded('nullaway')
+createDataflowShaded('errorprone')
 
-task liveVariableTest(dependsOn: compileTestJava, group: 'Verification') {
+task liveVariableTest(dependsOn: [assemble, compileTestJava], group: 'Verification') {
     description 'Test the live variable analysis test for dataflow framework.'
     inputs.file('tests/live-variable/Expected.txt')
     inputs.file('tests/live-variable/Test.java')
@@ -49,9 +70,21 @@ task liveVariableTest(dependsOn: compileTestJava, group: 'Verification') {
             if (!JavaVersion.current().java9Compatible) {
                 jvmArgs += "-Xbootclasspath/p:${configurations.javacJar.asPath}".toString()
             }
+            else if (JavaVersion.current() > JavaVersion.VERSION_11) {
+                jvmArgs += [
+                    "--add-opens", "jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
+                    "--add-opens", "jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED",
+                    "--add-opens", "jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
+                    "--add-opens", "jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED",
+                    "--add-opens", "jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED",
+                    "--add-opens", "jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
+                    "--add-opens", "jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED"
+                ]
+            }
+
             classpath = sourceSets.test.runtimeClasspath
             classpath += sourceSets.test.output
-            main = 'livevar.LiveVariable'
+            mainClass = 'livevar.LiveVariable'
         }
         exec {
             workingDir = 'tests/live-variable'
@@ -61,7 +94,7 @@ task liveVariableTest(dependsOn: compileTestJava, group: 'Verification') {
     }
 }
 
-task issue3447Test(dependsOn: compileTestJava, group: 'Verification') {
+task issue3447Test(dependsOn: [assemble, compileTestJava], group: 'Verification') {
     description 'Test issue 3447 test case for backward analysis.'
     inputs.file('tests/issue3447/Test.java')
     delete('tests/issue3447/Out.txt')
@@ -72,10 +105,106 @@ task issue3447Test(dependsOn: compileTestJava, group: 'Verification') {
             if (!JavaVersion.current().java9Compatible) {
                 jvmArgs += "-Xbootclasspath/p:${configurations.javacJar.asPath}".toString()
             }
+            else if (JavaVersion.current() > JavaVersion.VERSION_11) {
+                jvmArgs += [
+                    "--add-opens", "jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
+                    "--add-opens", "jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED",
+                    "--add-opens", "jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
+                    "--add-opens", "jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED",
+                    "--add-opens", "jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED",
+                    "--add-opens", "jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
+                    "--add-opens", "jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED"
+                ]
+            }
             classpath = sourceSets.test.runtimeClasspath
             classpath += sourceSets.test.output
 
-            main = 'livevar.LiveVariable'
+            mainClass = 'livevar.LiveVariable'
         }
     }
+}
+
+apply from: rootProject.file("gradle-mvn-push.gradle")
+
+/** Adds information to the publication for uploading the dataflow artifacts to Maven repositories. */
+final dataflowPom(publication) {
+    sharedPublicationConfiguration(publication)
+    publication.from components.java
+    // Information that is in all pom files is configured in checker-framework/gradle-mvn-push.gradle.
+    publication.pom {
+        name = 'Dataflow'
+        description = 'Dataflow is a dataflow framework based on the javac compiler.'
+        licenses {
+            license {
+                name = 'GNU General Public License, version 2 (GPL2), with the classpath exception'
+                url = 'http://www.gnu.org/software/classpath/license.html'
+                distribution = 'repo'
+            }
+        }
+    }
+}
+
+/**
+ * Adds information to the publication for uploading the dataflow-${shadedPkgName} artifacts to Maven repositories.
+ * @param shadedPkgName the name of the shaded package to use; also used as part of the artifact name: "dataflow-${shadePkgName}"
+ */
+final dataflowShadedPom(MavenPublication publication, String shadedPkgName) {
+    sharedPublicationConfiguration(publication)
+
+    publication.artifactId = "dataflow-${shadedPkgName}"
+    publication.pom {
+        name = "Dataflow (${shadedPkgName})"
+        description = "dataflow-${shadedPkgName} is a dataflow framework based on the javac compiler.\n" +
+                '\n' +
+                'It differs from the org.checkerframework:dataflow artifact in two ways.\n' +
+                "First, the packages in this artifact have been renamed to org.checkerframework.${shadedPkgName}.*.\n" +
+                'Second, unlike the dataflow artifact, this artifact contains the dependencies it requires.'
+        licenses {
+            license {
+                name = 'GNU General Public License, version 2 (GPL2), with the classpath exception'
+                url = 'http://www.gnu.org/software/classpath/license.html'
+                distribution = 'repo'
+            }
+        }
+    }
+}
+
+
+publishing {
+    publications {
+        dataflow(MavenPublication) {
+            dataflowPom it
+        }
+
+        dataflowShaded(MavenPublication) {
+            dataflowShadedPom(it, 'shaded')
+
+            artifact getTasksByName('dataflowshadedJar',false).iterator().next()
+            artifact sourcesJar
+            artifact javadocJar
+        }
+
+        dataflowShadednullaway(MavenPublication) {
+            dataflowShadedPom(it, 'nullaway')
+
+            artifact getTasksByName('dataflownullawayJar',false).iterator().next()
+            artifact sourcesJar
+            artifact javadocJar
+        }
+
+        dataflowShadederrorprone(MavenPublication) {
+            dataflowShadedPom(it, 'errorprone')
+
+            artifact getTasksByName('dataflowerrorproneJar',false).iterator().next()
+            artifact sourcesJar
+            artifact javadocJar
+        }
+    }
+}
+
+signing {
+    sign publishing.publications.dataflow
+    sign publishing.publications.dataflowShaded
+    sign publishing.publications.dataflowShadednullaway
+    sign publishing.publications.dataflowShadederrorprone
 }

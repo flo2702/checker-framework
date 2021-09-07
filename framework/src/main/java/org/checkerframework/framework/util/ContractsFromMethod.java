@@ -1,16 +1,5 @@
 package org.checkerframework.framework.util;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Name;
-import javax.lang.model.util.ElementFilter;
 import org.checkerframework.framework.qual.ConditionalPostconditionAnnotation;
 import org.checkerframework.framework.qual.EnsuresQualifier;
 import org.checkerframework.framework.qual.EnsuresQualifierIf;
@@ -23,6 +12,20 @@ import org.checkerframework.framework.util.Contract.Kind;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.Pair;
+import org.checkerframework.javacutil.TreeUtils;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Name;
+import javax.lang.model.util.ElementFilter;
 
 /**
  * A utility class to retrieve pre- and postconditions from a method.
@@ -38,6 +41,9 @@ import org.checkerframework.javacutil.Pair;
 // more helpful error message.
 public class ContractsFromMethod {
 
+    /** The QualifierArgument.value field/element. */
+    ExecutableElement qualifierArgumentValueElement;
+
     /** The factory that this ContractsFromMethod is associated with. */
     protected GenericAnnotatedTypeFactory<?, ?, ?, ?> factory;
 
@@ -48,6 +54,9 @@ public class ContractsFromMethod {
      */
     public ContractsFromMethod(GenericAnnotatedTypeFactory<?, ?, ?, ?> factory) {
         this.factory = factory;
+        qualifierArgumentValueElement =
+                TreeUtils.getMethod(
+                        QualifierArgument.class, "value", 0, factory.getProcessingEnv());
     }
 
     /**
@@ -113,18 +122,18 @@ public class ContractsFromMethod {
     private <T extends Contract> Set<T> getContracts(
             ExecutableElement executableElement, Kind kind, Class<T> clazz) {
         Set<T> result = new LinkedHashSet<>();
-        // Check for a single contract annotation.
+        // Check for a single framework-defined contract annotation.
         AnnotationMirror frameworkContractAnno =
                 factory.getDeclAnnotation(executableElement, kind.frameworkContractClass);
         result.addAll(getContract(kind, frameworkContractAnno, clazz));
 
-        // Check for a wrapper around contract annotations.
-        AnnotationMirror frameworkContractAnnos =
-                factory.getDeclAnnotation(executableElement, kind.frameworkContractsClass);
-        if (frameworkContractAnnos != null) {
+        // Check for a framework-defined wrapper around contract annotations.
+        // The result is RequiresQualifier.List, EnsuresQualifier.List, or EnsuresQualifierIf.List.
+        AnnotationMirror frameworkContractListAnno =
+                factory.getDeclAnnotation(executableElement, kind.frameworkContractListClass);
+        if (frameworkContractListAnno != null) {
             List<AnnotationMirror> frameworkContractAnnoList =
-                    AnnotationUtils.getElementValueArray(
-                            frameworkContractAnnos, "value", AnnotationMirror.class, false);
+                    factory.getContractListValues(frameworkContractListAnno);
             for (AnnotationMirror a : frameworkContractAnnoList) {
                 result.addAll(getContract(kind, a, clazz));
             }
@@ -142,16 +151,19 @@ public class ContractsFromMethod {
             if (enforcedQualifier == null) {
                 continue;
             }
-            List<String> expressions =
-                    AnnotationUtils.getElementValueArrayOrSingleton(
-                            anno, kind.expressionElementName, String.class, true);
+            List<String> expressions = factory.getContractExpressions(kind, anno);
             Collections.sort(expressions);
-            Boolean annoResult =
-                    AnnotationUtils.getElementValueOrNull(anno, "result", Boolean.class, false);
+            Boolean ensuresQualifierIfResult = factory.getEnsuresQualifierIfResult(kind, anno);
+
             for (String expr : expressions) {
                 T contract =
                         clazz.cast(
-                                Contract.create(kind, expr, enforcedQualifier, anno, annoResult));
+                                Contract.create(
+                                        kind,
+                                        expr,
+                                        enforcedQualifier,
+                                        anno,
+                                        ensuresQualifierIfResult));
                 result.add(contract);
             }
         }
@@ -174,24 +186,29 @@ public class ContractsFromMethod {
         if (contractAnnotation == null) {
             return Collections.emptySet();
         }
+
         AnnotationMirror enforcedQualifier =
                 getQualifierEnforcedByContractAnnotation(contractAnnotation);
         if (enforcedQualifier == null) {
             return Collections.emptySet();
         }
-        Set<T> result = new LinkedHashSet<>();
-        List<String> expressions =
-                AnnotationUtils.getElementValueArray(
-                        contractAnnotation, "expression", String.class, false);
+
+        List<String> expressions = factory.getContractExpressions(contractAnnotation);
         Collections.sort(expressions);
-        Boolean annoResult =
-                AnnotationUtils.getElementValueOrNull(
-                        contractAnnotation, "result", Boolean.class, false);
+
+        Boolean ensuresQualifierIfResult =
+                factory.getEnsuresQualifierIfResult(kind, contractAnnotation);
+
+        Set<T> result = new LinkedHashSet<>();
         for (String expr : expressions) {
             T contract =
                     clazz.cast(
                             Contract.create(
-                                    kind, expr, enforcedQualifier, contractAnnotation, annoResult));
+                                    kind,
+                                    expr,
+                                    enforcedQualifier,
+                                    contractAnnotation,
+                                    ensuresQualifierIfResult));
             result.add(contract);
         }
         return result;
@@ -237,7 +254,7 @@ public class ContractsFromMethod {
      *
      * @param contractAnno a contract annotation, such as {@code @RequiresQualifier}, which has a
      *     {@code qualifier} element/field
-     * @param argumentAnno annotation containing the argument values, or {@code null}
+     * @param argumentAnno annotation containing the element {@code values}, or {@code null}
      * @param argumentRenaming renaming of argument names, which maps from names in {@code
      *     argumentAnno} to names used in the returned annotation, or {@code null}
      * @return a qualifier whose type is that of {@code contract.qualifier}, or an alias for it, or
@@ -248,6 +265,7 @@ public class ContractsFromMethod {
             AnnotationMirror argumentAnno,
             Map<String, String> argumentRenaming) {
 
+        @SuppressWarnings("deprecation") // permitted for use in the framework
         Name c = AnnotationUtils.getElementValueClassName(contractAnno, "qualifier", false);
 
         AnnotationMirror anno;
@@ -296,7 +314,7 @@ public class ContractsFromMethod {
                 String sourceName = meth.getSimpleName().toString();
                 String targetName =
                         AnnotationUtils.getElementValue(
-                                argumentAnnotation, "value", String.class, false);
+                                argumentAnnotation, qualifierArgumentValueElement, String.class);
                 if (targetName == null || targetName.isEmpty()) {
                     targetName = sourceName;
                 }

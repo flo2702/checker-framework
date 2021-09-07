@@ -5,14 +5,7 @@ import com.sun.tools.javac.main.JavaCompiler;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.Options;
-import java.io.File;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintStream;
-import java.util.HashMap;
-import java.util.Map;
-import javax.tools.JavaFileManager;
-import javax.tools.JavaFileObject;
+
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.analysis.AbstractValue;
 import org.checkerframework.dataflow.analysis.Analysis;
@@ -21,6 +14,17 @@ import org.checkerframework.dataflow.analysis.TransferFunction;
 import org.checkerframework.dataflow.cfg.CFGProcessor;
 import org.checkerframework.dataflow.cfg.CFGProcessor.CFGProcessResult;
 import org.checkerframework.dataflow.cfg.ControlFlowGraph;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
+import javax.tools.JavaFileManager;
+import javax.tools.JavaFileObject;
 
 /**
  * Launcher to generate the DOT or String representation of the control flow graph of a given method
@@ -121,7 +125,7 @@ public class CFGVisualizeLauncher {
     /**
      * Generate the DOT representation of the CFG for a method, only. Does no dataflow analysis.
      *
-     * @param inputFile java source input file
+     * @param inputFile a Java source file, used as input
      * @param outputDir output directory
      * @param method name of the method to generate the CFG for
      * @param clas name of the class which includes the method to generate the CFG for
@@ -141,7 +145,7 @@ public class CFGVisualizeLauncher {
     /**
      * Generate the String representation of the CFG for a method, only. Does no dataflow analysis.
      *
-     * @param inputFile java source input file
+     * @param inputFile a Java source file, used as input
      * @param method name of the method to generate the CFG for
      * @param clas name of the class which includes the method to generate the CFG for
      * @param verbose show verbose information in CFG
@@ -153,11 +157,13 @@ public class CFGVisualizeLauncher {
         if (res != null) {
             String stringGraph = (String) res.get("stringGraph");
             if (stringGraph == null) {
-                return "Unexpected output from generating string control flow graph, shouldn't be null.";
+                return "Unexpected output from generating string control flow graph, shouldn't be"
+                        + " null.";
             }
             return stringGraph;
         } else {
-            return "Unexpected output from generating string control flow graph, shouldn't be null.";
+            return "Unexpected output from generating string control flow graph, shouldn't be"
+                    + " null.";
         }
     }
 
@@ -167,7 +173,7 @@ public class CFGVisualizeLauncher {
      * @param <V> the abstract value type to be tracked by the analysis
      * @param <S> the store type used in the analysis
      * @param <T> the transfer function type that is used to approximated runtime behavior
-     * @param inputFile java source input file
+     * @param inputFile a Java source file, used as input
      * @param outputDir source output directory
      * @param method name of the method to generate the CFG for
      * @param clas name of the class which includes the method to generate the CFG for
@@ -190,7 +196,7 @@ public class CFGVisualizeLauncher {
             analysis.performAnalysis(cfg);
         }
 
-        Map<String, Object> args = new HashMap<>();
+        Map<String, Object> args = new HashMap<>(2);
         args.put("outdir", outputDir);
         args.put("verbose", verbose);
 
@@ -208,7 +214,7 @@ public class CFGVisualizeLauncher {
     /**
      * Generate the control flow graph of a method in a class.
      *
-     * @param file java source input file
+     * @param file a Java source file, used as input
      * @param clas name of the class which includes the method to generate the CFG for
      * @param method name of the method to generate the CFG for
      * @return control flow graph of the specified method
@@ -247,7 +253,8 @@ public class CFGVisualizeLauncher {
 
         if (res == null) {
             printError(
-                    "internal error in type processor! method typeProcessOver() doesn't get called.");
+                    "internal error in type processor! method typeProcessOver() doesn't get"
+                            + " called.");
             System.exit(1);
         }
 
@@ -281,7 +288,7 @@ public class CFGVisualizeLauncher {
      * @param <V> the abstract value type to be tracked by the analysis
      * @param <S> the store type used in the analysis
      * @param <T> the transfer function type that is used to approximated runtime behavior
-     * @param inputFile java source input file
+     * @param inputFile a Java source file, used as input
      * @param method name of the method to generate the CFG for
      * @param clas name of the class which includes the method to generate the CFG for
      * @param verbose show verbose information in CFG
@@ -302,8 +309,7 @@ public class CFGVisualizeLauncher {
             analysis.performAnalysis(cfg);
         }
 
-        Map<String, Object> args = new HashMap<>();
-        args.put("verbose", verbose);
+        Map<String, Object> args = Collections.singletonMap("verbose", verbose);
 
         CFGVisualizer<V, S, T> viz = new StringCFGVisualizer<>();
         viz.init(args);
@@ -315,9 +321,11 @@ public class CFGVisualizeLauncher {
     /** Print usage information. */
     protected void printUsage() {
         System.out.println(
-                "Generate the control flow graph of a Java method, represented as a DOT or String graph.");
+                "Generate the control flow graph of a Java method, represented as a DOT or String"
+                        + " graph.");
         System.out.println(
-                "Parameters: <inputfile> [--outputdir <outputdir>] [--method <name>] [--class <name>] [--pdf] [--verbose] [--string]");
+                "Parameters: <inputfile> [--outputdir <outputdir>] [--method <name>] [--class"
+                        + " <name>] [--pdf] [--verbose] [--string]");
         System.out.println(
                 "    --outputdir: The output directory for the generated files (defaults to '.').");
         System.out.println(
@@ -327,7 +335,8 @@ public class CFGVisualizeLauncher {
         System.out.println("    --pdf:       Also generate the PDF by invoking 'dot'.");
         System.out.println("    --verbose:   Show the verbose output (defaults to 'false').");
         System.out.println(
-                "    --string:    Print the string representation of the control flow graph (defaults to 'false').");
+                "    --string:    Print the string representation of the control flow graph"
+                        + " (defaults to 'false').");
     }
 
     /**

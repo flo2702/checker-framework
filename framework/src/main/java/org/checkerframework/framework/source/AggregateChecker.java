@@ -4,6 +4,7 @@ import com.sun.source.util.TreePath;
 import com.sun.tools.javac.processing.JavacProcessingEnvironment;
 import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.Log;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -12,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic.Kind;
@@ -101,8 +103,8 @@ public abstract class AggregateChecker extends SourceChecker {
         Context context = ((JavacProcessingEnvironment) processingEnv).getContext();
         Log log = Log.instance(context);
         if (log.nerrors > this.errsOnLastExit) {
-            // If there is a Java error, do not perform any
-            // of the component type checks, but come back
+            // If there is a Java error, do not perform any of the component type checks, but come
+            // back
             // for the next compilation unit.
             this.errsOnLastExit = log.nerrors;
             return;
@@ -115,6 +117,10 @@ public abstract class AggregateChecker extends SourceChecker {
         for (SourceChecker checker : checkers) {
             checker.errsOnLastExit = this.errsOnLastExit;
             checker.typeProcess(element, tree);
+            if (checker.javacErrored) {
+                this.javacErrored = true;
+                return;
+            }
             this.errsOnLastExit = checker.errsOnLastExit;
         }
     }

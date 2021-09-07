@@ -1,11 +1,18 @@
-import java.util.HashMap;
-import java.util.Map;
 import org.checkerframework.checker.nullness.qual.EnsuresKeyForIf;
 import org.checkerframework.checker.nullness.qual.KeyFor;
 import org.checkerframework.dataflow.qual.Pure;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public class Issue2619 {
     public Map<String, String> map = new HashMap<>();
+
+    void m00(Aux aux1) {
+        if (aux1.hasValue(Aux.MINIMUM_VALUE)) {
+            @KeyFor({"aux1.map"}) String s1 = Aux.MINIMUM_VALUE;
+        }
+    }
 
     void m01(Aux aux1, Aux aux2) {
         if (aux1.hasValue(Aux.MINIMUM_VALUE) && aux2.hasValue(Aux.MINIMUM_VALUE)) {

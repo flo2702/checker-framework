@@ -2,13 +2,7 @@ package org.checkerframework.dataflow.analysis;
 
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.UnaryTree;
-import java.util.HashMap;
-import java.util.IdentityHashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.StringJoiner;
-import java.util.concurrent.atomic.AtomicLong;
-import javax.lang.model.element.Element;
+
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.cfg.block.Block;
@@ -18,6 +12,15 @@ import org.checkerframework.dataflow.cfg.node.Node;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.TreeUtils;
 import org.plumelib.util.UniqueId;
+
+import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.StringJoiner;
+import java.util.concurrent.atomic.AtomicLong;
+
+import javax.lang.model.element.Element;
 
 /**
  * An {@link AnalysisResult} represents the result of a org.checkerframework.dataflow analysis by
@@ -78,7 +81,7 @@ public class AnalysisResult<V extends AbstractValue<V>, S extends Store<S>> impl
      * @param analysisCaches {@link #analysisCaches}
      */
     protected AnalysisResult(
-            Map<Node, V> nodeValues,
+            IdentityHashMap<Node, V> nodeValues,
             IdentityHashMap<Block, TransferInput<V, S>> stores,
             IdentityHashMap<Tree, Set<Node>> treeLookup,
             IdentityHashMap<UnaryTree, AssignmentNode> unaryAssignNodeLookup,
@@ -103,7 +106,7 @@ public class AnalysisResult<V extends AbstractValue<V>, S extends Store<S>> impl
      * @param finalLocalValues {@link #finalLocalValues}
      */
     public AnalysisResult(
-            Map<Node, V> nodeValues,
+            IdentityHashMap<Node, V> nodeValues,
             IdentityHashMap<Block, TransferInput<V, S>> stores,
             IdentityHashMap<Tree, Set<Node>> treeLookup,
             IdentityHashMap<UnaryTree, AssignmentNode> unaryAssignNodeLookup,
@@ -398,8 +401,8 @@ public class AnalysisResult<V extends AbstractValue<V>, S extends Store<S>> impl
      * is returned.
      *
      * @param node the node to analyze
-     * @param preOrPost indicates which store to return: the store immediately before {@code node}
-     *     or the store after {@code node}
+     * @param preOrPost which store to return: the store immediately before {@code node} or the
+     *     store after {@code node}
      * @return the store before or after {@code node} (depends on the value of {@code before}) after
      *     running the analysis
      */
@@ -426,8 +429,8 @@ public class AnalysisResult<V extends AbstractValue<V>, S extends Store<S>> impl
      * @param <V> the abstract value type to be tracked by the analysis
      * @param <S> the store type used in the analysis
      * @param node the node to analyze
-     * @param preOrPost indicates which store to return: the store immediately before {@code node}
-     *     or the store after {@code node}
+     * @param preOrPost which store to return: the store immediately before {@code node} or the
+     *     store after {@code node}
      * @param transferInput a transfer input
      * @param nodeValues {@link #nodeValues}
      * @param analysisCaches {@link #analysisCaches}

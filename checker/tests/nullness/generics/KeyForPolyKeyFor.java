@@ -1,9 +1,10 @@
 package nullness.generics;
 
+import org.checkerframework.checker.nullness.qual.*;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import org.checkerframework.checker.nullness.qual.*;
 
 // test related to issue 429: https://github.com/typetools/checker-framework/issues/429
 public class KeyForPolyKeyFor {
@@ -17,10 +18,9 @@ public class KeyForPolyKeyFor {
         for (@KeyFor("dict") String noun : nounSubset(dict.keySet())) {}
     }
 
-    // This method's declaration uses no @KeyFor annotations
-    // because in addition to being used by the dictionary feature,
-    // it is also used by a spell checker that only stores sets of words
-    // and does not use the notions of dictionaries, maps or keys.
+    // This method's declaration uses no @KeyFor annotations because in addition to being used by
+    // the dictionary feature, it is also used by a spell checker that only stores sets of words and
+    // does not use the notions of dictionaries, maps or keys.
     Set<@PolyKeyFor String> nounSubset(Set<@PolyKeyFor String> words) {
         return words;
     }

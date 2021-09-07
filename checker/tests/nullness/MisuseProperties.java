@@ -1,3 +1,5 @@
+import org.checkerframework.checker.nullness.qual.*;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Dictionary;
@@ -5,7 +7,6 @@ import java.util.Hashtable;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import org.checkerframework.checker.nullness.qual.*;
 
 public class MisuseProperties {
 
@@ -40,8 +41,7 @@ public class MisuseProperties {
 
         System.clearProperty("foo.bar"); // OK
 
-        // Each of the following should cause an error, because it leaves
-        // line.separator null.
+        // Each of the following should cause an error, because it leaves line.separator null.
 
         // These first few need to be special-cased, I think:
 
