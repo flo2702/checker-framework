@@ -60,7 +60,6 @@ import java.lang.annotation.Annotation;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -596,14 +595,6 @@ public class NullnessAnnotatedTypeFactory
      */
     public Set<Class<? extends Annotation>> getNullnessAnnotations() {
         return nullnessAnnos;
-    }
-
-    @Override
-    public Set<Class<? extends Annotation>> getInvalidConstructorReturnTypeAnnotations() {
-        Set<Class<? extends Annotation>> l =
-                new HashSet<>(super.getInvalidConstructorReturnTypeAnnotations());
-        l.addAll(getNullnessAnnotations());
-        return l;
     }
 
     @Override
