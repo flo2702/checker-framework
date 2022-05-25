@@ -612,6 +612,15 @@ public class NullnessAnnotatedTypeFactory
         return getQualifierHierarchy().isSubtype(anno, NONNULL);
     }
 
+    @Override
+    public void postAsMemberOf(
+            AnnotatedTypeMirror type, AnnotatedTypeMirror owner, Element element) {
+        // not necessary for primitive fields
+        if (!TypesUtils.isPrimitive(type.getUnderlyingType())) {
+            super.postAsMemberOf(type, owner, element);
+        }
+    }
+
     /**
      * {@inheritDoc}
      *
@@ -630,16 +639,7 @@ public class NullnessAnnotatedTypeFactory
     }
 
     @Override
-    public void postAsMemberOf(
-            AnnotatedTypeMirror type, AnnotatedTypeMirror owner, Element element) {
-        // not necessary for primitive fields
-        if (!TypesUtils.isPrimitive(type.getUnderlyingType())) {
-            super.postAsMemberOf(type, owner, element);
-        }
-    }
-
-    @Override
-    public QualifierHierarchy createQualifierHierarchy() {
+    protected QualifierHierarchy createQualifierHierarchy() {
         return new NullnessQualifierHierarchy();
     }
 
