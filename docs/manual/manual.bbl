@@ -181,7 +181,7 @@ Colin~S. Gordon, Werner Dietl, Michael~D. Ernst, and Dan Grossman.
 Brian Goetz.
 \newblock The pseudo-typedef antipattern: Extension is not type definition.
 \newblock
-  \url{http://web.archive.org/web/20171025205847/https://www.ibm.com/developerworks/java/library/j-jtp02216/},
+  \url{https://web.archive.org/web/20171025205847/https://www.ibm.com/developerworks/java/library/j-jtp02216/},
   February~21, 2006.
 
 \bibitem[GPB{\etalchar{+}}06]{Goetz2006}
@@ -282,8 +282,8 @@ Martin Kellogg, Narges Shadab, Manu Sridharan, and Michael~D. Ernst.
 Martin Kellogg, Martin Sch{\"a}f, Serdar Tasiran, and Michael~D. Ernst.
 \newblock Continuous compliance.
 \newblock In {\em ASE 2020: Proceedings of the 35th Annual International
-  Conference on Automated Software Engineering}, Melbourne, Australia,
-  September 2020.
+  Conference on Automated Software Engineering}, pages 511--523, Melbourne,
+  Australia, September 2020.
 
 \bibitem[LBR06]{LeavensBR2006:JML}
 Gary~T. Leavens, Albert~L. Baker, and Clyde Ruby.

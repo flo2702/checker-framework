@@ -1,6 +1,8 @@
 plugins {
+    id 'java-library'
+
     // https://github.com/n0mer/gradle-git-properties ; target is: generateGitProperties
-    id 'com.gorylenko.gradle-git-properties' version '2.3.1'
+    id 'com.gorylenko.gradle-git-properties' version '2.4.1'
 }
 
 sourceSets {
@@ -27,9 +29,9 @@ configurations {
 }
 
 dependencies {
-    implementation project(':javacutil')
-    implementation project(':dataflow')
-    implementation project(':framework')
+    // Use "api" instead of "implementation" to re-export sub-projects, making
+    // sure "minimize()" does not remove those classes.
+    api project(':framework')
 
     /* NO-AFU
     // AFU is an "includedBuild" imported in checker-framework/settings.gradle, so the version number doesn't matter.
@@ -39,8 +41,8 @@ dependencies {
     }
     */
 
-    implementation project(':checker-qual')
-    implementation project(':checker-util')
+    api project(':checker-qual')
+    api project(':checker-util')
 
     // External dependencies:
     // If you add an external dependency, you must shadow its packages.
@@ -60,7 +62,7 @@ dependencies {
     testImplementation "com.google.auto.value:auto-value-annotations:1.7.4"
     testImplementation "com.google.auto.value:auto-value:1.7.4"
     testImplementation "com.ryanharter.auto.value:auto-value-parcel:0.2.9"
-    testImplementation "org.projectlombok:lombok:1.18.20"
+    testImplementation "org.projectlombok:lombok:1.18.24"
     // Called Methods Checker support for detecting misuses of AWS APIs
     testImplementation "com.amazonaws:aws-java-sdk-ec2"
     testImplementation "com.amazonaws:aws-java-sdk-kms"
@@ -183,6 +185,8 @@ shadowJar {
             rename 'checker.*', 'checker.jar'
         }
     }
+
+    minimize()
 }
 
 artifacts {
@@ -512,7 +516,7 @@ task ainferTestCheckerAjavaTest(dependsOn: 'shadowJar', group: 'Verification') {
 }
 
 task ainferTestCheckerGenerateJaifs(type: Test) {
-    description 'Internal task.  Users should run ainferNullnessJaifTest instead.  This type-checks the ainfer-testchecker files with -Ainfer=jaifs to generate .jaif files'
+    description 'Internal task.  Users should run ainferTestCheckerJaifTest instead.  This type-checks the ainfer-testchecker files with -Ainfer=jaifs to generate .jaif files'
 
     dependsOn(compileTestJava)
     dependsOn(':checker-qual:jar')  // For the Value Checker annotations.
@@ -533,10 +537,19 @@ task ainferTestCheckerGenerateJaifs(type: Test) {
     doLast {
         copyNonannotatedToAnnotatedDirectory("ainfer-testchecker")
 
-        // JAIF-based WPI fails these tests, which was added for stub-based WPI.
+        // JAIF-based WPI fails these tests, which were added for stub-based WPI.
         // See issue here: https://github.com/typetools/checker-framework/issues/3009
         delete('tests/ainfer-testchecker/annotated/ConflictingAnnotationsTest.java')
         delete('tests/ainfer-testchecker/annotated/MultiDimensionalArrays.java')
+
+        // JAIF-based WPI also fails this test. It used to pass, but the test was changed
+        // in a way that exposed a bug in the Annotation File Utilities: the AFU
+        // places annotations incorrectly on qualified types. In this test, a failure occurs because
+        // the AFU prints "@Annotation Outer.Inner this", rather than "Outer.@Annotation Inner this"
+        // (see an explanation of the syntax here:
+        // https://checkerframework.org/manual/#common-problems-non-typechecking).
+        // TODO: fix this bug in the AFU, then reinstate this test.
+        delete('tests/ainfer-testchecker/annotated/OverriddenMethodsTest.java')
 
         // Inserting annotations from .jaif files in-place.
         String jaifsDir = "tests/ainfer-testchecker/inference-output";
@@ -557,7 +570,8 @@ task ainferTestCheckerGenerateJaifs(type: Test) {
             executable "${afu}/scripts/insert-annotations-to-source"
             // Script argument -cp must precede Java program argument -i.
             // checker-qual is needed for Constant Value Checker annotations.
-            args = ['-cp', "${sourceSets.test.output.asPath}:${project(':checker-qual').tasks.jar.archivePath}"]
+            // Note that "/" works on Windows as well as on Linux.
+            args = ['-cp', "${sourceSets.test.output.asPath}:${project(':checker-qual').tasks.jar.archivePath}:" + file("tests/build/testclasses")]
             args += ['-i']
             for (File jaif : jaifs) {
                 args += [jaif.toString()]
@@ -635,7 +649,8 @@ task ainferNullnessGenerateJaifs(type: Test) {
         exec {
             executable "${afu}/scripts/insert-annotations-to-source"
             // Script argument -cp must precede Java program argument -i.
-            args = ['-cp', "${sourceSets.test.output.asPath}:${project(':checker-qual').tasks.jar.archivePath}"]
+            // Note that "/" works on Windows as well as on Linux.
+            args = ['-cp', "${sourceSets.test.output.asPath}:${project(':checker-qual').tasks.jar.archivePath}:" + file("tests/build/testclasses")]
             args += ['-i']
             for (File jaif : jaifs) {
                 args += [jaif.toString()]
@@ -706,7 +721,7 @@ task wpiManyTest(group: "Verification") {
                         '-i', "${project.projectDir}/tests/wpi-many/testin.txt",
                         '-o', "${project.projectDir}/build/wpi-many-tests",
                         '-s',
-                        '--', '--checker', 'nullness,interning,lock,regex,signature,calledmethods'
+                        '--', '--checker', 'nullness,interning,lock,regex,signature,calledmethods,resourceleak'
             }
         } catch (Exception e) {
             println("Failure: Running wpi-many.sh failed with a non-zero exit code.")
@@ -724,7 +739,9 @@ task wpiManyTest(group: "Verification") {
         def typecheckFiles = fileTree(typecheckFilesDir).matching {
             include "**/*-typecheck.out"
         }
-        def expectedTypecheckFileCount = file("${project.projectDir}/tests/wpi-many/testin.txt").text.readLines().size()
+        def testinLines = file("${project.projectDir}/tests/wpi-many/testin.txt").text.readLines()
+        testinLines.removeIf { it.startsWith("#") }
+        def expectedTypecheckFileCount = testinLines.size()
         def actualTypecheckFileCount = typecheckFiles.size()
         if (actualTypecheckFileCount != expectedTypecheckFileCount) {
             println("Failure: Too few *-typecheck.out files in ${typecheckFilesDir}: " +

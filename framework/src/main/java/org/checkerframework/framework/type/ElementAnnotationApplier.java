@@ -45,7 +45,12 @@ import javax.lang.model.element.VariableElement;
  * interaction between TypeFromElement and TypesIntoElements allows us to write the defaulted
  * annotations into the Element and have them read later by other parts.
  */
-public class ElementAnnotationApplier {
+public final class ElementAnnotationApplier {
+
+    // Class cannot be instantiated.
+    private ElementAnnotationApplier() {
+        throw new AssertionError("Class ElementAnnotationApplier cannot be instantiated.");
+    }
 
     /**
      * Add all of the relevant annotations stored in Element to type. This includes both top-level
@@ -150,6 +155,9 @@ public class ElementAnnotationApplier {
 
         } else if (isCaptureConvertedTypeVar(element)) {
             // Types resulting from capture conversion cannot have explicit annotations
+
+        } else if (ElementUtils.isBindingVariable(element)) {
+            // TODO: verify that there are no type use annotations that would need decoding
 
         } else {
             throw new BugInCF(

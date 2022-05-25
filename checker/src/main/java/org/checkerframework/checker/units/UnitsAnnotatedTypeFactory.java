@@ -574,7 +574,7 @@ public class UnitsAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
 
     /** Set the Bottom qualifier as the bottom of the hierarchy. */
     @Override
-    public QualifierHierarchy createQualifierHierarchy() {
+    protected QualifierHierarchy createQualifierHierarchy() {
         return new UnitsQualifierHierarchy();
     }
 
@@ -632,10 +632,6 @@ public class UnitsAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         }
 
         @Override
-        @SuppressWarnings(
-                "nullness:return" // This class UnitsQualifierHierarchy is annotated for nullness,
-        // but the outer class UnitsAnnotatedTypeFactory is not, so the type of fields is @Nullable.
-        )
         protected AnnotationMirror greatestLowerBoundWithElements(
                 AnnotationMirror a1,
                 QualifierKind qualifierKind1,

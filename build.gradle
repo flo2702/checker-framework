@@ -1,16 +1,15 @@
 import de.undercouch.gradle.tasks.download.Download
-import org.ajoberstar.grgit.Grgit
 
 plugins {
     // https://plugins.gradle.org/plugin/com.github.johnrengelman.shadow (v5 requires Gradle 5)
-    id 'com.github.johnrengelman.shadow' version '7.0.0'
+    id 'com.github.johnrengelman.shadow' version '7.1.2'
     // https://plugins.gradle.org/plugin/de.undercouch.download
-    id 'de.undercouch.download' version '4.1.2'
+    id 'de.undercouch.download' version '5.1.0'
     id 'java'
     // https://github.com/tbroyer/gradle-errorprone-plugin
     id 'net.ltgt.errorprone' version '2.0.2'
-    // https://plugins.gradle.org/plugin/org.ajoberstar.grgit
-    id 'org.ajoberstar.grgit' version '4.1.0' apply false
+    // https://docs.gradle.org/current/userguide/eclipse_plugin.html
+    id 'eclipse'
 }
 
 ext {
@@ -19,10 +18,15 @@ ext {
     // On a Java 8 JVM, use error-prone javac and source/target 8.
     // On a Java 9+ JVM, use the host javac, default source/target, and required module flags.
     isJava8 = JavaVersion.current() == JavaVersion.VERSION_1_8
-
+    isJava14 = JavaVersion.current() == JavaVersion.VERSION_14
+    isJava15 = JavaVersion.current() == JavaVersion.VERSION_15
     isJava16 = JavaVersion.current() == JavaVersion.VERSION_16
     isJava17 = JavaVersion.current() == JavaVersion.VERSION_17
-    isJava16plus = isJava16 || isJava17
+
+    isJava17plus = isJava17
+    isJava16plus = isJava16 || isJava17plus
+    isJava15plus = isJava15 || isJava16plus
+    isJava14plus = isJava14 || isJava15plus
 
     errorproneJavacVersion = '9+181-r4173-1'
 
@@ -33,7 +37,7 @@ ext {
     // afu = "${annotationTools}/annotation-file-utilities"
 
     stubparser = "${parentDir}/stubparser"
-    stubparserJar = "${stubparser}/javaparser-core/target/stubparser-3.22.1.jar"
+    stubparserJar = "${stubparser}/javaparser-core/target/stubparser-3.24.2.jar"
 
     jtregHome = "${parentDir}/jtreg"
     formatScriptsHome = "${project(':checker').projectDir}/bin-devel/.run-google-java-format"
@@ -56,17 +60,19 @@ switch (JavaVersion.current()) {
     case JavaVersion.VERSION_13:
     case JavaVersion.VERSION_14:
     case JavaVersion.VERSION_15:
-    case JavaVersion.VERSION_17:
+    case JavaVersion.VERSION_16:
     case JavaVersion.VERSION_18:
-        logger.warn("The Checker Framework has only been tested with JDKs 8, 11, and 16." +
+    case JavaVersion.VERSION_19:
+    case JavaVersion.VERSION_20:
+        logger.warn("The Checker Framework has only been tested with JDK 8, 11, and 17." +
                 " Found version " + JavaVersion.current().majorVersion);
         break;
     case JavaVersion.VERSION_1_8:
     case JavaVersion.VERSION_11:
-    case JavaVersion.VERSION_16:
+    case JavaVersion.VERSION_17:
         break; // Supported versions
     default:
-        throw new GradleException("Build the Checker Framework with JDK 8, 11, or 16." +
+        throw new GradleException("Build the Checker Framework with JDK 8, 11, or 17." +
                 " Found version " + JavaVersion.current().majorVersion);
 }
 
@@ -88,18 +94,23 @@ task installGitHooks(type: Copy, dependsOn: 'setLocalRepo') {
 }
 
 allprojects {
+    tasks.withType(JavaCompile).configureEach {
+        options.fork = true
+    }
+
     apply plugin: 'java'
+    apply plugin: 'eclipse'
     apply plugin: 'com.github.johnrengelman.shadow'
     apply plugin: 'de.undercouch.download'
     apply plugin: 'net.ltgt.errorprone'
 
-    group 'org.checkerframework'
+    group 'io.github.eisop'
 
     // Increment the minor version (second number) rather than just the patch
     // level (third number) if:
     //   * any new checkers have been added, or
     //   * backward-incompatible changes have been made to APIs or elsewhere.
-    version '3.18.0'
+    version '3.22.1-eisop1-SNAPSHOT'
 
     repositories {
         mavenCentral()
@@ -123,6 +134,20 @@ allprojects {
         errorproneJavac("com.google.errorprone:javac:$errorproneJavacVersion")
 
         allProjects subprojects
+    }
+
+    eclipse.classpath {
+        defaultOutputDir = file("build/default")
+        file.whenMerged { cp ->
+            cp.entries.forEach { cpe ->
+                if (cpe instanceof org.gradle.plugins.ide.eclipse.model.SourceFolder) {
+                    cpe.output = cpe.output.replace "bin/", "build/classes/java/"
+                }
+                if (cpe instanceof org.gradle.plugins.ide.eclipse.model.Output) {
+                    cpe.path = cpe.path.replace "bin/", "build/"
+                }
+            }
+        }
     }
 
     ext {
@@ -164,6 +189,7 @@ allprojects {
         // any module to reference classes in any other module.
         // Also, build and use ManualTaglet as a taglet.
         tasks.withType(Javadoc) {
+            // Similar test in framework-test/build.gradle
             def tagletVersion = isJava8 ? 'taglet' : 'tagletJdk11'
 
             dependsOn(':checker:shadowJar')
@@ -259,7 +285,7 @@ allprojects {
                 // Error Prone must be available in the annotation processor path
                 options.annotationProcessorPath = configurations.errorprone
                 // Enable Error Prone
-                options.errorprone.enabled = true
+                options.errorprone.enabled = !isJava8
                 options.errorprone.disableWarningsInGeneratedCode = true
                 options.errorprone.errorproneArgs = [
                         // Many compiler classes are interned.
@@ -284,6 +310,21 @@ allprojects {
                         // https://github.com/google/error-prone/issues/436
                         '-Werror',
                 ]
+                if (!isJava8) {
+                    // Options needed for Error Prone on Java 16+, but don't hurt on Java 9+
+                    options.forkOptions.jvmArgs += [
+                        '--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED',
+                        '--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED',
+                        '--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED',
+                        '--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED',
+                        '--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED',
+                        '--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED',
+                        '--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED',
+                        '--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED',
+                        '--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED',
+                        '--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED',
+                    ]
+                }
             } else {
                 options.errorprone.enabled = false
             }
@@ -412,6 +453,10 @@ List<String> getJavaFilesToFormat(projectName) {
                 && !details.path.contains("returnsreceiverdelomboked")
                 && !details.path.contains("build")
                 && (isJava16plus || !details.path.contains("-records"))
+                // TODO: directories should be renamed `-switchexpr` or some such,
+                // as they  only contain examples for switch expressions, which were
+                // added in Java 14, not Java 17.
+                && (isJava14plus || !details.path.contains("java17"))
                 && details.name.endsWith('.java')) {
             javaFiles.add(details.file)
         }
@@ -609,6 +654,7 @@ task getCodeFormatScripts() {
     }
 }
 
+/* Remove unused dependency on grgit, which doesn't work on Java 8 as of version 5.0.0
 // This implementation is preferable to the above because it does work in Gradle rather than in bash.
 // However, it fails in the presence of worktrees: https://github.com/ajoberstar/grgit/issues/97 .
 // No group so it does not show up in the output of `gradlew tasks`
@@ -625,6 +671,7 @@ task getCodeFormatScriptsInGradle {
         }
     }
 }
+*/
 
 // No group so it does not show up in the output of `gradlew tasks`
 task getPlumeScripts() {
@@ -696,15 +743,11 @@ subprojects {
         //  * Temporarily comment out "-Werror" elsewhere in this file
         //  * Repeatedly run `./gradlew clean compileJava` and fix all errors
         //  * Uncomment "-Werror"
-        //  * Don't edit framework/build.gradle to use the same version number
-        //    (it is updated when the annotated version of Guava is updated).
-        errorprone group: 'com.google.errorprone', name: 'error_prone_core', version: '2.9.0'
+        ext.errorproneVersion = '2.13.1'
+        errorprone group: 'com.google.errorprone', name: 'error_prone_core', version: errorproneVersion
 
         // TODO: it's a bug that annotatedlib:guava requires the error_prone_annotations dependency.
-        // Update the next two version numbers in tandem.  Get the Error Prone version from the "compile
-        // dependencies" section of https://mvnrepository.com/artifact/com.google.guava/guava/30.1.1-jre .
-        // (It isn't at https://mvnrepository.com/artifact/org.checkerframework.annotatedlib/guava/30.1.1-jre, which is the bug.)
-        annotatedGuava 'com.google.errorprone:error_prone_annotations:2.9.0'
+        annotatedGuava "com.google.errorprone:error_prone_annotations:${errorproneVersion}"
         annotatedGuava ('org.checkerframework.annotatedlib:guava:30.1.1-jre') {
             // So long as Guava only uses annotations from checker-qual, excluding it should not cause problems.
             exclude group: 'org.checkerframework'
@@ -762,6 +805,12 @@ subprojects {
         // 5. Add relocate lines below for the packages.
         // 6. Do steps 3-5 until all new classes are in org/checkerframework/.
 
+        // Note that string literals are also relocated. Therefore, when the original
+        // names should be used, e.g. to load the original classes, one needs to work
+        // around the relocation. When adding a new external dependency, make
+        // sure no existing string literals are accidentally relocated.
+        // For an example work-around see NullnessAnnotatedTypeFactory#NONNULL_ALIASES.
+
         // Relocate packages that might conflict with user's classpath.
         relocate 'org.apache', 'org.checkerframework.org.apache'
         relocate 'org.relaxng', 'org.checkerframework.org.relaxng'
@@ -781,6 +830,8 @@ subprojects {
                 relocate 'com.github.javaparser', 'org.checkerframework.com.github.javaparser'
             }
         }
+
+        minimize()
     }
 
     if (!project.name.startsWith('checker-qual-android')) {
@@ -995,8 +1046,7 @@ subprojects {
             }
 
             if (project.name.is('dataflow')) {
-                dependsOn('liveVariableTest')
-                dependsOn('issue3447Test')
+                dependsOn('allDataflowTests')
             }
         }
 
@@ -1157,6 +1207,20 @@ task checkBasicStyle(group: 'Format') {
 }
 
 assemble.mustRunAfter(clean)
+
+/**
+ * Execute the `assemble` task without generating any Javadoc or sources.jar files.
+ */
+task fastAssemble(group: 'Build') {
+    description 'Assembles the outputs of this project without generating any Javadoc or sources.jar files'
+    doFirst {
+        tasks.withType(Javadoc) {
+            enabled = false
+        }
+    }
+
+    finalizedBy assemble
+}
 
 task buildAll(group: 'Build') {
     description 'Build all jar files, including source and javadoc jars'

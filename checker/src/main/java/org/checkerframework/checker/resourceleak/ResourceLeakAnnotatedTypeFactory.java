@@ -26,7 +26,9 @@ import org.checkerframework.framework.flow.CFStore;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
 import org.checkerframework.javacutil.AnnotationUtils;
+import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.TreeUtils;
+import org.checkerframework.javacutil.TypeSystemError;
 
 import java.lang.annotation.Annotation;
 import java.util.Arrays;
@@ -47,15 +49,15 @@ public class ResourceLeakAnnotatedTypeFactory extends CalledMethodsAnnotatedType
         implements CreatesMustCallForElementSupplier {
 
     /** The MustCall.value element/field. */
-    final ExecutableElement mustCallValueElement =
+    private final ExecutableElement mustCallValueElement =
             TreeUtils.getMethod(MustCall.class, "value", 0, processingEnv);
 
     /** The EnsuresCalledMethods.value element/field. */
-    final ExecutableElement ensuresCalledMethodsValueElement =
+    /* package-private */ final ExecutableElement ensuresCalledMethodsValueElement =
             TreeUtils.getMethod(EnsuresCalledMethods.class, "value", 0, processingEnv);
 
     /** The EnsuresCalledMethods.methods element/field. */
-    final ExecutableElement ensuresCalledMethodsMethodsElement =
+    /* package-private */ final ExecutableElement ensuresCalledMethodsMethodsElement =
             TreeUtils.getMethod(EnsuresCalledMethods.class, "methods", 0, processingEnv);
 
     /** The CreatesMustCallFor.List.value element/field. */
@@ -83,6 +85,19 @@ public class ResourceLeakAnnotatedTypeFactory extends CalledMethodsAnnotatedType
         this.postInit();
     }
 
+    /**
+     * Is the given element a candidate to be an owning field? A candidate owning field must be
+     * final and have a non-empty must-call obligation.
+     *
+     * @param element a element
+     * @return true iff the given element is a final field with non-empty @MustCall obligation
+     */
+    /*package-private*/ boolean isCandidateOwningField(Element element) {
+        return (element.getKind().isField()
+                && ElementUtils.isFinal(element)
+                && !getMustCallValue(element).isEmpty());
+    }
+
     @Override
     protected Set<Class<? extends Annotation>> createSupportedTypeQualifiers() {
         return getBundledTypeQualifiers(
@@ -104,8 +119,25 @@ public class ResourceLeakAnnotatedTypeFactory extends CalledMethodsAnnotatedType
         MustCallConsistencyAnalyzer mustCallConsistencyAnalyzer =
                 new MustCallConsistencyAnalyzer(this, this.analysis);
         mustCallConsistencyAnalyzer.analyze(cfg);
+
+        // Inferring owning annotations for final owning fields
+        /* NO-AFU
+               if (getWholeProgramInference() != null) {
+                   if (cfg.getUnderlyingAST().getKind() == UnderlyingAST.Kind.METHOD) {
+                       MustCallInferenceLogic mustCallInferenceLogic =
+                               new MustCallInferenceLogic(this, cfg);
+                       mustCallInferenceLogic.runInference();
+                   }
+               }
+        */
+
         super.postAnalyze(cfg);
         tempVarToTree.clear();
+    }
+
+    @Override
+    protected ResourceLeakAnalysis createFlowAnalysis() {
+        return new ResourceLeakAnalysis(checker, this);
     }
 
     /**
@@ -186,6 +218,18 @@ public class ResourceLeakAnnotatedTypeFactory extends CalledMethodsAnnotatedType
         return tempVarToTree.containsKey(node);
     }
 
+    /**
+     * Gets the tree for a temporary variable
+     *
+     * @param node a node for a temporary variable
+     * @return the tree for {@code node}
+     */
+    /* package-private */ Tree getTreeForTempVar(Node node) {
+        if (!tempVarToTree.containsKey(node)) {
+            throw new TypeSystemError(node + " must be a temporary variable");
+        }
+        return tempVarToTree.get(node);
+    }
     /**
      * Registers a temporary variable by adding it to this type factory's tempvar map.
      *

@@ -5,7 +5,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -91,7 +90,8 @@ public abstract class CheckerFrameworkPerDirectoryTest {
      * @param testFiles the files containing test code, which will be type-checked
      * @param checker the class for the checker to use
      * @param testDir the path to the directory of test inputs
-     * @param classpathExtra extra entries for the classpath
+     * @param classpathExtra extra entries for the classpath, relative to a directory such as
+     *     checker-framework/checker
      * @param checkerOptions options to pass to the compiler when running tests
      */
     @SuppressWarnings(
@@ -121,7 +121,8 @@ public abstract class CheckerFrameworkPerDirectoryTest {
      * @param testFiles the files containing test code, which will be type-checked
      * @param checkerNames the binary names of the checkers to run
      * @param testDir the path to the directory of test inputs
-     * @param classpathExtra extra entries for the classpath
+     * @param classpathExtra extra entries for the classpath, relative to a directory such as
+     *     checker-framework/checker
      * @param checkerOptions options to pass to the compiler when running tests
      */
     protected CheckerFrameworkPerDirectoryTest(
@@ -134,8 +135,7 @@ public abstract class CheckerFrameworkPerDirectoryTest {
         this.checkerNames = checkerNames;
         this.testDir = "tests" + File.separator + testDir;
         this.classpathExtra = classpathExtra;
-        this.checkerOptions = new ArrayList<>(Arrays.asList(checkerOptions));
-        this.checkerOptions.add("-AajavaChecks");
+        this.checkerOptions = Arrays.asList(checkerOptions);
     }
 
     @Test

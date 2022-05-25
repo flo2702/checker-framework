@@ -1,8 +1,313 @@
-Version 3.18.0-eisop1 (September ?, 2021)
+Version 3.22.1-eisop1 (June ?, 2022)
+------------------------------------
+
+**User-visible changes:**
+
+**Implementation details:**
+
+**Closed issues:**
+
+
+Version 3.22.1 (June 1, 2022)
+---------------------------------
+
+**User-visible changes:**
+
+**Implementation details:**
+
+**Closed issues:**
+
+
+Version 3.22.0-eisop1 (May 6, 2022)
+-----------------------------------
+
+**User-visible changes:**
+
+Added reaching definitions and very busy expressions analysis demos.
+
+**Implementation details:**
+
+Fixed the types of `MethodInvocationNode#arguments` and
+`ObjectCreationNode#arguments` in CFGs. Previously, argument nodes are created
+using the types from the method declaration, which means some nodes are using
+type variables that are not substituted by type arguments at the call site.
+For example, we used to observe `new T[]{"a", "b"}` instead of
+`new String[]{"a", "b"}`, while the second one makes more sense.
+
+Added a new gradle task `fastAssemble` to quickly rebuild the Checker
+Framework for local development. This command will assemble the jar
+files without generating any Javadoc or sources.jar files, thus it is
+faster than the gradle assemble task.
+
+Type system test drivers no longer need to pass `-Anomsgtext`.
+The Checker Framework test driver (in `TypecheckExecutor.compile`) now always
+passes the `-Anomsgtext` option.
+
+Moved the `-AajavaChecks` option from `CheckerFrameworkPerDirectoryTest` to
+`TypecheckExecutor.compile` to ensure the option is used for all tests.
+
+**Closed issues:**
+eisop#210.
+
+
+Version 3.22.0 (May 2, 2022)
+----------------------------
+
+**User-visible changes:**
+
+The Signedness Checker now checks calls to `equals()` as well as to `==`.  When
+two formal parameter types are annotated with @PolySigned, the two arguments at
+a call site must have the same signedness type annotation. (This differs from
+the standard rule for polymorphic qualifiers.)
+
+**Implementation details:**
+
+When passed a NewClassTree that creates an anonymous constructor,
+AnnotatedTypeFactory#constructorFormUse now returns the type of the anonymous
+constructor rather than the type of the super constructor invoked in the
+anonymous classes constructor.  If the super constructor has explicit
+annotations, they are copied to the anonymous classes constructor.
+
+**Closed issues:**
+#5113.
+
+
+Version 3.21.4-eisop1 (April 4, 2022)
+-------------------------------------
+
+**Closed issues:**
+eisop#199, eisop#204.
+
+
+Version 3.21.4 (April 1, 2022)
+------------------------------
+
+**Closed issues:**
+#5086.
+
+
+Version 3.21.3-eisop1 (March 23, 2022)
 --------------------------------------
+
+**User-visible changes:**
+
+If you supply the new `-AjspecifyNullMarkedAlias=false` command-line
+option, then the Nullness Checker will not treat
+`org.jspecify.nullness.NullMarked` as a defaulting annotation.
+By default the `NullMarked` annotation continues to be recognized.
+
+**Implementation details:**
+
+Changed `AnnotatedTypeFactory.initializeAtm` from public to package
+private visibility. Nobody outside the package should call this method.
+
+Changed `CFAbstractTransfer.insertIntoStores` from public to protected
+visibility. It is only meant as a utility method for use within a
+transfer function.
+
+Deprecated class `StringConcatenateAssignmentNode` and its usages.
+String concatenate assignments are now desugared to an assignment and
+a concatenation node instead.
+This avoids error prone duplication of logic.
+
+**Closed issues:**
+typetools#5075.
+
+
+Version 3.21.3 (March 1, 2022)
+------------------------------
+
+**Closed issues:**
+#2847, #4965, #5039, #5042, #5047.
+
+
+Version 3.21.2-eisop1 (February 2, 2022)
+----------------------------------------
+
+**User-visible changes:**
+
+Improved support for `NullMarked` default annotation.
+
+`DefaultQualifier` supports the new `applyToSubpackages` annotation attribute
+to decide whether a default should also apply to subpackages. To preserve the
+current behavior the default is `true`.
+
+**Implementation details:**
+
+Moved files AnnotationFormatter.java and DefaultAnnotationFormatter.java from
+javacutil/src/main/java/org/checkerframework/javacutil/ to
+framework/src/main/java/org/checkerframework/framework/util/.
+typetools PR 3821 incorrectly moved these files, without adapting their
+packages, leading to framework classes in javacutil.
+The AnnotationFormatter depends on the InvisibleQualifier framework
+annotation, so should be in that project.
+Added additional toStringSimple methods to AnnotationUtils to format
+AnnotationMirrors without depending on the framework project.
+
+AnnotatedTypeFactory: removed field `artificialTreeToEnclosingElementMap` and
+final methods `getEnclosingElementForArtificialTree` and
+`setEnclosingElementForArtificialTree`. The new final method
+`setPathForArtificialTree` is used by `CFCFGBuilder` to update the mapping. Now
+all trees, including artificial trees, have a correct path and enclosing
+element.
+
+Dataflow Framework: new `ExpressionStatementNode` marks an expression that is
+used as a statement.
+
+To correctly handle ternary expressions, support synthetic AssignmentNodes that
+do not merge stores. These synthetic assignments are used for the assignments
+to the synthetic variables in a ternary expression.
+(typetools PR #5000 48f2652bc8bf4801b2e750cd92325583939f2f52 added synthetic
+variables for ternary expressions to the CFG. This broke how the Nullness
+Checker handles ternary expressions, leading to false positives.)
+
+**Closed issues:**
+typetools#3281.
+
+
+Version 3.21.2 (February 1, 2022)
+---------------------------------
+
+**User-visible changes:**
+
+The `wpi.sh` script supports non-standard names for build system compile targets
+via the new `-c` command-line option.
+
+The Checker Framework now more precisely computes and checks the type of the
+pattern variable in a pattern match instanceof.
+
+**Implementation details:**
+
+Deprecated CFGLambda.getMethod{Name} in favor of getEnclosingMethod{Name}.
+
+**Closed issues:**
+#4615, #4993, #5006, #5007, #5008, #5013, #5016, #5021.
+
+
+Version 3.21.1 (January 7, 2022)
+--------------------------------
+
+**User-visible changes:**
+
+The Checker Framework Gradle Plugin now works incrementally:  if you change just
+one source file, then Gradle will recompile just that file rather than all
+files.
+
+**Closed issues:**
+#2401, #4994, #4995, #4996.
+
+
+Version 3.21.0 (December 17, 2021)
+----------------------------------
+
+**User-visible changes:**
+
+The Checker Framework now more precisely computes the type of a switch expression.
+
+**Implementation details:**
+
+The Dataflow Framework now analyzes switch expressions and switch statements
+that use the new `->` case syntax. To do so, a new node, SwitchExpressionNode,
+was added.
+
+**Closed issues:**
+#2373, #4934, #4977, #4979, #4987.
+
+
+Version 3.20.0 (December 6, 2021)
+---------------------------------
+
+**User-visible changes:**
+
+The Checker Framework now runs on code that contains switch expressions and
+switch statements that use the new `->` case syntax, but treats them
+conservatively. A future version will improve precision.
+
+**Implementation details:**
+
+The Dataflow Framework can be run on code that contains switch expressions and
+switch statements that use the new `->` case syntax, but it does not yet
+analyze the cases in a switch expression and it treats `->` as `:`. A future
+version will do so.
+
+Removed methods and classes that have been deprecated for more than one year:
+ * Old way of constructing qualifier hierarchies
+ * `@SuppressWarningsKeys`
+ * `RegularBlock.getContents()`
+ * `TestUtilities.testBooleanProperty()`
+ * `CFAbstractTransfer.getValueWithSameAnnotations()`
+
+**Closed issues:**
+#4911, #4948, #4965.
+
+
+Version 3.19.0-eisop1 (November 4, 2021)
+----------------------------------------
+
+**User-visible changes:**
+
+Avoid shading of string literals which broke some annotation aliasing.
+Add more nullness annotation aliases.
+
+**Implementation details:**
+
+Remove the unsound "BOTH-TO-THEN", "BOTH-TO-ELSE" logic from the Dataflow
+Framework.
+
+Small improvements and code-style clean-ups in the Dataflow Framework and
+in the core Checker Framework "framework" package.
+
+**Closed issues:**
+eisop#121, typetools#4923.
+
+
+Version 3.19.0 (November 1, 2021)
+---------------------------------
+
+**User-visible changes:**
+
+The Checker Framework runs under JDK 17 -- that is, it runs on a version 17 JVM.
+The Checker Framework also continues to run under JDK 8 and JDK 11.  New
+command-line argument `-ApermitUnsupportedJdkVersion` lets you run the Checker
+Framework on any JDK (version 8 or greater) without a warning about an
+unsupported JDK version.  The Checker Framework does not yet run on code that
+contains switch expressions.
+
+**Implementation details:**
+
+Removed `org.checkerframework.framework.type.VisitorState`
+Removed `AnnotatedTypeFactory#postTypeVarSubstitution`
+
+Deprecated methods in AnnotatedTypeFactory:
+* `getCurrentClassTree`
+* `getCurrentMethodReceiver`
+
+**Closed issues:**
+#4932, #4924, #4908, #3014.
+
+
+Version 3.18.1-eisop1 (October 7, 2021)
+---------------------------------------
+
+**User-visible changes:**
+
+Add more aliases for nullness annotations; fix manual formatting (#105).
+
+
+Version 3.18.1 (October 4, 2021)
+--------------------------------
+
+**Closed issues:**
+#4902 and #4903.
+
+
+Version 3.18.0-eisop1 (September 23, 2021)
+------------------------------------------
 
 The new `-AnoJreVersionCheck` command-line argument can be used to not get
 a warning about running the Checker Framework on an unsupported JRE version.
+
+JAR files are minimized to only include required classes.
 
 Temporarily remove support for "Whole Program Inference" - the -Ainfer option and
 related scripts.
@@ -17,12 +322,11 @@ Changes to `AnnotatedTypeMirror`:
 
 
 Version 3.18.0 (September 1, 2021)
--------------------------------
+----------------------------------
 
 **User-visible changes:**
 
 Java records are type-checked.  Thanks to Neil Brown.
-
 
 **Closed issues:**
 #4838, #4843, #4852, #4853, #4861, #4876, #4877, #4878, #4878, #4889, #4889.
@@ -4010,7 +4314,7 @@ Code Changes
     fixed generic and array handling of @ReadOnly
     fixed @RoMaybe resolution of receivers at method invocation
     fixed parsing of parenthesized trees and conditional trees
-    added initial support for for-enhanced loop
+    added initial support for enhanced-for loop
     fixed constructor behavior on @ReadOnly classes
     added checks for annotations on primitive types inside arrays
 

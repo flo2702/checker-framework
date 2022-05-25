@@ -2,7 +2,6 @@ package org.checkerframework.framework.type;
 
 import com.sun.tools.javac.code.Symbol.MethodSymbol;
 
-import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.dataflow.qual.SideEffectFree;
@@ -656,7 +655,7 @@ public abstract class AnnotatedTypeMirror {
     public boolean removeAnnotationByClass(Class<? extends Annotation> a) {
         AnnotationMirror anno = atypeFactory.getAnnotationByClass(annotations, a);
         if (anno != null) {
-            return annotations.remove(anno);
+            return this.removeAnnotation(anno);
         }
         return false;
     }
@@ -923,8 +922,8 @@ public abstract class AnnotatedTypeMirror {
             // does
             // this.
             Map<TypeVariable, AnnotatedTypeMirror> mapping = new HashMap<>(typeArgs.size());
-            for (AnnotatedTypeMirror typeArgs : result.getTypeArguments()) {
-                AnnotatedTypeVariable typeVar = (AnnotatedTypeVariable) typeArgs;
+            for (AnnotatedTypeMirror typeArg : result.getTypeArguments()) {
+                AnnotatedTypeVariable typeVar = (AnnotatedTypeVariable) typeArg;
                 mapping.put(typeVar.getUnderlyingType(), typeVar);
             }
             for (AnnotatedTypeMirror typeArg : result.getTypeArguments()) {
@@ -953,15 +952,26 @@ public abstract class AnnotatedTypeMirror {
         public void setTypeArguments(List<? extends AnnotatedTypeMirror> ts) {
             if (ts == null || ts.isEmpty()) {
                 typeArgs = Collections.emptyList();
-            } else {
-                if (isDeclaration()) {
-                    // TODO: check that all args are really declarations
-                    typeArgs = Collections.unmodifiableList(ts);
-                } else {
-                    List<AnnotatedTypeMirror> uses =
-                            CollectionsPlume.mapList(AnnotatedTypeMirror::asUse, ts);
-                    typeArgs = Collections.unmodifiableList(uses);
+            } else if (isDeclaration()) {
+                for (AnnotatedTypeMirror typeArg : ts) {
+                    if (typeArg.getKind() != TypeKind.TYPEVAR) {
+                        throw new BugInCF(
+                                "Type declaration must have type variables as type"
+                                        + " arguments. Found %s",
+                                typeArg);
+                    }
+                    if (!typeArg.isDeclaration()) {
+                        throw new BugInCF(
+                                "Type declarations must have type variables that are"
+                                        + " declarations. Found %s",
+                                typeArg);
+                    }
                 }
+                typeArgs = Collections.unmodifiableList(ts);
+            } else {
+                List<AnnotatedTypeMirror> uses =
+                        CollectionsPlume.mapList(AnnotatedTypeMirror::asUse, ts);
+                typeArgs = Collections.unmodifiableList(uses);
             }
         }
 
@@ -1085,8 +1095,7 @@ public abstract class AnnotatedTypeMirror {
          *
          * @param enclosingType the new enclosing type
          */
-        /*default-visibility*/ void setEnclosingType(
-                @Nullable AnnotatedDeclaredType enclosingType) {
+        /*package-private*/ void setEnclosingType(@Nullable AnnotatedDeclaredType enclosingType) {
             this.enclosingType = enclosingType;
         }
 
@@ -1151,7 +1160,7 @@ public abstract class AnnotatedTypeMirror {
          *
          * @param params the parameter types, excluding the receiver
          */
-        void setParameterTypes(List<? extends AnnotatedTypeMirror> params) {
+        /*package-private*/ void setParameterTypes(List<? extends AnnotatedTypeMirror> params) {
             paramTypes.clear();
             paramTypes.addAll(params);
         }
@@ -1178,7 +1187,7 @@ public abstract class AnnotatedTypeMirror {
          *
          * @param returnType the return type
          */
-        void setReturnType(AnnotatedTypeMirror returnType) {
+        /*package-private*/ void setReturnType(AnnotatedTypeMirror returnType) {
             this.returnType = returnType;
         }
 
@@ -1230,7 +1239,7 @@ public abstract class AnnotatedTypeMirror {
          *
          * @param receiverType the receiver type
          */
-        void setReceiverType(AnnotatedDeclaredType receiverType) {
+        /*package-private*/ void setReceiverType(AnnotatedDeclaredType receiverType) {
             this.receiverType = receiverType;
         }
 
@@ -1261,7 +1270,7 @@ public abstract class AnnotatedTypeMirror {
          *
          * @param thrownTypes the thrown types
          */
-        void setThrownTypes(List<? extends AnnotatedTypeMirror> thrownTypes) {
+        /*package-private*/ void setThrownTypes(List<? extends AnnotatedTypeMirror> thrownTypes) {
             this.throwsTypes.clear();
             this.throwsTypes.addAll(thrownTypes);
         }
@@ -1338,11 +1347,11 @@ public abstract class AnnotatedTypeMirror {
             return shallowCopy(true);
         }
 
-        public @NonNull ExecutableElement getElement() {
+        public ExecutableElement getElement() {
             return element;
         }
 
-        public void setElement(@NonNull ExecutableElement elem) {
+        public void setElement(ExecutableElement elem) {
             this.element = elem;
         }
 
@@ -1513,6 +1522,18 @@ public abstract class AnnotatedTypeMirror {
             fixupBoundAnnotations();
         }
 
+        @Override
+        public boolean removeAnnotation(AnnotationMirror a) {
+            boolean ret = super.removeAnnotation(a);
+            if (lowerBound != null) {
+                ret |= lowerBound.removeAnnotation(a);
+            }
+            if (upperBound != null) {
+                ret |= upperBound.removeAnnotation(a);
+            }
+            return ret;
+        }
+
         /**
          * Change whether this {@code AnnotatedTypeVariable} is considered a use or a declaration
          * (use this method with caution).
@@ -1561,7 +1582,7 @@ public abstract class AnnotatedTypeMirror {
          *
          * @param type the lower bound type
          */
-        void setLowerBound(AnnotatedTypeMirror type) {
+        /*package-private*/ void setLowerBound(AnnotatedTypeMirror type) {
             checkBound("Lower", type, this);
             this.lowerBound = type;
             fixupBoundAnnotations();
@@ -1628,7 +1649,7 @@ public abstract class AnnotatedTypeMirror {
          *
          * @param type the upper bound type
          */
-        void setUpperBound(AnnotatedTypeMirror type) {
+        /*package-private*/ void setUpperBound(AnnotatedTypeMirror type) {
             checkBound("Upper", type, this);
             this.upperBound = type;
             fixupBoundAnnotations();
@@ -1904,12 +1925,24 @@ public abstract class AnnotatedTypeMirror {
             fixupBoundAnnotations();
         }
 
+        @Override
+        public boolean removeAnnotation(AnnotationMirror a) {
+            boolean ret = super.removeAnnotation(a);
+            if (superBound != null) {
+                ret |= superBound.removeAnnotation(a);
+            }
+            if (extendsBound != null) {
+                ret |= extendsBound.removeAnnotation(a);
+            }
+            return ret;
+        }
+
         /**
          * Sets the super bound of this wildcard.
          *
          * @param type the type of the lower bound
          */
-        void setSuperBound(AnnotatedTypeMirror type) {
+        /*package-private*/ void setSuperBound(AnnotatedTypeMirror type) {
             checkBound("Super", type, this);
             this.superBound = type;
             fixupBoundAnnotations();
@@ -1938,7 +1971,7 @@ public abstract class AnnotatedTypeMirror {
          *
          * @param type the type of the upper bound
          */
-        void setExtendsBound(AnnotatedTypeMirror type) {
+        /*package-private*/ void setExtendsBound(AnnotatedTypeMirror type) {
             checkBound("Extends", type, this);
             this.extendsBound = type;
             fixupBoundAnnotations();
@@ -1978,7 +2011,7 @@ public abstract class AnnotatedTypeMirror {
          * Sets type variable to which this wildcard is an argument. This method should only be
          * called during initialization of the type.
          */
-        void setTypeVariable(TypeParameterElement typeParameterElement) {
+        /*package-private*/ void setTypeVariable(TypeParameterElement typeParameterElement) {
             this.typeVariable = (TypeVariable) typeParameterElement.asType();
         }
 
@@ -1986,7 +2019,7 @@ public abstract class AnnotatedTypeMirror {
          * Sets type variable to which this wildcard is an argument. This method should only be
          * called during initialization of the type.
          */
-        void setTypeVariable(TypeVariable typeVariable) {
+        /*package-private*/ void setTypeVariable(TypeVariable typeVariable) {
             this.typeVariable = typeVariable;
         }
 
@@ -2110,6 +2143,17 @@ public abstract class AnnotatedTypeMirror {
             fixupBoundAnnotations();
         }
 
+        @Override
+        public boolean removeAnnotation(AnnotationMirror a) {
+            boolean ret = super.removeAnnotation(a);
+            if (bounds != null) {
+                for (AnnotatedTypeMirror bound : bounds) {
+                    ret |= bound.removeAnnotation(a);
+                }
+            }
+            return ret;
+        }
+
         /**
          * Copies {@link #annotations} to all the bounds, replacing any existing annotations in the
          * same hierarchy.
@@ -2119,9 +2163,7 @@ public abstract class AnnotatedTypeMirror {
                 Set<AnnotationMirror> newAnnos = this.getAnnotationsField();
                 if (bounds != null) {
                     for (AnnotatedTypeMirror bound : bounds) {
-                        if (bound.getKind() != TypeKind.TYPEVAR) {
-                            bound.replaceAnnotations(newAnnos);
-                        }
+                        bound.replaceAnnotations(newAnnos);
                     }
                 }
             }

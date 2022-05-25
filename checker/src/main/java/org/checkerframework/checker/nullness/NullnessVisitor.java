@@ -384,13 +384,16 @@ public class NullnessVisitor
         // the CFGBuilder will have generated one branch for which asserts are assumed to be
         // enabled.
 
-        boolean doVisitAssert = true;
+        boolean doVisitAssert;
 
         if (checker.hasOption("assumeAssertionsAreEnabled")
                 || CFCFGBuilder.assumeAssertionsActivatedForAssertTree(checker, node)) {
             doVisitAssert = true;
         } else if (checker.hasOption("assumeAssertionsAreDisabled")) {
             doVisitAssert = false;
+        } else {
+            // no option given -> visit
+            doVisitAssert = true;
         }
 
         if (doVisitAssert) {
@@ -408,20 +411,21 @@ public class NullnessVisitor
     }
 
     @Override
-    public Void visitInstanceOf(InstanceOfTree node, Void p) {
+    public Void visitInstanceOf(InstanceOfTree tree, Void p) {
         // The "reference type" is the type after "instanceof".
-        Tree refTypeTree = node.getType();
+        Tree refTypeTree = tree.getType();
         if (refTypeTree.getKind() == Tree.Kind.ANNOTATED_TYPE) {
             List<? extends AnnotationMirror> annotations =
                     TreeUtils.annotationsFromTree((AnnotatedTypeTree) refTypeTree);
             if (AnnotationUtils.containsSame(annotations, NULLABLE)) {
-                checker.reportError(node, "instanceof.nullable");
+                checker.reportError(tree, "instanceof.nullable");
             }
             if (AnnotationUtils.containsSame(annotations, NONNULL)) {
-                checker.reportWarning(node, "instanceof.nonnull.redundant");
+                checker.reportWarning(tree, "instanceof.nonnull.redundant");
             }
         }
-        return super.visitInstanceOf(node, p);
+        // Don't call super because it will issue an incorrect instanceof.unsafe warning.
+        return null;
     }
 
     /**
