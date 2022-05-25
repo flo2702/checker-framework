@@ -48,9 +48,6 @@ public abstract class Node implements UniqueId {
     /** Is this node an l-value? */
     protected boolean lvalue = false;
 
-    /** The assignment context of this node. See {@link AssignmentContext}. */
-    protected @Nullable AssignmentContext assignmentContext;
-
     /**
      * Does this node represent a tree that appears in the source code (true) or one that the CFG
      * builder added while desugaring (false).
@@ -64,9 +61,11 @@ public abstract class Node implements UniqueId {
     protected final TypeMirror type;
 
     /** The unique ID for the next-created object. */
-    static final AtomicLong nextUid = new AtomicLong(0);
+    private static final AtomicLong nextUid = new AtomicLong(0);
+
     /** The unique ID of this object. */
-    final long uid = nextUid.getAndIncrement();
+    private final long uid = nextUid.getAndIncrement();
+
     /**
      * Returns the unique ID of this object.
      *
@@ -149,15 +148,6 @@ public abstract class Node implements UniqueId {
 
     public void setInSource(boolean inSrc) {
         inSource = inSrc;
-    }
-
-    /** The assignment context for the node. */
-    public @Nullable AssignmentContext getAssignmentContext() {
-        return assignmentContext;
-    }
-
-    public void setAssignmentContext(AssignmentContext assignmentContext) {
-        this.assignmentContext = assignmentContext;
     }
 
     /**

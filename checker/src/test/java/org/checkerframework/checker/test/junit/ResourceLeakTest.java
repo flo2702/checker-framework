@@ -14,8 +14,7 @@ public class ResourceLeakTest extends CheckerFrameworkPerDirectoryTest {
                 testFiles,
                 ResourceLeakChecker.class,
                 "resourceleak",
-                "-Anomsgtext",
-                "-nowarn",
+                "-AwarnUnneededSuppressions",
                 "-encoding",
                 "UTF-8");
     }

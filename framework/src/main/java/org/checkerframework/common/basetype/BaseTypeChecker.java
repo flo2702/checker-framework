@@ -576,7 +576,7 @@ public abstract class BaseTypeChecker extends SourceChecker {
     }
 
     /** A cache for {@link #getUltimateParentChecker}. */
-    @MonotonicNonNull BaseTypeChecker ultimateParentChecker;
+    private @MonotonicNonNull BaseTypeChecker ultimateParentChecker;
 
     /**
      * Finds the ultimate parent checker of this checker. The ultimate parent checker is the checker
@@ -841,7 +841,7 @@ public abstract class BaseTypeChecker extends SourceChecker {
      * Like {@link #getOptions}, but only includes options provided to this checker. Does not
      * include those passed to subcheckers.
      *
-     * @return the the active options for this checker, not including those passed to subcheckers
+     * @return the active options for this checker, not including those passed to subcheckers
      */
     public Map<String, String> getOptionsNoSubcheckers() {
         return super.getOptions();

@@ -27,6 +27,7 @@ import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.Pair;
+import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
 import org.plumelib.util.CollectionsPlume;
 import org.plumelib.util.StringsPlume;
@@ -47,6 +48,7 @@ import java.util.Set;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.TypeParameterElement;
@@ -455,9 +457,19 @@ public class AnnotatedTypes {
                         memberType);
             case INTERSECTION:
                 AnnotatedTypeMirror result = memberType;
+                TypeMirror enclosingElementType = member.getEnclosingElement().asType();
                 for (AnnotatedTypeMirror bound :
                         ((AnnotatedIntersectionType) receiverType).getBounds()) {
-                    result = substituteTypeVariables(types, atypeFactory, bound, member, result);
+                    if (TypesUtils.isErasedSubtype(
+                            bound.getUnderlyingType(), enclosingElementType, types)) {
+                        result =
+                                substituteTypeVariables(
+                                        types,
+                                        atypeFactory,
+                                        atypeFactory.applyCaptureConversion(bound),
+                                        member,
+                                        result);
+                    }
                 }
                 return result;
             case UNION:
@@ -521,6 +533,7 @@ public class AnnotatedTypes {
         AnnotatedDeclaredType enclosingType = atypeFactory.getAnnotatedType(enclosingClassOfElem);
         AnnotatedDeclaredType base =
                 (AnnotatedDeclaredType) asOuterSuper(types, atypeFactory, t, enclosingType);
+        base = (AnnotatedDeclaredType) atypeFactory.applyCaptureConversion(base);
 
         final List<AnnotatedTypeVariable> ownerParams =
                 new ArrayList<>(enclosingType.getTypeArguments().size());
@@ -656,7 +669,8 @@ public class AnnotatedTypes {
         Map<AnnotatedDeclaredType, ExecutableElement> overrides = new LinkedHashMap<>();
 
         for (AnnotatedDeclaredType supertype : supertypes) {
-            @Nullable TypeElement superElement = (TypeElement) supertype.getUnderlyingType().asElement();
+            @Nullable TypeElement superElement =
+                    (TypeElement) supertype.getUnderlyingType().asElement();
             assert superElement != null;
             // For all method in the supertype, add it to the set if
             // it overrides the given method.
@@ -698,7 +712,7 @@ public class AnnotatedTypes {
 
         // Is the method a generic method?
         if (elt.getTypeParameters().isEmpty()) {
-            return Collections.emptyMap();
+            return new HashMap<>();
         }
 
         List<? extends Tree> targs;
@@ -947,12 +961,60 @@ public class AnnotatedTypes {
      * @param method the method's type
      * @param args the arguments to the method invocation
      * @return the types that the method invocation arguments need to be subtype of
+     * @deprecated Use {@link #adaptParameters(AnnotatedTypeFactory,
+     *     AnnotatedTypeMirror.AnnotatedExecutableType, List)} instead
      */
+    @Deprecated
     public static List<AnnotatedTypeMirror> expandVarArgsParameters(
             AnnotatedTypeFactory atypeFactory,
             AnnotatedExecutableType method,
             List<? extends ExpressionTree> args) {
+        return adaptParameters(atypeFactory, method, args);
+    }
+
+    /**
+     * Returns the method parameters for the invoked method (or constructor), with the same number
+     * of arguments as passed to the invocation tree.
+     *
+     * <p>This expands the parameters if the call uses varargs or contracts the parameters if the
+     * call is to an anonymous class that extends a class with an enclosing type. If the call is
+     * neither of these, then the parameters are returned unchanged.
+     *
+     * @param atypeFactory the type factory to use for fetching annotated types
+     * @param method the method or constructor's type
+     * @param args the arguments to the method or constructor invocation
+     * @return a list of the types that the invocation arguments need to be subtype of; has the same
+     *     length as {@code args}
+     */
+    public static List<AnnotatedTypeMirror> adaptParameters(
+            AnnotatedTypeFactory atypeFactory,
+            AnnotatedExecutableType method,
+            List<? extends ExpressionTree> args) {
         List<AnnotatedTypeMirror> parameters = method.getParameterTypes();
+
+        // Handle anonymous constructors that extend a class with an enclosing type.
+        if (method.getElement().getKind() == ElementKind.CONSTRUCTOR
+                && method.getElement().getEnclosingElement().getSimpleName().contentEquals("")) {
+            DeclaredType t =
+                    TypesUtils.getSuperClassOrInterface(
+                            method.getElement().getEnclosingElement().asType(), atypeFactory.types);
+            if (t.getEnclosingType() != null) {
+                if (args.isEmpty() && !parameters.isEmpty()) {
+                    parameters = parameters.subList(1, parameters.size());
+                } else if (!parameters.isEmpty()) {
+                    if (atypeFactory.types.isSameType(
+                            t.getEnclosingType(), parameters.get(0).getUnderlyingType())) {
+                        if (!atypeFactory.types.isSameType(
+                                TreeUtils.typeOf(args.get(0)),
+                                parameters.get(0).getUnderlyingType())) {
+                            parameters = parameters.subList(1, parameters.size());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Handle vararg methods.
         if (!method.getElement().isVarArgs()) {
             return parameters;
         }
@@ -1047,10 +1109,13 @@ public class AnnotatedTypes {
      * Return a list of the AnnotatedTypeMirror of the passed expression trees, in the same order as
      * the trees.
      *
+     * @param atypeFactory a type factory
      * @param paramTypes the parameter types to use as assignment context
      * @param trees the AST nodes
      * @return a list with the AnnotatedTypeMirror of each tree in trees
+     * @deprecated use CollectionsPlume.mapList(atypeFactory::getAnnotatedType, trees) instead.
      */
+    @Deprecated // 2021-11-01
     public static List<AnnotatedTypeMirror> getAnnotatedTypes(
             AnnotatedTypeFactory atypeFactory,
             List<AnnotatedTypeMirror> paramTypes,
@@ -1063,21 +1128,8 @@ public class AnnotatedTypes {
                             + " Arguments: "
                             + trees);
         }
-        Pair<Tree, AnnotatedTypeMirror> preAssignmentContext =
-                atypeFactory.getVisitorState().getAssignmentContext();
 
-        List<AnnotatedTypeMirror> types = new ArrayList<>();
-        try {
-            for (int i = 0; i < trees.size(); ++i) {
-                AnnotatedTypeMirror param = paramTypes.get(i);
-                atypeFactory.getVisitorState().setAssignmentContext(Pair.of((Tree) null, param));
-                ExpressionTree arg = trees.get(i);
-                types.add(atypeFactory.getAnnotatedType(arg));
-            }
-        } finally {
-            atypeFactory.getVisitorState().setAssignmentContext(preAssignmentContext);
-        }
-        return types;
+        return CollectionsPlume.mapList(atypeFactory::getAnnotatedType, trees);
     }
 
     /**

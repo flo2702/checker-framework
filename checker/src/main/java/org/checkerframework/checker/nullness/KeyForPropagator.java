@@ -1,7 +1,6 @@
 package org.checkerframework.checker.nullness;
 
 import com.sun.source.tree.NewClassTree;
-import com.sun.source.tree.Tree;
 import com.sun.source.util.TreePath;
 
 import org.checkerframework.checker.nullness.qual.UnknownKeyFor;
@@ -12,6 +11,7 @@ import org.checkerframework.framework.type.AnnotatedTypeReplacer;
 import org.checkerframework.framework.util.TypeArgumentMapper;
 import org.checkerframework.framework.util.typeinference.TypeArgInferenceUtil;
 import org.checkerframework.javacutil.Pair;
+import org.checkerframework.javacutil.TreeUtils;
 
 import java.util.List;
 import java.util.Set;
@@ -29,7 +29,7 @@ import javax.lang.model.util.Types;
  * @see org.checkerframework.checker.nullness.KeyForPropagationTreeAnnotator
  */
 public class KeyForPropagator {
-    public static enum PropagationDirection {
+    public enum PropagationDirection {
         // transfer FROM the super type to the subtype
         TO_SUBTYPE,
 
@@ -161,9 +161,7 @@ public class KeyForPropagator {
             NewClassTree newClassTree,
             AnnotatedTypeMirror type,
             KeyForAnnotatedTypeFactory atypeFactory) {
-        Pair<Tree, AnnotatedTypeMirror> context =
-                atypeFactory.getVisitorState().getAssignmentContext();
-        if (type.getKind() != TypeKind.DECLARED || context == null || context.first == null) {
+        if (type.getKind() != TypeKind.DECLARED || TreeUtils.isDiamondTree(newClassTree)) {
             return;
         }
         TreePath path = atypeFactory.getPath(newClassTree);

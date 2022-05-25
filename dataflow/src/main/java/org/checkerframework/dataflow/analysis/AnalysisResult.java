@@ -1,13 +1,12 @@
 package org.checkerframework.dataflow.analysis;
 
+import com.sun.source.tree.BinaryTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.UnaryTree;
 
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.cfg.block.Block;
-import org.checkerframework.dataflow.cfg.block.ExceptionBlock;
-import org.checkerframework.dataflow.cfg.node.AssignmentNode;
 import org.checkerframework.dataflow.cfg.node.Node;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.TreeUtils;
@@ -15,6 +14,7 @@ import org.plumelib.util.UniqueId;
 
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
@@ -43,8 +43,11 @@ public class AnalysisResult<V extends AbstractValue<V>, S extends Store<S>> impl
      */
     protected final IdentityHashMap<Tree, Set<Node>> treeLookup;
 
-    /** Map from AST {@link UnaryTree}s to corresponding {@link AssignmentNode}s. */
-    protected final IdentityHashMap<UnaryTree, AssignmentNode> unaryAssignNodeLookup;
+    /**
+     * Map from postfix increment or decrement trees that are AST {@link UnaryTree}s to the
+     * synthetic tree that is {@code v + 1} or {@code v - 1}.
+     */
+    protected final IdentityHashMap<UnaryTree, BinaryTree> postfixLookup;
 
     /** Map from (effectively final) local variable elements to their abstract value. */
     protected final HashMap<Element, V> finalLocalValues;
@@ -61,9 +64,10 @@ public class AnalysisResult<V extends AbstractValue<V>, S extends Store<S>> impl
             analysisCaches;
 
     /** The unique ID for the next-created object. */
-    static final AtomicLong nextUid = new AtomicLong(0);
+    private static final AtomicLong nextUid = new AtomicLong(0);
+
     /** The unique ID of this object. */
-    final transient long uid = nextUid.getAndIncrement();
+    private final transient long uid = nextUid.getAndIncrement();
 
     @Override
     public long getUid(@UnknownInitialization AnalysisResult<V, S> this) {
@@ -76,7 +80,7 @@ public class AnalysisResult<V extends AbstractValue<V>, S extends Store<S>> impl
      * @param nodeValues {@link #nodeValues}
      * @param stores {@link #stores}
      * @param treeLookup {@link #treeLookup}
-     * @param unaryAssignNodeLookup {@link #unaryAssignNodeLookup}
+     * @param postfixLookup {@link #postfixLookup}
      * @param finalLocalValues {@link #finalLocalValues}
      * @param analysisCaches {@link #analysisCaches}
      */
@@ -84,12 +88,12 @@ public class AnalysisResult<V extends AbstractValue<V>, S extends Store<S>> impl
             IdentityHashMap<Node, V> nodeValues,
             IdentityHashMap<Block, TransferInput<V, S>> stores,
             IdentityHashMap<Tree, Set<Node>> treeLookup,
-            IdentityHashMap<UnaryTree, AssignmentNode> unaryAssignNodeLookup,
+            IdentityHashMap<UnaryTree, BinaryTree> postfixLookup,
             HashMap<Element, V> finalLocalValues,
             Map<TransferInput<V, S>, IdentityHashMap<Node, TransferResult<V, S>>> analysisCaches) {
         this.nodeValues = new IdentityHashMap<>(nodeValues);
         this.treeLookup = new IdentityHashMap<>(treeLookup);
-        this.unaryAssignNodeLookup = new IdentityHashMap<>(unaryAssignNodeLookup);
+        this.postfixLookup = new IdentityHashMap<>(postfixLookup);
         // TODO: why are stores and finalLocalValues captured?
         this.stores = stores;
         this.finalLocalValues = finalLocalValues;
@@ -102,20 +106,20 @@ public class AnalysisResult<V extends AbstractValue<V>, S extends Store<S>> impl
      * @param nodeValues {@link #nodeValues}
      * @param stores {@link #stores}
      * @param treeLookup {@link #treeLookup}
-     * @param unaryAssignNodeLookup {@link #unaryAssignNodeLookup}
+     * @param postfixLookup {@link #postfixLookup}
      * @param finalLocalValues {@link #finalLocalValues}
      */
     public AnalysisResult(
             IdentityHashMap<Node, V> nodeValues,
             IdentityHashMap<Block, TransferInput<V, S>> stores,
             IdentityHashMap<Tree, Set<Node>> treeLookup,
-            IdentityHashMap<UnaryTree, AssignmentNode> unaryAssignNodeLookup,
+            IdentityHashMap<UnaryTree, BinaryTree> postfixLookup,
             HashMap<Element, V> finalLocalValues) {
         this(
                 nodeValues,
                 stores,
                 treeLookup,
-                unaryAssignNodeLookup,
+                postfixLookup,
                 finalLocalValues,
                 new IdentityHashMap<>());
     }
@@ -144,7 +148,7 @@ public class AnalysisResult<V extends AbstractValue<V>, S extends Store<S>> impl
     public void combine(AnalysisResult<V, S> other) {
         nodeValues.putAll(other.nodeValues);
         mergeTreeLookup(treeLookup, other.treeLookup);
-        unaryAssignNodeLookup.putAll(other.unaryAssignNodeLookup);
+        postfixLookup.putAll(other.postfixLookup);
         stores.putAll(other.stores);
         finalLocalValues.putAll(other.finalLocalValues);
     }
@@ -242,16 +246,18 @@ public class AnalysisResult<V extends AbstractValue<V>, S extends Store<S>> impl
     }
 
     /**
-     * Returns the corresponding {@link AssignmentNode} for a given {@link UnaryTree}.
+     * Returns the synthetic {@code v + 1} or {@code v - 1} corresponding to the postfix increment
+     * or decrement tree.
      *
-     * @param tree a unary tree
-     * @return the corresponding assignment node
+     * @param postfixTree a postfix increment or decrement tree
+     * @return the synthetic {@code v + 1} or {@code v - 1} corresponding to the postfix increment
+     *     or decrement tree
      */
-    public AssignmentNode getAssignForUnaryTree(UnaryTree tree) {
-        if (!unaryAssignNodeLookup.containsKey(tree)) {
-            throw new BugInCF(tree + " is not in unaryAssignNodeLookup");
+    public BinaryTree getPostfixBinaryTree(UnaryTree postfixTree) {
+        if (!postfixLookup.containsKey(postfixTree)) {
+            throw new BugInCF(postfixTree + " is not in postfixLookup");
         }
-        return unaryAssignNodeLookup.get(tree);
+        return postfixLookup.get(postfixTree);
     }
 
     /**
@@ -302,27 +308,19 @@ public class AnalysisResult<V extends AbstractValue<V>, S extends Store<S>> impl
             case FORWARD:
                 return transferInput.getRegularStore();
             case BACKWARD:
-                Node firstNode;
-                switch (block.getType()) {
-                    case REGULAR_BLOCK:
-                        firstNode = block.getNodes().get(0);
-                        break;
-                    case EXCEPTION_BLOCK:
-                        firstNode = ((ExceptionBlock) block).getNode();
-                        break;
-                    default:
-                        firstNode = null;
-                }
-                if (firstNode == null) {
-                    // This block doesn't contains any node, return the store in the transfer input
+                List<Node> nodes = block.getNodes();
+                if (nodes.isEmpty()) {
+                    // This block doesn't contain any node, return the store in the transfer input
                     return transferInput.getRegularStore();
+                } else {
+                    Node firstNode = nodes.get(0);
+                    return analysis.runAnalysisFor(
+                            firstNode,
+                            Analysis.BeforeOrAfter.BEFORE,
+                            transferInput,
+                            nodeValues,
+                            analysisCaches);
                 }
-                return analysis.runAnalysisFor(
-                        firstNode,
-                        Analysis.BeforeOrAfter.BEFORE,
-                        transferInput,
-                        nodeValues,
-                        analysisCaches);
             default:
                 throw new BugInCF("Unknown direction: " + analysis.getDirection());
         }
@@ -345,13 +343,14 @@ public class AnalysisResult<V extends AbstractValue<V>, S extends Store<S>> impl
                 if (lastNode == null) {
                     // This block doesn't contain any node, return the store in the transfer input
                     return transferInput.getRegularStore();
+                } else {
+                    return analysis.runAnalysisFor(
+                            lastNode,
+                            Analysis.BeforeOrAfter.AFTER,
+                            transferInput,
+                            nodeValues,
+                            analysisCaches);
                 }
-                return analysis.runAnalysisFor(
-                        lastNode,
-                        Analysis.BeforeOrAfter.AFTER,
-                        transferInput,
-                        nodeValues,
-                        analysisCaches);
             case BACKWARD:
                 return transferInput.getRegularStore();
             default:
@@ -463,7 +462,7 @@ public class AnalysisResult<V extends AbstractValue<V>, S extends Store<S>> impl
                         String.format("%n}"));
         result.add("nodeValues = " + nodeValuesToString(nodeValues));
         result.add("treeLookup = " + treeLookupToString(treeLookup));
-        result.add("unaryAssignNodeLookup = " + unaryAssignNodeLookup);
+        result.add("postfixLookup = " + postfixLookup);
         result.add("finalLocalValues = " + finalLocalValues);
         result.add("stores = " + stores);
         result.add("analysisCaches = " + analysisCaches);

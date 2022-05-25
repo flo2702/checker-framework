@@ -228,6 +228,10 @@ import javax.tools.Diagnostic.Kind;
     // java.lang.String)
     "requirePrefixInWarningSuppressions",
 
+    // Permit running under JDKs other than those the Checker Framework officially supports.
+    // Also see "noJreVersionCheck" option.
+    "permitUnsupportedJdkVersion",
+
     // Ignore annotations in bytecode that have invalid annotation locations.
     // See https://github.com/typetools/checker-framework/issues/2173
     // org.checkerframework.framework.type.ElementAnnotationApplier.apply
@@ -298,6 +302,7 @@ import javax.tools.Diagnostic.Kind;
     "nomsgtext",
 
     // Do not perform a JRE version check.
+    // Also see "permitUnsupportedJdkVersion" option.
     "noJreVersionCheck",
 
     /// Format of messages
@@ -382,6 +387,12 @@ import javax.tools.Diagnostic.Kind;
 
     // Sets AnnotatedTypeFactory shouldCache to false
     "atfDoNotCache",
+
+    /// Language Server Protocol(LSP) Support
+
+    // Output detailed type information for nodes in AST
+    // org.checkerframework.framework.type.AnnotatedTypeFactory
+    "lspTypeInfo",
 
     /// Miscellaneous debugging options
 
@@ -543,10 +554,10 @@ public abstract class SourceChecker extends AbstractTypeProcessor implements Opt
         if (!hasOption("noJreVersionCheck")
                 && jreVersion != 8
                 && jreVersion != 11
-                && jreVersion != 16) {
+                && jreVersion != 17) {
             message(
-                    Kind.WARNING,
-                    "Use JDK 8, 11, or 16 to run the Checker Framework.  You are using version %d.",
+                    (hasOption("permitUnsupportedJdkVersion") ? Kind.NOTE : Kind.WARNING),
+                    "Use JDK 8, 11, or 17 to run the Checker Framework.  You are using version %d.",
                     jreVersion);
         }
 
@@ -1593,7 +1604,8 @@ public abstract class SourceChecker extends AbstractTypeProcessor implements Opt
 
     /** Compute the set of supported lint options. */
     protected Set<String> createSupportedLintOptions() {
-        @Nullable SupportedLintOptions sl = this.getClass().getAnnotation(SupportedLintOptions.class);
+        @Nullable SupportedLintOptions sl =
+                this.getClass().getAnnotation(SupportedLintOptions.class);
 
         if (sl == null) {
             return Collections.emptySet();
@@ -2033,7 +2045,7 @@ public abstract class SourceChecker extends AbstractTypeProcessor implements Opt
     /**
      * Determines whether all the warnings pertaining to a given tree should be suppressed. Returns
      * true if the tree is within the scope of a @SuppressWarnings annotation, one of whose values
-     * suppresses the checker's warnings. Also, returns true if the {@code errKey} matches a string
+     * suppresses the checker's warning. Also, returns true if the {@code errKey} matches a string
      * in {@code -AsuppressWarnings}.
      *
      * @param tree the tree that might be a source of a warning
@@ -2061,6 +2073,25 @@ public abstract class SourceChecker extends AbstractTypeProcessor implements Opt
 
         // trees.getPath might be slow, but this is only used in error reporting
         @Nullable TreePath path = trees.getPath(this.currentRoot, tree);
+
+        return shouldSuppressWarnings(path, errKey);
+    }
+
+    /**
+     * Determines whether all the warnings pertaining to a given tree path should be suppressed.
+     * Returns true if the path is within the scope of a @SuppressWarnings annotation, one of whose
+     * values suppresses the checker's warning.
+     *
+     * @param path the TreePath that might be a source of, or related to, a warning
+     * @param errKey the error key the checker is emitting
+     * @return true if no warning should be emitted for the given path because it is contained by a
+     *     declaration with an appropriately-valued {@code @SuppressWarnings} annotation; false
+     *     otherwise
+     */
+    public boolean shouldSuppressWarnings(@Nullable TreePath path, String errKey) {
+        if (path == null) {
+            return false;
+        }
 
         @Nullable VariableTree var = TreePathUtil.enclosingVariable(path);
         if (var != null && shouldSuppressWarnings(TreeUtils.elementFromTree(var), errKey)) {
@@ -2365,16 +2396,6 @@ public abstract class SourceChecker extends AbstractTypeProcessor implements Opt
                 this.getClass().getAnnotation(SuppressWarningsPrefix.class);
         if (prefixMetaAnno != null) {
             for (String prefix : prefixMetaAnno.value()) {
-                prefixes.add(prefix);
-            }
-            return prefixes;
-        }
-
-        @SuppressWarnings(
-                "deprecation") // SuppressWarningsKeys was renamed to SuppressWarningsPrefix
-        SuppressWarningsKeys annotation = this.getClass().getAnnotation(SuppressWarningsKeys.class);
-        if (annotation != null) {
-            for (String prefix : annotation.value()) {
                 prefixes.add(prefix);
             }
             return prefixes;

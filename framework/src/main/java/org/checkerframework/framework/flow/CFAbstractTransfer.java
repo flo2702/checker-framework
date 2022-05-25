@@ -23,6 +23,7 @@ import org.checkerframework.dataflow.cfg.node.CaseNode;
 import org.checkerframework.dataflow.cfg.node.ClassNameNode;
 import org.checkerframework.dataflow.cfg.node.ConditionalNotNode;
 import org.checkerframework.dataflow.cfg.node.EqualToNode;
+import org.checkerframework.dataflow.cfg.node.ExpressionStatementNode;
 import org.checkerframework.dataflow.cfg.node.FieldAccessNode;
 import org.checkerframework.dataflow.cfg.node.InstanceOfNode;
 import org.checkerframework.dataflow.cfg.node.LambdaResultExpressionNode;
@@ -33,8 +34,8 @@ import org.checkerframework.dataflow.cfg.node.Node;
 import org.checkerframework.dataflow.cfg.node.NotEqualNode;
 import org.checkerframework.dataflow.cfg.node.ObjectCreationNode;
 import org.checkerframework.dataflow.cfg.node.ReturnNode;
-import org.checkerframework.dataflow.cfg.node.StringConcatenateAssignmentNode;
 import org.checkerframework.dataflow.cfg.node.StringConversionNode;
+import org.checkerframework.dataflow.cfg.node.SwitchExpressionNode;
 import org.checkerframework.dataflow.cfg.node.TernaryExpressionNode;
 import org.checkerframework.dataflow.cfg.node.ThisNode;
 import org.checkerframework.dataflow.cfg.node.VariableDeclarationNode;
@@ -46,7 +47,6 @@ import org.checkerframework.dataflow.util.NodeUtils;
 import org.checkerframework.framework.flow.CFAbstractAnalysis.FieldInitialValue;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
-import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
 import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
 import org.checkerframework.framework.util.Contract;
 import org.checkerframework.framework.util.Contract.ConditionalPostcondition;
@@ -56,7 +56,6 @@ import org.checkerframework.framework.util.ContractsFromMethod;
 import org.checkerframework.framework.util.JavaExpressionParseUtil.JavaExpressionParseException;
 import org.checkerframework.framework.util.StringToJavaExpression;
 import org.checkerframework.javacutil.ElementUtils;
-import org.checkerframework.javacutil.Pair;
 import org.checkerframework.javacutil.TreePathUtil;
 import org.checkerframework.javacutil.TreeUtils;
 
@@ -73,7 +72,6 @@ import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
@@ -194,39 +192,7 @@ public abstract class CFAbstractTransfer<
         GenericAnnotatedTypeFactory<V, S, T, ? extends CFAbstractAnalysis<V, S, T>> factory =
                 analysis.atypeFactory;
         Tree preTree = analysis.getCurrentTree();
-        Pair<Tree, AnnotatedTypeMirror> preContext =
-                factory.getVisitorState().getAssignmentContext();
         analysis.setCurrentTree(tree);
-        // is there an assignment context node available?
-        if (node != null && node.getAssignmentContext() != null) {
-            // Get the declared type of the assignment context by looking up the assignment context
-            // tree's type in the factory while flow is disabled.
-            Tree contextTree = node.getAssignmentContext().getContextTree();
-            AnnotatedTypeMirror assignmentContext = null;
-            if (contextTree != null) {
-                assignmentContext = factory.getAnnotatedTypeLhs(contextTree);
-            } else {
-                Element assignmentContextElement = node.getAssignmentContext().getElementForType();
-                if (assignmentContextElement != null) {
-                    // if contextTree is null, use the element to get the type
-                    assignmentContext = factory.getAnnotatedType(assignmentContextElement);
-                }
-            }
-
-            if (assignmentContext != null) {
-                if (assignmentContext instanceof AnnotatedExecutableType) {
-                    // For a MethodReturnContext, we get the full type of the
-                    // method, but we only want the return type.
-                    assignmentContext =
-                            ((AnnotatedExecutableType) assignmentContext).getReturnType();
-                }
-                factory.getVisitorState()
-                        .setAssignmentContext(
-                                Pair.of(
-                                        node.getAssignmentContext().getContextTree(),
-                                        assignmentContext));
-            }
-        }
         AnnotatedTypeMirror at;
         if (node instanceof MethodInvocationNode
                 && ((MethodInvocationNode) node).getIterableExpression() != null) {
@@ -240,26 +206,7 @@ public abstract class CFAbstractTransfer<
             at = factory.getAnnotatedType(tree);
         }
         analysis.setCurrentTree(preTree);
-        factory.getVisitorState().setAssignmentContext(preContext);
         return analysis.createAbstractValue(at);
-    }
-
-    /**
-     * Returns an abstract value with the given {@code type} and the annotations from {@code
-     * annotatedValue}.
-     *
-     * @param type the type to return
-     * @param annotatedValue the annotations to return
-     * @return an abstract value with the given {@code type} and the annotations from {@code
-     *     annotatedValue}
-     * @deprecated use {@link #getWidenedValue} or {@link #getNarrowedValue}
-     */
-    @Deprecated // 2020-10-02
-    protected V getValueWithSameAnnotations(TypeMirror type, V annotatedValue) {
-        if (annotatedValue == null) {
-            return null;
-        }
-        return analysis.createAbstractValue(annotatedValue.getAnnotations(), type);
     }
 
     /** The fixed initial store. */
@@ -272,8 +219,7 @@ public abstract class CFAbstractTransfer<
 
     /** The initial store maps method formal parameters to their currently most refined type. */
     @Override
-    public S initialStore(
-            UnderlyingAST underlyingAST, @Nullable List<LocalVariableNode> parameters) {
+    public S initialStore(UnderlyingAST underlyingAST, List<LocalVariableNode> parameters) {
         if (underlyingAST.getKind() != UnderlyingAST.Kind.LAMBDA
                 && underlyingAST.getKind() != UnderlyingAST.Kind.METHOD) {
             if (fixedInitialStore != null) {
@@ -423,7 +369,8 @@ public abstract class CFAbstractTransfer<
     /**
      * Add field values to the initial store before {@code methodTree}.
      *
-     * <p>The initializer value is inserted into {@code store} if the field is private and final.
+     * <p>The initializer value is inserted into {@code store} if the field is final and the field
+     * type is immutable, as defined by {@link AnnotatedTypeFactory#isImmutable(TypeMirror)}.
      *
      * <p>The declared value is inserted into {@code store} if:
      *
@@ -439,32 +386,45 @@ public abstract class CFAbstractTransfer<
      * @param classTree the class that contains {@code methodTree}
      * @param methodTree the method or constructor tree
      */
+    // TODO: should field visibility matter? An access from outside the class might observe
+    // the declared type instead of a refined type. Issue a warning to alert users?
     private void addInitialFieldValues(S store, ClassTree classTree, MethodTree methodTree) {
         boolean isConstructor = TreeUtils.isConstructor(methodTree);
+        boolean isStaticMethod =
+                ElementUtils.isStatic(TreeUtils.elementFromDeclaration(methodTree));
         TypeElement classEle = TreeUtils.elementFromDeclaration(classTree);
         for (FieldInitialValue<V> fieldInitialValue : analysis.getFieldInitialValues()) {
             VariableElement varEle = fieldInitialValue.fieldDecl.getField();
+            boolean isStaticField = ElementUtils.isStatic(varEle);
+            if (isStaticMethod && !isStaticField) {
+                continue;
+            }
             // Insert the value from the initializer of private final fields.
             if (fieldInitialValue.initializer != null
-                    && varEle.getModifiers().contains(Modifier.PRIVATE)
+                    // && varEle.getModifiers().contains(Modifier.PRIVATE)
                     && ElementUtils.isFinal(varEle)
                     && analysis.atypeFactory.isImmutable(ElementUtils.getType(varEle))) {
                 store.insertValue(fieldInitialValue.fieldDecl, fieldInitialValue.initializer);
+                // The type from the initializer is always more specific than (or equal to) the
+                // declared type of the field.
+                // So, if there is an initializer, there is no point in inserting the declared type
+                // below.
+                continue;
             }
 
+            boolean isFieldOfCurrentClass = varEle.getEnclosingElement().equals(classEle);
             // Maybe insert the declared type:
             if (!isConstructor) {
                 // If it's not a constructor, use the declared type if the receiver of the method is
                 // fully initialized.
                 boolean isInitializedReceiver = !isNotFullyInitializedReceiver(methodTree);
-                if (isInitializedReceiver && varEle.getEnclosingElement().equals(classEle)) {
+                if (isInitializedReceiver && isFieldOfCurrentClass) {
                     store.insertValue(fieldInitialValue.fieldDecl, fieldInitialValue.declared);
                 }
             } else {
                 // If it is a constructor, then only use the declared type if the field has been
                 // initialized.
-                if (fieldInitialValue.initializer != null
-                        && varEle.getEnclosingElement().equals(classEle)) {
+                if (fieldInitialValue.initializer != null && isFieldOfCurrentClass) {
                     store.insertValue(fieldInitialValue.fieldDecl, fieldInitialValue.declared);
                 }
             }
@@ -719,6 +679,7 @@ public abstract class CFAbstractTransfer<
         TransferResult<V, S> result = super.visitTernaryExpression(n, p);
         S thenStore = result.getThenStore();
         S elseStore = result.getElseStore();
+
         V thenValue = p.getValueOfSubNode(n.getThenOperand());
         V elseValue = p.getValueOfSubNode(n.getElseOperand());
         V resultValue = null;
@@ -728,6 +689,12 @@ public abstract class CFAbstractTransfer<
         }
         V finishedValue = finishValue(resultValue, thenStore, elseStore);
         return new ConditionalTransferResult<>(finishedValue, thenStore, elseStore);
+    }
+
+    @Override
+    public TransferResult<V, S> visitSwitchExpressionNode(
+            SwitchExpressionNode n, TransferInput<V, S> vsTransferInput) {
+        return visitLocalVariable(n.getSwitchExpressionVar(), vsTransferInput);
     }
 
     /** Reverse the role of the 'thenStore' and 'elseStore'. */
@@ -871,7 +838,6 @@ public abstract class CFAbstractTransfer<
         Node lhs = n.getTarget();
         Node rhs = n.getExpression();
 
-        S store = in.getRegularStore();
         V rhsValue = in.getValueOfSubNode(rhs);
 
         /* NO-AFU
@@ -896,9 +862,20 @@ public abstract class CFAbstractTransfer<
                }
         */
 
-        processCommonAssignment(in, lhs, rhs, store, rhsValue);
-
-        return new RegularTransferResult<>(finishValue(rhsValue, store), store);
+        if (n.isSynthetic() && in.containsTwoStores()) {
+            // This is a synthetic assignment node created for a ternary expression. In this case
+            // the `then` and `else` store are not merged.
+            S thenStore = in.getThenStore();
+            S elseStore = in.getElseStore();
+            processCommonAssignment(in, lhs, rhs, thenStore, rhsValue);
+            processCommonAssignment(in, lhs, rhs, elseStore, rhsValue);
+            return new ConditionalTransferResult<>(
+                    finishValue(rhsValue, thenStore, elseStore), thenStore, elseStore);
+        } else {
+            S store = in.getRegularStore();
+            processCommonAssignment(in, lhs, rhs, store, rhsValue);
+            return new RegularTransferResult<>(finishValue(rhsValue, store), store);
+        }
     }
 
     @Override
@@ -945,8 +922,10 @@ public abstract class CFAbstractTransfer<
     }
 
     @Override
+    @Deprecated // 2022-03-22
     public TransferResult<V, S> visitStringConcatenateAssignment(
-            StringConcatenateAssignmentNode n, TransferInput<V, S> in) {
+            org.checkerframework.dataflow.cfg.node.StringConcatenateAssignmentNode n,
+            TransferInput<V, S> in) {
         // This gets the type of LHS + RHS
         TransferResult<V, S> result = super.visitStringConcatenateAssignment(n, in);
         Node lhs = n.getLeftOperand();
@@ -991,16 +970,19 @@ public abstract class CFAbstractTransfer<
     @Override
     public TransferResult<V, S> visitObjectCreation(ObjectCreationNode n, TransferInput<V, S> p) {
         /* NO-AFU
-               if (shouldPerformWholeProgramInference(n.getTree())) {
-                   ExecutableElement constructorElt =
-                           analysis.getTypeFactory()
-                                   .constructorFromUse(n.getTree())
-                                   .executableType
-                                   .getElement();
-                   analysis.atypeFactory
-                           .getWholeProgramInference()
-                           .updateFromObjectCreation(n, constructorElt, p.getRegularStore());
-               }
+        if (shouldPerformWholeProgramInference(n.getTree())) {
+          NewClassTree newClassTree = n.getTree();
+          // Can't infer annotations on an anonymous constructor, so use the super constructor.
+          ExecutableElement constructorElt = TreeUtils.getSuperConstructor(newClassTree);
+          if (newClassTree.getClassBody() == null || !TreeUtils.hasSyntheticArgument(newClassTree)) {
+            // TODO: WPI could be changed to handle the synthetic argument, but for now just don't infer
+            // annotations for those new class trees.
+            analysis
+                .atypeFactory
+                .getWholeProgramInference()
+                .updateFromObjectCreation(n, constructorElt, p.getRegularStore());
+          }
+        }
         */
         return super.visitObjectCreation(n, p);
     }
@@ -1065,6 +1047,15 @@ public abstract class CFAbstractTransfer<
                 return new RegularTransferResult<>(result.getResultValue(), in.getRegularStore());
             }
         }
+        // TODO: Should this be an else if?
+        if (node.getBindingVariable() != null) {
+            JavaExpression expr = JavaExpression.fromNode(node.getBindingVariable());
+            AnnotatedTypeMirror expType =
+                    analysis.atypeFactory.getAnnotatedType(node.getTree().getExpression());
+            for (AnnotationMirror anno : expType.getAnnotations()) {
+                in.getRegularStore().insertOrRefine(expr, anno);
+            }
+        }
         return result;
     }
 
@@ -1077,7 +1068,8 @@ public abstract class CFAbstractTransfer<
      */
     /* NO-AFU
     private boolean shouldPerformWholeProgramInference(Tree tree) {
-        return infer && (tree == null || !analysis.checker.shouldSuppressWarnings(tree, ""));
+      @Nullable TreePath path = this.analysis.atypeFactory.getPath(tree);
+      return infer && (tree == null || !analysis.checker.shouldSuppressWarnings(path, ""));
     }
     */
 
@@ -1219,20 +1211,26 @@ public abstract class CFAbstractTransfer<
         }
     }
 
-    /**
-     * A case produces no value, but it may imply some facts about the argument to the switch
-     * statement.
-     */
+    /** A case produces no value, but it may imply some facts about switch selector expression. */
     @Override
     public TransferResult<V, S> visitCase(CaseNode n, TransferInput<V, S> in) {
         S store = in.getRegularStore();
-        TransferResult<V, S> result =
-                new ConditionalTransferResult<>(
-                        finishValue(null, store), in.getThenStore(), in.getElseStore(), false);
-
+        TransferResult<V, S> lubResult = null;
+        // Case operands are the case constants. For example, A, B and C in case A, B, C:.
+        // This method refines the type of the selector expression and the synthetic variable that
+        // represents the selector expression to the type of the case constant if it is more
+        // precise.
+        // If there are multiple case constants then a new store is created for each case constant
+        // and then they are lubbed. This method returns the lubbed result.
         for (Node caseOperand : n.getCaseOperands()) {
+            TransferResult<V, S> result =
+                    new ConditionalTransferResult<>(
+                            finishValue(null, store),
+                            in.getThenStore().copy(),
+                            in.getElseStore().copy(),
+                            false);
             V caseValue = in.getValueOfSubNode(caseOperand);
-            AssignmentNode assign = (AssignmentNode) n.getSwitchOperand();
+            AssignmentNode assign = n.getSwitchOperand();
             V switchValue = store.getValue(JavaExpression.fromNode(assign.getTarget()));
             result =
                     strengthenAnnotationOfEqualTo(
@@ -1246,8 +1244,22 @@ public abstract class CFAbstractTransfer<
             result =
                     strengthenAnnotationOfEqualTo(
                             result, caseOperand, assign.getTarget(), caseValue, switchValue, false);
+
+            // Lub the result of one case label constant with the result of the others.
+            if (lubResult == null) {
+                lubResult = result;
+            } else {
+                S thenStore = lubResult.getThenStore().leastUpperBound(result.getThenStore());
+                S elseStore = lubResult.getElseStore().leastUpperBound(result.getElseStore());
+                lubResult =
+                        new ConditionalTransferResult<>(
+                                null,
+                                thenStore,
+                                elseStore,
+                                lubResult.storeChanged() || result.storeChanged());
+            }
         }
-        return result;
+        return lubResult;
     }
 
     /**
@@ -1363,6 +1375,14 @@ public abstract class CFAbstractTransfer<
         return result;
     }
 
+    @Override
+    public TransferResult<V, S> visitExpressionStatement(
+            ExpressionStatementNode n, TransferInput<V, S> vsTransferInput) {
+        // Merge the input
+        S info = vsTransferInput.getRegularStore();
+        return new RegularTransferResult<>(finishValue(null, info), info);
+    }
+
     /**
      * Inserts newAnno as the value into all stores (conditional or not) in the result for node.
      * This is a utility method for subclasses.
@@ -1371,7 +1391,7 @@ public abstract class CFAbstractTransfer<
      * @param target the receiver whose value should be modified
      * @param newAnno the new value
      */
-    public static void insertIntoStores(
+    protected static void insertIntoStores(
             TransferResult<CFValue, CFStore> result,
             JavaExpression target,
             AnnotationMirror newAnno) {

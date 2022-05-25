@@ -67,6 +67,7 @@ public interface NodeVisitor<R, P> {
     R visitBitwiseXor(BitwiseXorNode n, P p);
 
     // Compound assignments
+    @Deprecated // 2022-03-22
     R visitStringConcatenateAssignment(StringConcatenateAssignmentNode n, P p);
 
     // Comparison operations
@@ -90,6 +91,8 @@ public interface NodeVisitor<R, P> {
     R visitConditionalNot(ConditionalNotNode n, P p);
 
     R visitTernaryExpression(TernaryExpressionNode n, P p);
+
+    R visitSwitchExpressionNode(SwitchExpressionNode n, P p);
 
     R visitAssignment(AssignmentNode n, P p);
 
@@ -159,6 +162,22 @@ public interface NodeVisitor<R, P> {
     // Marker nodes
     R visitMarker(MarkerNode n, P p);
 
-    // Anonymous/inner/nested class declaration within a method
+    /**
+     * Visits an anonymous/inner/nested class declaration within a method.
+     *
+     * @param classDeclarationNode the {@link ClassDeclarationNode} to be visited
+     * @param p the argument for the operation implemented by this visitor
+     * @return the return value of the operation implemented by this visitor
+     */
     R visitClassDeclaration(ClassDeclarationNode classDeclarationNode, P p);
+
+    /**
+     * Visits an expression that is used as a statement. This node is a marker after the expression
+     * node(s).
+     *
+     * @param n the {@link ExpressionStatementNode} to be visited
+     * @param p the argument for the operation implemented by this visitor
+     * @return the return value of the operation implemented by this visitor
+     */
+    R visitExpressionStatement(ExpressionStatementNode n, P p);
 }

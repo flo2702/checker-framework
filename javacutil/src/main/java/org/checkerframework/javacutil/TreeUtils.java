@@ -12,6 +12,7 @@ import com.sun.source.tree.CompoundAssignmentTree;
 import com.sun.source.tree.ExpressionStatementTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.IdentifierTree;
+import com.sun.source.tree.InstanceOfTree;
 import com.sun.source.tree.LiteralTree;
 import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodInvocationTree;
@@ -84,6 +85,7 @@ import javax.lang.model.element.Name;
 import javax.lang.model.element.NestingKind;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.ExecutableType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.ElementFilter;
@@ -93,6 +95,7 @@ import javax.lang.model.util.ElementFilter;
  *
  * @see TreePathUtil
  */
+// TODO: use JCP to add version-specific behavior
 public final class TreeUtils {
 
     // Class cannot be instantiated.
@@ -106,11 +109,35 @@ public final class TreeUtils {
     /** Whether we are running on at least Java 12. */
     private static final boolean atLeastJava12;
 
+    /** Whether we are running on at least Java 13. */
+    private static final boolean atLeastJava13;
+
+    /** Whether we are running on at least Java 16. */
+    private static final boolean atLeastJava16;
+
     /** The CaseTree.getExpression method for Java up to 11; null otherwise. */
     private static final @Nullable Method CASETREE_GETEXPRESSION;
 
     /** The CaseTree.getExpressions method for Java 12 and higher; null otherwise. */
     private static final @Nullable Method CASETREE_GETEXPRESSIONS;
+
+    /** The CaseTree.getBody method for Java 12 and higher; null otherwise. */
+    private static final @Nullable Method CASETREE_GETBODY;
+
+    /** The SwitchExpressionTree.getExpression method for Java 12 and higher; null otherwise. */
+    private static final @Nullable Method SWITCHEXPRTREE_GETEXPRESSION;
+
+    /** The SwitchExpressionTree.getExpression method for Java 12 and higher; null otherwise. */
+    private static final @Nullable Method SWITCHEXPRTREE_GETCASES;
+
+    /** The YieldTree.getValue method for Java 13 and higher; null otherwise. */
+    private static final @Nullable Method YIELDTREE_GETVALUE;
+
+    /** The InstanceOfTree.getPattern method for Java 16 and higher; null otherwise. */
+    private static final @Nullable Method INSTANCEOFTREE_GETPATTERN;
+
+    /** The BindingPatternTree.getVariable method for Java 16 and higher; null otherwise. */
+    private static final @Nullable Method BINDINGPATTERNTREE_GETVARIABLE;
 
     /** The value of Flags.GENERATED_MEMBER which does not exist in Java 9 or 11. */
     private static final long Flags_GENERATED_MEMBER = 16777216;
@@ -128,15 +155,58 @@ public final class TreeUtils {
         }
         atLeastJava12 = java12 != null && latestSource.ordinal() >= java12.ordinal();
 
+        SourceVersion java13;
         try {
+            java13 = SourceVersion.valueOf("RELEASE_13");
+        } catch (IllegalArgumentException e) {
+            java13 = null;
+        }
+        atLeastJava13 = java13 != null && latestSource.ordinal() >= java13.ordinal();
+
+        SourceVersion java16;
+        try {
+            java16 = SourceVersion.valueOf("RELEASE_16");
+        } catch (IllegalArgumentException e) {
+            java16 = null;
+        }
+        atLeastJava16 = java16 != null && latestSource.ordinal() >= java16.ordinal();
+
+        try {
+            // TODO: profile and see whether doing all these here has a performance impact.
+            // If so, move to lazily setting the fields.
             if (atLeastJava12) {
                 CASETREE_GETEXPRESSIONS = CaseTree.class.getDeclaredMethod("getExpressions");
                 CASETREE_GETEXPRESSION = null;
+                CASETREE_GETBODY = CaseTree.class.getDeclaredMethod("getBody");
+
+                Class<?> switchExpressionClass =
+                        Class.forName("com.sun.source.tree.SwitchExpressionTree");
+                SWITCHEXPRTREE_GETEXPRESSION = switchExpressionClass.getMethod("getExpression");
+                SWITCHEXPRTREE_GETCASES = switchExpressionClass.getMethod("getCases");
             } else {
                 CASETREE_GETEXPRESSION = CaseTree.class.getDeclaredMethod("getExpression");
                 CASETREE_GETEXPRESSIONS = null;
+                CASETREE_GETBODY = null;
+
+                SWITCHEXPRTREE_GETEXPRESSION = null;
+                SWITCHEXPRTREE_GETCASES = null;
             }
-        } catch (Exception e) {
+            if (atLeastJava13) {
+                Class<?> yieldTreeClass = Class.forName("com.sun.source.tree.YieldTree");
+                YIELDTREE_GETVALUE = yieldTreeClass.getMethod("getValue");
+            } else {
+                YIELDTREE_GETVALUE = null;
+            }
+            if (atLeastJava16) {
+                INSTANCEOFTREE_GETPATTERN = InstanceOfTree.class.getMethod("getPattern");
+                Class<?> bindingPatternClass =
+                        Class.forName("com.sun.source.tree.BindingPatternTree");
+                BINDINGPATTERNTREE_GETVARIABLE = bindingPatternClass.getMethod("getVariable");
+            } else {
+                INSTANCEOFTREE_GETPATTERN = null;
+                BINDINGPATTERNTREE_GETVARIABLE = null;
+            }
+        } catch (ClassNotFoundException | NoSuchMethodException e) {
             Error err = new AssertionError("Unexpected error in TreeUtils static initializer");
             err.initCause(e);
             throw err;
@@ -254,22 +324,22 @@ public final class TreeUtils {
 
     /**
      * Gets the {@link Element} for the given Tree API node. For an object instantiation returns the
-     * value of the {@link JCNewClass#constructor} field. Note that this result might differ from
-     * the result of {@link TreeUtils#constructor(NewClassTree)}.
+     * value of the {@link JCNewClass#constructor} field.
      *
      * @param tree the {@link Tree} node to get the symbol for
-     * @throws IllegalArgumentException if {@code tree} is null or is not a valid javac-internal
-     *     tree (JCTree)
+     * @throws BugInCF if {@code tree} is null or is not a valid javac-internal tree (JCTree)
      * @return the {@link Symbol} for the given tree, or null if one could not be found
      */
     @Pure
     public static @Nullable Element elementFromTree(Tree tree) {
         if (tree == null) {
-            throw new BugInCF("InternalUtils.symbol: tree is null");
+            throw new BugInCF("TreeUtils.elementFromTree: tree is null");
         }
 
         if (!(tree instanceof JCTree)) {
-            throw new BugInCF("InternalUtils.symbol: tree is not a valid Javac tree");
+            throw new BugInCF(
+                    "TreeUtils.elementFromTree: tree is not a valid Javac tree but a "
+                            + tree.getClass());
         }
 
         if (isExpressionTree(tree)) {
@@ -367,7 +437,10 @@ public final class TreeUtils {
     public static ExecutableElement elementFromUse(MethodInvocationTree node) {
         Element el = TreeUtils.elementFromTree(node);
         if (!(el instanceof ExecutableElement)) {
-            throw new BugInCF("Method elements should be ExecutableElement. Found: %s", el);
+            throw new BugInCF(
+                    "TreeUtils.elementFromUse: method element should be ExecutableElement. Found:"
+                            + " %s",
+                    el);
         }
         return (ExecutableElement) el;
     }
@@ -383,51 +456,99 @@ public final class TreeUtils {
     public static ExecutableElement elementFromUse(NewClassTree node) {
         Element el = TreeUtils.elementFromTree(node);
         if (!(el instanceof ExecutableElement)) {
-            throw new BugInCF("Constructor elements should  be ExecutableElement. Found: %s", el);
+            throw new BugInCF(
+                    "TreeUtils.elementFromUse: constructor element should be ExecutableElement."
+                            + " Found: %s",
+                    el);
         }
         return (ExecutableElement) el;
     }
 
     /**
-     * Determines the symbol for a constructor given an invocation via {@code new}.
+     * Determines the type for a method invocation at its call site, which has all type variables
+     * substituted with the type arguments at the call site.
      *
-     * <p>If the tree is a declaration of an anonymous class, then method returns constructor that
-     * gets invoked in the extended class, rather than the anonymous constructor implicitly added by
-     * the constructor (JLS 15.9.5.1)
+     * @param tree the method invocation
+     * @return the {@link ExecutableType} corresponding to the method invocation at its call site
+     */
+    @Pure
+    public static ExecutableType typeFromUse(MethodInvocationTree tree) {
+        TypeMirror type = TreeUtils.typeOf(tree.getMethodSelect());
+        if (!(type instanceof ExecutableType)) {
+            throw new BugInCF(
+                    "TreeUtils.typeFromUse(MethodInvocationTree): type of method select in method"
+                            + " invocation should be ExecutableType. Found: %s",
+                    type);
+        }
+        return (ExecutableType) type;
+    }
+
+    /**
+     * Determines the type for a constructor at its call site given an invocation via {@code new},
+     * which has all type variables substituted with the type arguments at the call site.
+     *
+     * @param tree the constructor invocation
+     * @return the {@link ExecutableType} corresponding to the constructor call (i.e., the given
+     *     {@code tree}) at its call site
+     */
+    @Pure
+    public static ExecutableType typeFromUse(NewClassTree tree) {
+        if (!(tree instanceof JCTree.JCNewClass)) {
+            throw new BugInCF("TreeUtils.typeFromUse(NewClassTree): not a javac internal tree");
+        }
+
+        JCNewClass newClassTree = (JCNewClass) tree;
+        TypeMirror type = newClassTree.constructorType;
+
+        if (!(type instanceof ExecutableType)) {
+            throw new BugInCF(
+                    "TreeUtils.typeFromUse(NewClassTree): type of constructor in new class tree"
+                            + " should be ExecutableType. Found: %s",
+                    type);
+        }
+        return (ExecutableType) type;
+    }
+
+    /**
+     * Returns the constructor invoked by {@code newClassTree} unless {@code newClassTree} is
+     * creating an anonymous class. In which case, the super constructor is returned.
+     *
+     * @param newClassTree the constructor invocation
+     * @return the super constructor invoked in the body of the anonymous constructor; or {@link
+     *     #constructor(NewClassTree)} if {@code newClassTree} is not creating an anonymous class
+     */
+    public static ExecutableElement getSuperConstructor(NewClassTree newClassTree) {
+        if (newClassTree.getClassBody() == null) {
+            return constructor(newClassTree);
+        }
+        JCNewClass jcNewClass = (JCNewClass) newClassTree;
+        // Anonymous constructor bodies, which are always synthetic, contain exactly one statement
+        // in the form:
+        //    super(arg1, ...)
+        // or
+        //    o.super(arg1, ...)
+        //
+        // which is a method invocation of the super constructor.
+
+        // The method call is guaranteed to return nonnull.
+        JCMethodDecl anonConstructor =
+                (JCMethodDecl) TreeInfo.declarationFor(jcNewClass.constructor, jcNewClass);
+        assert anonConstructor != null;
+        assert anonConstructor.body.stats.size() == 1;
+        JCExpressionStatement stmt = (JCExpressionStatement) anonConstructor.body.stats.head;
+        JCMethodInvocation superInvok = (JCMethodInvocation) stmt.expr;
+        return (ExecutableElement) TreeInfo.symbol(superInvok.meth);
+    }
+
+    /**
+     * Determines the symbol for a constructor given an invocation via {@code new}.
      *
      * @see #elementFromUse(NewClassTree)
      * @param tree the constructor invocation
      * @return the {@link ExecutableElement} corresponding to the constructor call in {@code tree}
      */
     public static ExecutableElement constructor(NewClassTree tree) {
-
-        if (!(tree instanceof JCTree.JCNewClass)) {
-            throw new BugInCF("InternalUtils.constructor: not a javac internal tree");
-        }
-
-        JCNewClass newClassTree = (JCNewClass) tree;
-
-        if (tree.getClassBody() != null) {
-            // anonymous constructor bodies should contain exactly one statement
-            // in the form:
-            //    super(arg1, ...)
-            // or
-            //    o.super(arg1, ...)
-            //
-            // which is a method invocation (!) to the actual constructor
-
-            // the method call is guaranteed to return nonnull
-            JCMethodDecl anonConstructor =
-                    (JCMethodDecl) TreeInfo.declarationFor(newClassTree.constructor, newClassTree);
-            assert anonConstructor != null;
-            assert anonConstructor.body.stats.size() == 1;
-            JCExpressionStatement stmt = (JCExpressionStatement) anonConstructor.body.stats.head;
-            JCTree.JCMethodInvocation superInvok = (JCMethodInvocation) stmt.expr;
-            return (ExecutableElement) TreeInfo.symbol(superInvok.meth);
-        } else {
-            Element e = newClassTree.constructor;
-            return (ExecutableElement) e;
-        }
+        return (ExecutableElement) ((JCNewClass) tree).constructor;
     }
 
     /**
@@ -824,7 +945,7 @@ public final class TreeUtils {
             Class<?> type, String methodName, int params, ProcessingEnvironment env) {
         String typeName = type.getCanonicalName();
         if (typeName == null) {
-            throw new BugInCF("class %s has no canonical name", type);
+            throw new BugInCF("TreeUtils.getMethod: class %s has no canonical name", type);
         }
         return getMethod(typeName, methodName, params, env);
     }
@@ -925,7 +1046,7 @@ public final class TreeUtils {
             Class<?> type, String methodName, ProcessingEnvironment env, String... paramTypes) {
         String typeName = type.getCanonicalName();
         if (typeName == null) {
-            throw new BugInCF("class %s has no canonical name", type);
+            throw new BugInCF("TreeUtils.getMethod: class %s has no canonical name", type);
         }
         return getMethod(typeName, methodName, env, paramTypes);
     }
@@ -1464,7 +1585,7 @@ public final class TreeUtils {
      */
     public static String toStringTruncated(Tree tree, int length) {
         if (length < 6) {
-            throw new IllegalArgumentException("bad length " + length);
+            throw new BugInCF("TreeUtils.toStringTruncated: bad length " + length);
         }
         String result = toStringOneLine(tree);
         if (result.length() > length) {
@@ -1595,7 +1716,7 @@ public final class TreeUtils {
                     return result;
                 default:
                     throw new BugInCF(
-                            "what typeTree? %s %s %s",
+                            "TreeUtils.getExplicitAnnotationTrees: what typeTree? %s %s %s",
                             typeTree.getKind(), typeTree.getClass(), typeTree);
             }
         }
@@ -1716,7 +1837,7 @@ public final class TreeUtils {
                         (List<? extends ExpressionTree>) CASETREE_GETEXPRESSIONS.invoke(caseTree);
                 return result;
             } else {
-                @SuppressWarnings({"nullness"})
+                @SuppressWarnings("nullness")
                 ExpressionTree expression =
                         (ExpressionTree) CASETREE_GETEXPRESSION.invoke(caseTree);
                 if (expression == null) {
@@ -1725,10 +1846,188 @@ public final class TreeUtils {
                     return Collections.singletonList(expression);
                 }
             }
-        } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
-            Error err = new AssertionError("Unexpected error in caseTreeGetExpressions");
-            err.initCause(e);
-            throw err;
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new BugInCF(
+                    "TreeUtils.caseTreeGetExpressions: reflection failed for tree: %s",
+                    caseTree, e);
+        }
+    }
+
+    /**
+     * Returns the body of the case statement if it is of the form {@code case <expression> ->
+     * <expression>}. This method should only be called if {@link CaseTree#getStatements()} returns
+     * null.
+     *
+     * @param caseTree the case expression to get the body from
+     * @return the body of the case tree
+     */
+    public static @Nullable Tree caseTreeGetBody(CaseTree caseTree) {
+        if (atLeastJava12) {
+            try {
+                @SuppressWarnings("nullness")
+                Tree ret = (Tree) CASETREE_GETBODY.invoke(caseTree);
+                return ret;
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                throw new BugInCF(
+                        "TreeUtils.caseTreeGetBody: reflection failed for tree: %s", caseTree, e);
+            }
+        } else {
+            throw new BugInCF("TreeUtils.caseTreeGetBody: requires at least Java 12");
+        }
+    }
+
+    /**
+     * Returns the binding variable of {@code bindingPatternTree}.
+     *
+     * @param bindingPatternTree the BindingPatternTree whose binding variable is returned
+     * @return the binding variable of {@code bindingPatternTree}
+     */
+    public static VariableTree bindingPatternTreeGetVariable(Tree bindingPatternTree) {
+        if (atLeastJava16) {
+            VariableTree variableTree;
+            try {
+                @SuppressWarnings("nullness")
+                VariableTree localVT =
+                        (VariableTree) BINDINGPATTERNTREE_GETVARIABLE.invoke(bindingPatternTree);
+                variableTree = localVT;
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                throw new BugInCF(
+                        "TreeUtils.bindingPatternTreeGetVariable: reflection failed for tree: %s",
+                        bindingPatternTree, e);
+            }
+            if (variableTree != null) {
+                return variableTree;
+            }
+            throw new BugInCF(
+                    "TreeUtils.bindingPatternTreeGetVariable: variable is null for tree: %s",
+                    bindingPatternTree);
+        } else {
+            throw new BugInCF("TreeUtils.bindingPatternTreeGetVariable: requires at least Java 16");
+        }
+    }
+
+    /**
+     * Returns the pattern of {@code instanceOfTree} tree or null if the instanceof does not have a
+     * pattern.
+     *
+     * @param instanceOfTree the {@link InstanceOfTree} whose pattern is returned
+     * @return the {@code PatternTree} of {@code instanceOfTree} or null if is doesn't exist
+     */
+    public static @Nullable Tree instanceOfTreeGetPattern(InstanceOfTree instanceOfTree) {
+        if (atLeastJava16) {
+            try {
+                @SuppressWarnings("nullness")
+                Tree ret = (Tree) INSTANCEOFTREE_GETPATTERN.invoke(instanceOfTree);
+                return ret;
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                throw new BugInCF(
+                        "TreeUtils.instanceOfGetPattern: reflection failed for tree: %s",
+                        instanceOfTree, e);
+            }
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Returns the selector expression of {@code switchExpressionTree}. For example
+     *
+     * <pre>
+     *   switch ( <em>expression</em> ) { ... }
+     * </pre>
+     *
+     * @param switchExpressionTree the switch expression whose selector expression is returned
+     * @return the selector expression of {@code switchExpressionTree}
+     */
+    public static ExpressionTree switchExpressionTreeGetExpression(Tree switchExpressionTree) {
+        if (atLeastJava12) {
+            ExpressionTree expressionTree;
+            try {
+                @SuppressWarnings("nullness")
+                ExpressionTree localET =
+                        (ExpressionTree) SWITCHEXPRTREE_GETEXPRESSION.invoke(switchExpressionTree);
+                expressionTree = localET;
+            } catch (InvocationTargetException | IllegalAccessException e) {
+                throw new BugInCF(
+                        "TreeUtils.switchExpressionTreeGetExpression: reflection failed for tree:"
+                                + " %s",
+                        switchExpressionTree, e);
+            }
+            if (expressionTree != null) {
+                return expressionTree;
+            }
+            throw new BugInCF(
+                    "TreeUtils.switchExpressionTreeGetExpression: expression is null for tree:"
+                            + " %s",
+                    switchExpressionTree);
+        } else {
+            throw new BugInCF(
+                    "TreeUtils.switchExpressionTreeGetExpression: requires at least Java 12");
+        }
+    }
+
+    /**
+     * Returns the cases of {@code switchExpressionTree}. For example
+     *
+     * <pre>
+     *   switch ( <em>expression</em> ) {
+     *     <em>cases</em>
+     *   }
+     * </pre>
+     *
+     * @param switchExpressionTree the switch expression whose cases are returned
+     * @return the cases of {@code switchExpressionTree}
+     */
+    public static List<? extends CaseTree> switchExpressionTreeGetCases(Tree switchExpressionTree) {
+        if (atLeastJava12) {
+            List<? extends CaseTree> cases;
+            try {
+                @SuppressWarnings({"unchecked", "nullness"})
+                List<? extends CaseTree> localcases =
+                        (List<? extends CaseTree>)
+                                SWITCHEXPRTREE_GETCASES.invoke(switchExpressionTree);
+                cases = localcases;
+            } catch (InvocationTargetException | IllegalAccessException e) {
+                throw new BugInCF(
+                        "TreeUtils.switchExpressionTreeGetCases: reflection failed for tree: %s",
+                        switchExpressionTree, e);
+            }
+            if (cases != null) {
+                return cases;
+            }
+            throw new BugInCF(
+                    "TreeUtils.switchExpressionTreeGetCases: cases is null for tree: %s",
+                    switchExpressionTree);
+        } else {
+            throw new BugInCF("TreeUtils.switchExpressionTreeGetCases: requires at least Java 12");
+        }
+    }
+
+    /**
+     * Returns the value (expression) for {@code yieldTree}.
+     *
+     * @param yieldTree the yield tree
+     * @return the value (expression) for {@code yieldTree}.
+     */
+    public static ExpressionTree yieldTreeGetValue(Tree yieldTree) {
+        if (atLeastJava13) {
+            ExpressionTree expressionTree;
+            try {
+                @SuppressWarnings("nullness")
+                ExpressionTree localET = (ExpressionTree) YIELDTREE_GETVALUE.invoke(yieldTree);
+                expressionTree = localET;
+            } catch (InvocationTargetException | IllegalAccessException e) {
+                throw new BugInCF(
+                        "TreeUtils.yieldTreeGetValue: reflection failed for tree: %s",
+                        yieldTree, e);
+            }
+            if (expressionTree != null) {
+                return expressionTree;
+            }
+            throw new BugInCF(
+                    "TreeUtils.yieldTreeGetValue: expression is null for tree: %s", yieldTree);
+        } else {
+            throw new BugInCF("TreeUtils.yieldTreeGetValue: requires at least Java 13");
         }
     }
 
@@ -1745,7 +2044,7 @@ public final class TreeUtils {
             case NEW_CLASS:
                 return isVarArgs((NewClassTree) tree);
             default:
-                throw new BugInCF("Unexpected kind of tree: " + tree);
+                throw new BugInCF("TreeUtils.isVarArgs: unexpected kind of tree: " + tree);
         }
     }
 

@@ -177,7 +177,7 @@ public abstract class AbstractAnalysis<
                 nodeValues,
                 inputs,
                 cfg.getTreeLookup(),
-                cfg.getUnaryAssignNodeLookup(),
+                cfg.getPostfixNodeLookup(),
                 finalLocalValues);
     }
 
@@ -195,12 +195,11 @@ public abstract class AbstractAnalysis<
                     || (currentTree != null && currentTree == n.getTree())) {
                 return null;
             }
-            // check that 'n' is a subnode of 'node'. Check immediate operands
+            // check that 'n' is a subnode of 'currentNode'. Check immediate operands
             // first for efficiency.
             assert !n.isLValue() : "Did not expect an lvalue, but got " + n;
-            if (currentNode == n
-                    || (!currentNode.getOperands().contains(n)
-                            && !currentNode.getTransitiveOperands().contains(n))) {
+            if (!currentNode.getOperands().contains(n)
+                    && !currentNode.getTransitiveOperands().contains(n)) {
                 return null;
             }
             // fall through when the current node is not 'n', and 'n' is not a subnode.
@@ -269,16 +268,30 @@ public abstract class AbstractAnalysis<
 
     @Override
     public @Nullable V getValue(Tree t) {
-        // we don't have a org.checkerframework.dataflow fact about the current node yet
-        if (t == currentTree) {
+        // Dataflow is analyzing the tree, so no value is available.
+        if (t == currentTree || cfg == null) {
             return null;
         }
-        Set<Node> nodesCorrespondingToTree = getNodesForTree(t);
-        if (nodesCorrespondingToTree == null) {
+        V result = getValue(getNodesForTree(t));
+        if (result == null) {
+            result = getValue(cfg.getTreeLookup().get(t));
+        }
+        return result;
+    }
+
+    /**
+     * Returns the least upper bound of the values of {@code nodes}.
+     *
+     * @param nodes a set of nodes
+     * @return the least upper bound of the values of {@code nodes}
+     */
+    private @Nullable V getValue(@Nullable Set<Node> nodes) {
+        if (nodes == null) {
             return null;
         }
+
         V merged = null;
-        for (Node aNode : nodesCorrespondingToTree) {
+        for (Node aNode : nodes) {
             if (aNode.isLValue()) {
                 return null;
             }
@@ -289,6 +302,7 @@ public abstract class AbstractAnalysis<
                 merged = merged.leastUpperBound(v);
             }
         }
+
         return merged;
     }
 

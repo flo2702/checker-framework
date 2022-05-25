@@ -2,7 +2,7 @@
   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>org.checkerframework</groupId>
+  <groupId>io.github.eisop</groupId>
   <artifactId>MavenExample</artifactId>
   <version>1.0-SNAPSHOT</version>
   <packaging>jar</packaging>
@@ -14,7 +14,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <!-- These properties will be set by the Maven Dependency plugin -->
     <errorProneJavac>${com.google.errorprone:javac:jar}</errorProneJavac>
-    <checkerFrameworkVersion><!-- checker-framework-version -->3.18.0<!-- /checker-framework-version --></checkerFrameworkVersion>
+    <checkerFrameworkVersion><!-- checker-framework-version -->3.22.0-eisop1<!-- /checker-framework-version --></checkerFrameworkVersion>
   </properties>
 
   <dependencies>
@@ -26,8 +26,7 @@
     </dependency>
     <!-- Annotations from the Checker Framework: nullness, interning, locking, ... -->
     <dependency>
-      <!-- After next release, then: io.github.eisop -->
-      <groupId>org.checkerframework</groupId>
+      <groupId>io.github.eisop</groupId>
       <artifactId>checker-qual</artifactId>
       <version>${checkerFrameworkVersion}</version>
     </dependency>
@@ -81,7 +80,7 @@
         <plugins>
           <plugin>
             <artifactId>maven-compiler-plugin</artifactId>
-            <version>3.8.1</version>
+            <version>3.10.1</version>
             <configuration>
               <fork>true</fork> <!-- Must fork or else JVM arguments are ignored. -->
               <compilerArguments>
@@ -90,8 +89,7 @@
               </compilerArguments>
               <annotationProcessorPaths>
                 <path>
-                  <!-- Until next release, then: io.github.eisop -->
-                  <groupId>org.checkerframework</groupId>
+                  <groupId>io.github.eisop</groupId>
                   <artifactId>checker</artifactId>
                   <version>${checkerFrameworkVersion}</version>
                 </path>
@@ -109,7 +107,7 @@
       </build>
       <dependencies>
         <dependency>
-          <groupId>org.checkerframework</groupId>
+          <groupId>io.github.eisop</groupId>
           <artifactId>checker</artifactId>
           <version>${checkerFrameworkVersion}</version>
         </dependency>
@@ -137,7 +135,7 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-compiler-plugin</artifactId>
-            <version>3.8.1</version>
+            <version>3.10.1</version>
             <configuration>
               <fork>true</fork> <!-- Must fork or else JVM arguments are ignored. -->
               <source>1.8</source>
@@ -161,7 +159,7 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-compiler-plugin</artifactId>
-            <version>3.8.1</version>
+            <version>3.10.1</version>
             <configuration>
               <fork>true</fork>
               <release>11</release>

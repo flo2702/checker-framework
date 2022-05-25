@@ -156,7 +156,7 @@ public abstract class JavaExpression {
      * @param lst2 the second list to compare
      * @return true if the corresponding list elements satisfy {@link #syntacticEquals}
      */
-    static boolean syntacticEqualsList(
+    public static boolean syntacticEqualsList(
             List<? extends @Nullable JavaExpression> lst1,
             List<? extends @Nullable JavaExpression> lst2) {
         if (lst1.size() != lst2.size()) {
@@ -530,6 +530,9 @@ public abstract class JavaExpression {
                 }
                 return new FieldAccess(fieldAccessExpression, typeOfEle, (VariableElement) ele);
             default:
+                if (ElementUtils.isBindingVariable(ele)) {
+                    return new LocalVariable(ele);
+                }
                 throw new BugInCF(
                         "Unexpected kind of VariableTree: kind: %s element: %s",
                         ele.getKind(), ele);
