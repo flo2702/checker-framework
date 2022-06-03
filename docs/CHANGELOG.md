@@ -1,23 +1,31 @@
-Version 3.22.1-eisop1 (June ?, 2022)
+Version 3.22.1-eisop1 (June 3, 2022)
 ------------------------------------
 
 **User-visible changes:**
 
+Type parameters with explicit j.l.Object upper bounds and
+unannotated, unbounded wildcards now behave the same in .astub
+files and in .java files.
+
 **Implementation details:**
 
 **Closed issues:**
 
-typetools#3030.
+typetools#3025, typetools#3030, typetools#3236.
+
+Test cases for issues that already pass:
+typetools#2722, typetools#2995, typetools#3015, typetools#3027.
+
+typetools#58 was closed in error. See
+https://github.com/eisop/checker-framework/issues/242
+for follow-up discussions.
 
 
 Version 3.22.1 (June 1, 2022)
----------------------------------
-
-**User-visible changes:**
-
-**Implementation details:**
+-----------------------------
 
 **Closed issues:**
+#58, #5136, #5138, #5142, #5143.
 
 
 Version 3.22.0-eisop1 (May 6, 2022)
