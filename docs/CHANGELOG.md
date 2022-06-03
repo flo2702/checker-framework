@@ -1,3 +1,23 @@
+Version 3.22.2-eisop1 (July ?, 2022)
+------------------------------------
+
+**User-visible changes:**
+
+**Implementation details:**
+
+**Closed issues:**
+
+
+Version 3.22.2 (July 1, 2022)
+---------------------------------
+
+**User-visible changes:**
+
+**Implementation details:**
+
+**Closed issues:**
+
+
 Version 3.22.1-eisop1 (June 3, 2022)
 ------------------------------------
 
@@ -8,6 +28,15 @@ unannotated, unbounded wildcards now behave the same in .astub
 files and in .java files.
 
 **Implementation details:**
+
+In `PropagationTreeAnnotator.visitBinary`, we now consider the two cases where
+the resulting Java type of a binary operation can be different from the operands'
+types: string concatenation and binary comparison. We apply the declaration
+bounds of the resulting Java type to ensure annotations in the ATM are valid.
+
+Deprecated `AnnotatedTypeFactory.binaryTreeArgTypes(AnnotatedTypeMirror, AnnotatedTypeMirror)` in favor of
+`AnnotatedTypeFactory.binaryTreeArgTypes(BinaryTree)` and
+`AnnotatedTypeFactory.compoundAssignmentTreeArgTypes(CompoundAssignmentTree)`.
 
 **Closed issues:**
 
