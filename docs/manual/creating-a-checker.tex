@@ -1050,12 +1050,19 @@ that might be the case if MyHelperChecker computes some information that
 MyChecker needs to use.
 
 Override
-\<MyChecker.\refmethodterse{common/basetype}{BaseTypeChecker}{getImmediateSubcheckerClasses}{--}>
+\<MyChecker.\refmethodterse{common/basetype}{BaseTypeChecker}{getImmediateSubcheckers}{--}>
 to return a list of the checkers that MyChecker depends on.  Every one of
 them will be run before MyChecker is run.  One of MyChecker's subcheckers
 may itself be a compound checker, and multiple checkers may declare a
 dependence on the same subchecker.  The Checker Framework will run each
 checker once, and in an order consistent with all the dependences.
+
+It is possible to have multiple subcheckers of the same class type. This is useful
+if the same checker can be run multiple times on the same project with different
+configurations. In this case, the subchecker class should override
+\<hashCode> and \<equals> to uniquely identify every instance; the default
+implementation of these methods considers every checker instance of the
+same class type to be equal.
 
 A checker obtains information from its subcheckers (those that ran before
 it) by querying their \refclass{framework/type}{AnnotatedTypeFactory} to
