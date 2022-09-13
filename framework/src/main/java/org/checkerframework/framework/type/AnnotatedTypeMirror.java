@@ -11,6 +11,7 @@ import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.ElementUtils;
+import org.checkerframework.javacutil.TypeAnnotationUtils;
 import org.checkerframework.javacutil.TypeKindUtils;
 import org.plumelib.util.CollectionsPlume;
 
@@ -62,13 +63,16 @@ public abstract class AnnotatedTypeMirror {
      * @param atypeFactory the type factory that will build the result
      * @param isDeclaration true if the result should represent a declaration, rather than a use, of
      *     a type
-     * @return an AnnotatedTypeMirror whose underlying type is {@code type}
+     * @return an AnnotatedTypeMirror whose underlying type is {@code type}, without any annotations
      */
     public static AnnotatedTypeMirror createType(
             TypeMirror type, AnnotatedTypeFactory atypeFactory, boolean isDeclaration) {
         if (type == null) {
             throw new BugInCF("AnnotatedTypeMirror.createType: input type must not be null");
         }
+
+        // Remove annotations on type to ensure that result.underlyingType is a bare type.
+        type = TypeAnnotationUtils.unannotatedType(type);
 
         AnnotatedTypeMirror result;
         switch (type.getKind()) {
@@ -121,9 +125,7 @@ public abstract class AnnotatedTypeMirror {
                                 + type.getKind()
                                 + ")");
         }
-        /*if (jctype.isAnnotated()) {
-            result.addAnnotations(jctype.getAnnotationMirrors());
-        }*/
+
         return result;
     }
 

@@ -678,6 +678,11 @@ public class TypeAnnotationUtils {
             // TODO: file an issue that stripMetadata doesn't work for primitives.
             // See eisop/checker-framework issue #21.
             return impl.baseType();
+        } else if (impl instanceof Type.ForAll) {
+            // Since stripMetadata turns ForAlls into MethodTypes, we need to
+            // construct a new Forall.
+            com.sun.tools.javac.util.List<Type> tvars = ((Type.ForAll) impl).tvars;
+            return new Type.ForAll(tvars, impl.stripMetadata());
         } else {
             return impl.stripMetadata();
         }
