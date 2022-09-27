@@ -1,6 +1,7 @@
 package qual;
 
 import org.checkerframework.checker.fenum.qual.FenumTop;
+import org.checkerframework.framework.qual.DefaultFor;
 import org.checkerframework.framework.qual.SubtypeOf;
 
 import java.lang.annotation.Documented;
@@ -13,4 +14,5 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 @Target({ElementType.TYPE_USE, ElementType.TYPE_PARAMETER})
 @SubtypeOf(FenumTop.class)
+@DefaultFor(types = {short.class})
 public @interface MyFenum {}
