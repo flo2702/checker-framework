@@ -53,22 +53,22 @@ FenumDemo.java:51: error: [argument.type.incompatible] incompatible argument for
                              ^
   found   : @Fenum("B") int
   required: @MyFenum int
-FenumDemo.java:69: error: [binary.type.incompatible] binary operation between incompatible fenums: @Fenum("A") int and @Fenum("B") int
+FenumDemo.java:70: error: [binary.type.incompatible] binary operation between incompatible fenums: @Fenum("A") int and @Fenum("B") int
         if (TestStatic.ACONST1 < TestStatic.BCONST2) {}
                                ^
-FenumDemo.java:71: error: [binary.type.incompatible] binary operation between incompatible fenums: @Fenum("A") int and @Fenum("B") int
+FenumDemo.java:72: error: [binary.type.incompatible] binary operation between incompatible fenums: @Fenum("A") int and @Fenum("B") int
         if (TestStatic.ACONST1 == TestStatic.BCONST2) {}
                                ^
-FenumDemo.java:73: error: [binary.type.incompatible] binary operation between incompatible fenums: @Fenum("A") int and @MyFenum int
+FenumDemo.java:74: error: [binary.type.incompatible] binary operation between incompatible fenums: @Fenum("A") int and @MyFenum int
         if (TestStatic.ACONST1 >= TestStatic.CCONST2) {}
                                ^
-FenumDemo.java:76: error: [binary.type.incompatible] binary operation between incompatible fenums: @Fenum("A") int and @FenumUnqualified int
+FenumDemo.java:77: error: [binary.type.incompatible] binary operation between incompatible fenums: @Fenum("A") int and @FenumUnqualified int
         if (TestStatic.ACONST1 < 5) {}
                                ^
-FenumDemo.java:78: error: [binary.type.incompatible] binary operation between incompatible fenums: @Fenum("B") int and @FenumUnqualified int
+FenumDemo.java:79: error: [binary.type.incompatible] binary operation between incompatible fenums: @Fenum("B") int and @FenumUnqualified int
         if (TestStatic.BCONST1 > 5) {}
                                ^
-FenumDemo.java:80: error: [binary.type.incompatible] binary operation between incompatible fenums: @MyFenum int and @FenumUnqualified int
+FenumDemo.java:81: error: [binary.type.incompatible] binary operation between incompatible fenums: @MyFenum int and @FenumUnqualified int
         if (TestStatic.CCONST1 == 5) {}
                                ^
 17 errors

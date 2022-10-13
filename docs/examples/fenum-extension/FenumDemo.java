@@ -55,6 +55,7 @@ public class FenumDemo {
     @DefaultQualifier(MyFenum.class)
     void bar() {
         int int0 = TestStatic.CCONST1; // ok, @MyFenum applies by default in this method
+        @NonNegative int int1 = TestStatic.CCONST1; // ok, @MyFenum applies by default in this method
     }
 
     void comparisons() {
