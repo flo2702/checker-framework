@@ -1,5 +1,6 @@
 import org.checkerframework.checker.fenum.qual.Fenum;
 import org.checkerframework.checker.index.qual.NonNegative;
+import org.checkerframework.framework.qual.DefaultQualifier;
 
 import qual.MyFenum;
 
@@ -24,8 +25,7 @@ public class FenumDemo {
 
     short state4 = TestStatic.CCONST1; // ok, @MyFenum applies to short by default
     @NonNegative short state5 = TestStatic.CCONST1; // ok, @MyFenum also applies to
-    // @NonNegative short by default
-    // (see issue #333)
+    // @NonNegative short by default (see issue #333)
 
     int state6 = TestStatic.BCONST1; // Incompatible fenums forbidden!
     @NonNegative int state7 = TestStatic.BCONST1; // Incompatible fenums forbidden!
@@ -50,6 +50,11 @@ public class FenumDemo {
         myFenumArg(8); // Direct use of value forbidden!
         myFenumArg(TestStatic.BCONST2); // Incompatible fenums forbidden!
         myFenumArg(TestStatic.CCONST1); // ok
+    }
+
+    @DefaultQualifier(MyFenum.class)
+    void bar() {
+        int int0 = TestStatic.CCONST1; // ok, @MyFenum applies by default in this method
     }
 
     void comparisons() {
