@@ -16,6 +16,6 @@ import java.lang.annotation.Target;
 @SubtypeOf(FenumTop.class)
 // This weird default is used in this example to test whether defaults are
 // correctly applied to both annotated and unannotated instances
-// (in this example, "short" and "@NonNegative short" (see issue #333).
+// (in this example, "short" and "@NonNegative short", see issue #333).
 @DefaultFor(types = {short.class})
 public @interface MyFenum {}
