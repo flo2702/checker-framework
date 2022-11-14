@@ -4,7 +4,6 @@ import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.MethodInvocationTree;
 import com.sun.source.tree.MethodTree;
 
-import org.checkerframework.checker.initialization.InitializationTransfer;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.checker.nullness.qual.PolyNull;
@@ -25,6 +24,7 @@ import org.checkerframework.dataflow.expression.JavaExpression;
 import org.checkerframework.dataflow.expression.LocalVariable;
 import org.checkerframework.dataflow.util.PurityUtils;
 import org.checkerframework.framework.flow.CFAbstractStore;
+import org.checkerframework.framework.flow.CFAbstractTransfer;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
@@ -61,7 +61,7 @@ import javax.lang.model.util.Elements;
  * </ol>
  */
 public class NullnessTransfer
-        extends InitializationTransfer<NullnessValue, NullnessTransfer, NullnessStore> {
+        extends CFAbstractTransfer<NullnessValue, NullnessStore, NullnessTransfer> {
 
     /** The @{@link NonNull} annotation. */
     protected final AnnotationMirror NONNULL;
@@ -261,7 +261,7 @@ public class NullnessTransfer
     private boolean polyNullIsNonNull(ExecutableElement method, NullnessStore s) {
         // No need to check the receiver, which is always non-null.
         for (VariableElement var : method.getParameters()) {
-            AnnotatedTypeMirror varType = atypeFactory.fromElement(var);
+            AnnotatedTypeMirror varType = nullnessTypeFactory.fromElement(var);
 
             if (containsPolyNullNotAtTopLevel(varType)) {
                 return false;
@@ -386,7 +386,7 @@ public class NullnessTransfer
         MethodInvocationTree tree = n.getTree();
         ExecutableElement method = TreeUtils.elementFromUse(tree);
 
-        boolean isMethodSideEffectFree = PurityUtils.isSideEffectFree(atypeFactory, method);
+        boolean isMethodSideEffectFree = PurityUtils.isSideEffectFree(nullnessTypeFactory, method);
         Node receiver = n.getTarget().getReceiver();
         if (nonNullAssumptionAfterInvocation
                 || isMethodSideEffectFree

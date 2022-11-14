@@ -36,7 +36,6 @@ import com.sun.source.util.TreePath;
 
 import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
 import org.checkerframework.checker.formatter.qual.FormatMethod;
-import org.checkerframework.checker.initialization.InitializationVisitor;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.common.basetype.BaseTypeChecker;
@@ -68,8 +67,8 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.type.TypeMirror;
 
 /** The visitor for the nullness type-system. */
-public class NullnessVisitor
-        extends InitializationVisitor<NullnessAnnotatedTypeFactory, NullnessValue, NullnessStore> {
+public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactory> {
+    // Error message keys
     // private static final @CompilerMessageKey String ASSIGNMENT_TYPE_INCOMPATIBLE =
     // "assignment.type.incompatible";
     /** Error message key. */

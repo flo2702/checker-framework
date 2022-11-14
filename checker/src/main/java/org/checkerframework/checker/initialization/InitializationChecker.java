@@ -17,10 +17,7 @@ import java.util.SortedSet;
  *
  * @checker_framework.manual #initialization-checker Initialization Checker
  */
-public abstract class InitializationChecker extends BaseTypeChecker {
-
-    /** Create a new InitializationChecker. */
-    protected InitializationChecker() {}
+public class InitializationChecker extends BaseTypeChecker {
 
     @Override
     public SortedSet<String> getSuppressWarningsPrefixes() {

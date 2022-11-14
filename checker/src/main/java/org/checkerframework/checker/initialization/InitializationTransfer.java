@@ -9,16 +9,13 @@ import org.checkerframework.dataflow.analysis.RegularTransferResult;
 import org.checkerframework.dataflow.analysis.TransferInput;
 import org.checkerframework.dataflow.analysis.TransferResult;
 import org.checkerframework.dataflow.cfg.node.AssignmentNode;
-import org.checkerframework.dataflow.cfg.node.FieldAccessNode;
 import org.checkerframework.dataflow.cfg.node.MethodInvocationNode;
 import org.checkerframework.dataflow.cfg.node.Node;
 import org.checkerframework.dataflow.cfg.node.ThisNode;
 import org.checkerframework.dataflow.expression.FieldAccess;
 import org.checkerframework.dataflow.expression.JavaExpression;
-import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.flow.CFAbstractTransfer;
 import org.checkerframework.framework.flow.CFAbstractValue;
-import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.javacutil.TreePathUtil;
 import org.checkerframework.javacutil.TreeUtils;
@@ -26,7 +23,6 @@ import org.checkerframework.javacutil.TreeUtils;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
@@ -54,20 +50,16 @@ import javax.lang.model.util.ElementFilter;
  * </ol>
  *
  * @see InitializationStore
- * @param <T> the type of the transfer function
  */
-public class InitializationTransfer<
-                V extends CFAbstractValue<V>,
-                T extends InitializationTransfer<V, T, S>,
-                S extends InitializationStore<V, S>>
-        extends CFAbstractTransfer<V, S, T> {
+public class InitializationTransfer
+        extends CFAbstractTransfer<
+                InitializationValue, InitializationStore, InitializationTransfer> {
 
-    protected final InitializationAnnotatedTypeFactory<?, ?, ?, ?> atypeFactory;
+    protected final InitializationAnnotatedTypeFactory atypeFactory;
 
-    public InitializationTransfer(CFAbstractAnalysis<V, S, T> analysis) {
+    public InitializationTransfer(InitializationAnalysis analysis) {
         super(analysis);
-        this.atypeFactory =
-                (InitializationAnnotatedTypeFactory<?, ?, ?, ?>) analysis.getTypeFactory();
+        this.atypeFactory = (InitializationAnnotatedTypeFactory) analysis.getTypeFactory();
     }
 
     @Override
@@ -106,7 +98,7 @@ public class InitializationTransfer<
         if (isConstructor && receiver instanceof ThisNode && methodString.equals("this")) {
             ClassTree clazz = TreePathUtil.enclosingClass(analysis.getTypeFactory().getPath(tree));
             TypeElement clazzElem = TreeUtils.elementFromDeclaration(clazz);
-            markInvariantFieldsAsInitialized(result, clazzElem);
+            markFieldsAsInitialized(result, clazzElem);
         }
 
         // Case 4: After a call to the constructor of the super class, all
@@ -119,7 +111,7 @@ public class InitializationTransfer<
             while (superClass != null && superClass.getKind() != TypeKind.NONE) {
                 clazzElem = (TypeElement) analysis.getTypes().asElement(superClass);
                 superClass = clazzElem.getSuperclass();
-                markInvariantFieldsAsInitialized(result, clazzElem);
+                markFieldsAsInitialized(result, clazzElem);
             }
         }
 
@@ -130,8 +122,7 @@ public class InitializationTransfer<
      * Adds all the fields of the class {@code clazzElem} that have the 'invariant annotation' to
      * the set of initialized fields {@code result}.
      */
-    protected void markInvariantFieldsAsInitialized(
-            List<VariableElement> result, TypeElement clazzElem) {
+    protected void markFieldsAsInitialized(List<VariableElement> result, TypeElement clazzElem) {
         List<VariableElement> fields = ElementFilter.fieldsIn(clazzElem.getEnclosedElements());
         for (VariableElement field : fields) {
             if (((Symbol) field).type.tsym.completer != Symbol.Completer.NULL_COMPLETER
@@ -141,16 +132,15 @@ public class InitializationTransfer<
                 // This was raised by Issue #244.
                 continue;
             }
-            AnnotatedTypeMirror fieldType = atypeFactory.getAnnotatedType(field);
-            if (atypeFactory.hasFieldInvariantAnnotation(fieldType, field)) {
-                result.add(field);
-            }
+            result.add(field);
         }
     }
 
     @Override
-    public TransferResult<V, S> visitAssignment(AssignmentNode n, TransferInput<V, S> in) {
-        TransferResult<V, S> result = super.visitAssignment(n, in);
+    public TransferResult<InitializationValue, InitializationStore> visitAssignment(
+            AssignmentNode n, TransferInput<InitializationValue, InitializationStore> in) {
+        TransferResult<InitializationValue, InitializationStore> result =
+                super.visitAssignment(n, in);
         JavaExpression lhs = JavaExpression.fromNode(n.getTarget());
 
         // If this is an assignment to a field of 'this', then mark the field as initialized.
@@ -167,38 +157,11 @@ public class InitializationTransfer<
         return result;
     }
 
-    /**
-     * If an invariant field is initialized and has the invariant annotation, than it has at least
-     * the invariant annotation. Note that only fields of the 'this' receiver are tracked for
-     * initialization.
-     */
     @Override
-    public TransferResult<V, S> visitFieldAccess(FieldAccessNode n, TransferInput<V, S> p) {
-        TransferResult<V, S> result = super.visitFieldAccess(n, p);
-        assert !result.containsTwoStores();
-        S store = result.getRegularStore();
-        if (store.isFieldInitialized(n.getElement()) && n.getReceiver() instanceof ThisNode) {
-            AnnotatedTypeMirror fieldAnno =
-                    analysis.getTypeFactory().getAnnotatedType(n.getElement());
-            // Only if the field has the type system's invariant annotation,
-            // such as @NonNull.
-            if (fieldAnno.hasAnnotation(atypeFactory.getFieldInvariantAnnotation())) {
-                AnnotationMirror inv = atypeFactory.getFieldInvariantAnnotation();
-                V oldResultValue = result.getResultValue();
-                V refinedResultValue =
-                        analysis.createSingleAnnotationValue(
-                                inv, oldResultValue.getUnderlyingType());
-                V newResultValue = refinedResultValue.mostSpecific(oldResultValue, null);
-                result.setResultValue(newResultValue);
-            }
-        }
-        return result;
-    }
-
-    @Override
-    public TransferResult<V, S> visitMethodInvocation(
-            MethodInvocationNode n, TransferInput<V, S> in) {
-        TransferResult<V, S> result = super.visitMethodInvocation(n, in);
+    public TransferResult<InitializationValue, InitializationStore> visitMethodInvocation(
+            MethodInvocationNode n, TransferInput<InitializationValue, InitializationStore> in) {
+        TransferResult<InitializationValue, InitializationStore> result =
+                super.visitMethodInvocation(n, in);
         List<VariableElement> newlyInitializedFields = initializedFieldsAfterCall(n);
         if (!newlyInitializedFields.isEmpty()) {
             for (VariableElement f : newlyInitializedFields) {

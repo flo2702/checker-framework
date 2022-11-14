@@ -17,11 +17,9 @@ import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.initialization.qual.NotOnlyInitialized;
 import org.checkerframework.checker.initialization.qual.UnderInitialization;
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
-import org.checkerframework.checker.nullness.NullnessAnnotatedTypeFactory;
 import org.checkerframework.checker.nullness.NullnessChecker;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.framework.flow.CFAbstractAnalysis;
-import org.checkerframework.framework.flow.CFAbstractValue;
 import org.checkerframework.framework.qual.Unused;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
@@ -37,7 +35,6 @@ import org.checkerframework.framework.util.QualifierKind;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.ElementUtils;
-import org.checkerframework.javacutil.Pair;
 import org.checkerframework.javacutil.TreePathUtil;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
@@ -70,12 +67,12 @@ import javax.lang.model.util.Types;
  * another type-system whose safe initialization should be tracked. For an example, see the {@link
  * NullnessChecker}.
  */
-public abstract class InitializationAnnotatedTypeFactory<
-                Value extends CFAbstractValue<Value>,
-                Store extends InitializationStore<Value, Store>,
-                Transfer extends InitializationTransfer<Value, Transfer, Store>,
-                Flow extends CFAbstractAnalysis<Value, Store, Transfer>>
-        extends GenericAnnotatedTypeFactory<Value, Store, Transfer, Flow> {
+public class InitializationAnnotatedTypeFactory
+        extends GenericAnnotatedTypeFactory<
+                InitializationValue,
+                InitializationStore,
+                InitializationTransfer,
+                InitializationAnalysis> {
 
     /** {@link UnknownInitialization}. */
     protected final AnnotationMirror UNKNOWN_INITIALIZATION;
@@ -121,7 +118,7 @@ public abstract class InitializationAnnotatedTypeFactory<
      *
      * @param checker the checker to which the new type factory belongs
      */
-    protected InitializationAnnotatedTypeFactory(BaseTypeChecker checker) {
+    public InitializationAnnotatedTypeFactory(BaseTypeChecker checker) {
         super(checker, true);
 
         UNKNOWN_INITIALIZATION = AnnotationBuilder.fromClass(elements, UnknownInitialization.class);
@@ -154,8 +151,12 @@ public abstract class InitializationAnnotatedTypeFactory<
 
         initAnnoNames = Collections.unmodifiableSet(tempInitAnnoNames);
 
-        // No call to postInit() because this class is abstract.
-        // Its subclasses must call postInit().
+        postInit();
+    }
+
+    @Override
+    public InitializationChecker getChecker() {
+        return (InitializationChecker) super.getChecker();
     }
 
     public Set<Class<? extends Annotation>> getInitializationAnnotations() {
@@ -186,48 +187,6 @@ public abstract class InitializationAnnotatedTypeFactory<
     public Set<Class<? extends Annotation>> getInvalidConstructorReturnTypeAnnotations() {
         return getInitializationAnnotations();
     }
-
-    /**
-     * Returns the annotation that makes up the invariant of this commitment type system, such as
-     * {@code @NonNull}.
-     *
-     * @return the invariant annotation for this type system
-     */
-    public abstract AnnotationMirror getFieldInvariantAnnotation();
-
-    /**
-     * Returns whether or not {@code field} has the invariant annotation.
-     *
-     * <p>This method is a convenience method for {@link
-     * #hasFieldInvariantAnnotation(AnnotatedTypeMirror, VariableElement)}.
-     *
-     * <p>If the {@code field} is a type variable, this method returns true if any possible
-     * instantiation of the type parameter could have the invariant annotation. See {@link
-     * NullnessAnnotatedTypeFactory#hasFieldInvariantAnnotation(VariableTree)} for an example.
-     *
-     * @param field field that might have invariant annotation
-     * @return whether or not field has the invariant annotation
-     */
-    protected final boolean hasFieldInvariantAnnotation(VariableTree field) {
-        AnnotatedTypeMirror type = getAnnotatedType(field);
-        VariableElement fieldElement = TreeUtils.elementFromDeclaration(field);
-        return hasFieldInvariantAnnotation(type, fieldElement);
-    }
-
-    /**
-     * Returns whether or not {@code type} has the invariant annotation.
-     *
-     * <p>If the {@code type} is a type variable, this method returns true if any possible
-     * instantiation of the type parameter could have the invariant annotation. See {@link
-     * NullnessAnnotatedTypeFactory#hasFieldInvariantAnnotation(VariableTree)} for an example.
-     *
-     * @param type of field that might have invariant annotation
-     * @param fieldElement the field element, which can be used to check annotations on the
-     *     declaration
-     * @return whether or not the type has the invariant annotation
-     */
-    protected abstract boolean hasFieldInvariantAnnotation(
-            AnnotatedTypeMirror type, VariableElement fieldElement);
 
     /**
      * Creates a {@link UnderInitialization} annotation with the given type as its type frame
@@ -525,9 +484,9 @@ public abstract class InitializationAnnotatedTypeFactory<
         //  - otherwise, this is @UnderInitialization(CurrentClass) as
         //    there might still be subclasses that need initialization.
         if (areAllFieldsInitializedOnly(enclosingClass)) {
-            Store store = getStoreBefore(tree);
+            InitializationStore store = getStoreBefore(tree);
             if (store != null
-                    && getUninitializedInvariantFields(store, path, false, Collections.emptyList())
+                    && getUninitializedFields(store, path, false, Collections.emptyList())
                             .isEmpty()) {
                 if (classType.isFinal()) {
                     annotation = INITIALIZED;
@@ -573,76 +532,44 @@ public abstract class InitializationAnnotatedTypeFactory<
     }
 
     /**
-     * Returns the fields that are not yet initialized in a given store. The result is a pair of
-     * lists:
-     *
-     * <ul>
-     *   <li>fields that are not yet initialized and have the invariant annotation
-     *   <li>fields that are not yet initialized and do not have the invariant annotation
-     * </ul>
+     * Returns the fields that are not yet initialized in a given store.
      *
      * @param store a store
      * @param path the current path, used to determine the current class
      * @param isStatic whether to report static fields or instance fields
      * @param receiverAnnotations the annotations on the receiver
-     * @return the fields that are not yet initialized in a given store (a pair of lists)
+     * @return the fields that are not yet initialized in a given store
      */
-    public Pair<List<VariableTree>, List<VariableTree>> getUninitializedFields(
-            Store store,
+    public List<VariableTree> getUninitializedFields(
+            InitializationStore store,
             TreePath path,
             boolean isStatic,
             Collection<? extends AnnotationMirror> receiverAnnotations) {
         ClassTree currentClass = TreePathUtil.enclosingClass(path);
         List<VariableTree> fields = InitializationChecker.getAllFields(currentClass);
-        List<VariableTree> uninitWithInvariantAnno = new ArrayList<>();
-        List<VariableTree> uninitWithoutInvariantAnno = new ArrayList<>();
+        List<VariableTree> uninit = new ArrayList<>();
         for (VariableTree field : fields) {
             if (isUnused(field, receiverAnnotations)) {
                 continue; // don't consider unused fields
             }
             VariableElement fieldElem = TreeUtils.elementFromDeclaration(field);
             if (ElementUtils.isStatic(fieldElem) == isStatic) {
-                // Has the field been initialized?
                 if (!store.isFieldInitialized(fieldElem)) {
-                    // Does this field need to satisfy the invariant?
-                    if (hasFieldInvariantAnnotation(field)) {
-                        uninitWithInvariantAnno.add(field);
-                    } else {
-                        uninitWithoutInvariantAnno.add(field);
-                    }
+                    uninit.add(field);
                 }
             }
         }
-        return Pair.of(uninitWithInvariantAnno, uninitWithoutInvariantAnno);
+        return uninit;
     }
 
     /**
-     * Returns the fields that have the invariant annotation and are not yet initialized in a given
-     * store.
-     *
-     * @param store a store
-     * @param path the current path, used to determine the current class
-     * @param isStatic whether to report static fields or instance fields
-     * @param receiverAnnotations the annotations on the receiver
-     * @return the fields that have the invariant annotation and are not yet initialized in a given
-     *     store (a pair of lists)
-     */
-    public final List<VariableTree> getUninitializedInvariantFields(
-            Store store,
-            TreePath path,
-            boolean isStatic,
-            List<? extends AnnotationMirror> receiverAnnotations) {
-        return getUninitializedFields(store, path, isStatic, receiverAnnotations).first;
-    }
-
-    /**
-     * Returns the fields that have the invariant annotation and are initialized in a given store.
+     * Returns the fields are initialized in a given store.
      *
      * @param store a store
      * @param path the current path; used to compute the current class
-     * @return the fields that have the invariant annotation and are initialized in a given store
+     * @return the fields that are initialized in a given store
      */
-    public List<VariableTree> getInitializedInvariantFields(Store store, TreePath path) {
+    public List<VariableTree> getInitializedFields(InitializationStore store, TreePath path) {
         // TODO: Instead of passing the TreePath around, can we use
         // getCurrentClassTree?
         ClassTree currentClass = TreePathUtil.enclosingClass(path);
@@ -651,12 +578,8 @@ public abstract class InitializationAnnotatedTypeFactory<
         for (VariableTree field : fields) {
             VariableElement fieldElem = TreeUtils.elementFromDeclaration(field);
             if (!ElementUtils.isStatic(fieldElem)) {
-                // Does this field need to satisfy the invariant?
-                if (hasFieldInvariantAnnotation(field)) {
-                    // Has the field been initialized?
-                    if (store.isFieldInitialized(fieldElem)) {
-                        initializedFields.add(field);
-                    }
+                if (store.isFieldInitialized(fieldElem)) {
+                    initializedFields.add(field);
                 }
             }
         }
@@ -760,6 +683,23 @@ public abstract class InitializationAnnotatedTypeFactory<
     }
 
     @Override
+    protected InitializationAnalysis createFlowAnalysis() {
+        return new InitializationAnalysis(checker, this);
+    }
+
+    @Override
+    public InitializationTransfer createFlowTransferFunction(
+            CFAbstractAnalysis<InitializationValue, InitializationStore, InitializationTransfer>
+                    analysis) {
+        return new InitializationTransfer((InitializationAnalysis) analysis);
+    }
+
+    @Override
+    protected QualifierHierarchy createQualifierHierarchy() {
+        return new InitializationQualifierHierarchy();
+    }
+
+    @Override
     protected TypeAnnotator createTypeAnnotator() {
         return new ListTypeAnnotator(
                 super.createTypeAnnotator(), new CommitmentTypeAnnotator(this));
@@ -772,8 +712,7 @@ public abstract class InitializationAnnotatedTypeFactory<
     }
 
     protected class CommitmentTypeAnnotator extends TypeAnnotator {
-        public CommitmentTypeAnnotator(
-                InitializationAnnotatedTypeFactory<?, ?, ?, ?> atypeFactory) {
+        public CommitmentTypeAnnotator(InitializationAnnotatedTypeFactory atypeFactory) {
             super(atypeFactory);
         }
 
@@ -793,8 +732,7 @@ public abstract class InitializationAnnotatedTypeFactory<
 
     protected class CommitmentTreeAnnotator extends TreeAnnotator {
 
-        public CommitmentTreeAnnotator(
-                InitializationAnnotatedTypeFactory<?, ?, ?, ?> atypeFactory) {
+        public CommitmentTreeAnnotator(InitializationAnnotatedTypeFactory atypeFactory) {
             super(atypeFactory);
         }
 
@@ -847,17 +785,8 @@ public abstract class InitializationAnnotatedTypeFactory<
         }
     }
 
-    /**
-     * The {@link QualifierHierarchy} for the initialization type system.
-     *
-     * <p>Type systems extending the Initialization Checker should call methods {@link
-     * InitializationQualifierHierarchy#isSubtypeInitialization} and {@link
-     * InitializationQualifierHierarchy#leastUpperBoundInitialization} for appropriate qualifiers.
-     * See protected subclass NullnessQualifierHierarchy within class {@link NullnessChecker} for an
-     * example.
-     */
-    protected abstract class InitializationQualifierHierarchy
-            extends MostlyNoElementQualifierHierarchy {
+    /** The {@link QualifierHierarchy} for the initialization type system. */
+    protected class InitializationQualifierHierarchy extends MostlyNoElementQualifierHierarchy {
 
         /** Qualifier kind for the @{@link UnknownInitialization} annotation. */
         private final QualifierKind UNKNOWN_INIT;
@@ -871,18 +800,8 @@ public abstract class InitializationAnnotatedTypeFactory<
             UNDER_INIT = getQualifierKind(UNDER_INITALIZATION);
         }
 
-        /**
-         * Subtype testing for initialization annotations. Will return false if either qualifier is
-         * not an initialization annotation. Subclasses should override isSubtype and call this
-         * method for initialization qualifiers.
-         *
-         * @param subAnno subtype annotation
-         * @param subKind subtype kind
-         * @param superAnno supertype annotation
-         * @param superKind supertype kind
-         * @return true if subAnno is a subtype of superAnno in the initialization hierarchy
-         */
-        public boolean isSubtypeInitialization(
+        @Override
+        public boolean isSubtypeWithElements(
                 AnnotationMirror subAnno,
                 QualifierKind subKind,
                 AnnotationMirror superAnno,
@@ -901,30 +820,21 @@ public abstract class InitializationAnnotatedTypeFactory<
             }
         }
 
-        /**
-         * Compute the least upper bound of two initialization qualifiers. Returns null if one of
-         * the qualifiers is not in the initialization hierarachy. Subclasses should override
-         * leastUpperBound and call this method for initialization qualifiers.
-         *
-         * @param anno1 an initialization qualifier
-         * @param qual1 a qualifier kind
-         * @param anno2 an initialization qualifier
-         * @param qual2 a qualifier kind
-         * @return the lub of anno1 and anno2
-         */
-        protected AnnotationMirror leastUpperBoundInitialization(
+        @Override
+        protected AnnotationMirror leastUpperBoundWithElements(
                 AnnotationMirror anno1,
                 QualifierKind qual1,
                 AnnotationMirror anno2,
-                QualifierKind qual2) {
+                QualifierKind qual2,
+                QualifierKind lubKind) {
             if (!isInitializationAnnotation(anno1) || !isInitializationAnnotation(anno2)) {
                 return null;
             }
 
             // Handle the case where one is a subtype of the other.
-            if (isSubtypeInitialization(anno1, qual1, anno2, qual2)) {
+            if (isSubtypeWithElements(anno1, qual1, anno2, qual2)) {
                 return anno2;
-            } else if (isSubtypeInitialization(anno2, qual2, anno1, qual1)) {
+            } else if (isSubtypeWithElements(anno2, qual2, anno1, qual1)) {
                 return anno1;
             }
             boolean unknowninit1 = isUnknownInitialization(anno1);
@@ -971,30 +881,21 @@ public abstract class InitializationAnnotatedTypeFactory<
             return TypesUtils.leastUpperBound(a, b, processingEnv);
         }
 
-        /**
-         * Compute the greatest lower bound of two initialization qualifiers. Returns null if one of
-         * the qualifiers is not in the initialization hierarachy. Subclasses should override
-         * greatestLowerBound and call this method for initialization qualifiers.
-         *
-         * @param anno1 an initialization qualifier
-         * @param qual1 a qualifier kind
-         * @param anno2 an initialization qualifier
-         * @param qual2 a qualifier kind
-         * @return the glb of anno1 and anno2
-         */
-        protected AnnotationMirror greatestLowerBoundInitialization(
+        @Override
+        protected AnnotationMirror greatestLowerBoundWithElements(
                 AnnotationMirror anno1,
                 QualifierKind qual1,
                 AnnotationMirror anno2,
-                QualifierKind qual2) {
+                QualifierKind qual2,
+                QualifierKind glbKind) {
             if (!isInitializationAnnotation(anno1) || !isInitializationAnnotation(anno2)) {
                 return null;
             }
 
             // Handle the case where one is a subtype of the other.
-            if (isSubtypeInitialization(anno1, qual1, anno2, qual2)) {
+            if (isSubtypeWithElements(anno1, qual1, anno2, qual2)) {
                 return anno1;
-            } else if (isSubtypeInitialization(anno2, qual2, anno1, qual1)) {
+            } else if (isSubtypeWithElements(anno2, qual2, anno1, qual1)) {
                 return anno2;
             }
             boolean unknowninit1 = isUnknownInitialization(anno1);

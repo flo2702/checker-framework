@@ -41,7 +41,7 @@ import javax.annotation.processing.SupportedOptions;
     "conservativeArgumentNullnessAfterInvocation"
 })
 @StubFiles({"junit-assertions.astub"})
-public class NullnessChecker extends InitializationChecker {
+public class NullnessChecker extends BaseTypeChecker {
 
     /** Should we be strict about initialization of {@link MonotonicNonNull} variables? */
     public static final String LINT_NOINITFORMONOTONICNONNULL = "noInitForMonotonicNonNull";
@@ -82,8 +82,14 @@ public class NullnessChecker extends InitializationChecker {
                 super.getImmediateSubcheckerClasses();
         if (!hasOptionNoSubcheckers("assumeKeyFor")) {
             checkers.add(KeyForSubchecker.class);
+            checkers.add(InitializationChecker.class);
         }
         return checkers;
+    }
+
+    @Override
+    public NullnessAnnotatedTypeFactory getTypeFactory() {
+        return (NullnessAnnotatedTypeFactory) super.getTypeFactory();
     }
 
     @Override

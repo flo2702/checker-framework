@@ -12,7 +12,7 @@ import org.checkerframework.framework.flow.CFAbstractStore;
  * Behaves like {@link InitializationStore}, but additionally tracks whether {@link PolyNull} is
  * known to be {@link NonNull} or {@link Nullable} (or not known to be either).
  */
-public class NullnessStore extends InitializationStore<NullnessValue, NullnessStore> {
+public class NullnessStore extends CFAbstractStore<NullnessValue, NullnessStore> {
 
     /** True if, at this point, {@link PolyNull} is known to be {@link NonNull}. */
     protected boolean isPolyNullNonNull;
@@ -56,7 +56,7 @@ public class NullnessStore extends InitializationStore<NullnessValue, NullnessSt
 
     @Override
     protected boolean supersetOf(CFAbstractStore<NullnessValue, NullnessStore> o) {
-        if (!(o instanceof InitializationStore)) {
+        if (!(o instanceof NullnessStore)) {
             return false;
         }
         NullnessStore other = (NullnessStore) o;
