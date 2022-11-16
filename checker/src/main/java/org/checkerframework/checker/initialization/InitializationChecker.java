@@ -44,6 +44,11 @@ public class InitializationChecker extends BaseTypeChecker {
     }
 
     @Override
+    public InitializationAnnotatedTypeFactory getTypeFactory() {
+        return (InitializationAnnotatedTypeFactory) super.getTypeFactory();
+    }
+
+    @Override
     protected boolean messageKeyMatches(
             String messageKey, String messageKeyInSuppressWarningsString) {
         // Also support the shorter keys used by typetools

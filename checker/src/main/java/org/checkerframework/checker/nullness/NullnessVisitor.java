@@ -157,6 +157,18 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
     }
 
     @Override
+    protected void checkConstructorResult(
+            AnnotatedExecutableType constructorType, ExecutableElement constructorElement) {
+        // Nothing to check
+    }
+
+    @Override
+    protected void checkThisOrSuperConstructorCall(
+            MethodInvocationTree superCall, @CompilerMessageKey String errorKey) {
+        // Nothing to check
+    }
+
+    @Override
     protected void commonAssignmentCheck(
             Tree varTree,
             ExpressionTree valueExp,

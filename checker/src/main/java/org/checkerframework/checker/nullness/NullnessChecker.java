@@ -37,6 +37,7 @@ import javax.annotation.processing.SupportedOptions;
 })
 @SupportedOptions({
     "assumeKeyFor",
+    "assumeInit",
     "jspecifyNullMarkedAlias",
     "conservativeArgumentNullnessAfterInvocation"
 })

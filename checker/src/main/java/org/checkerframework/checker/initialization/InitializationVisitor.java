@@ -1,6 +1,7 @@
 package org.checkerframework.checker.initialization;
 
 import com.sun.source.tree.BlockTree;
+import com.sun.source.tree.CatchTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.CompilationUnitTree;
 import com.sun.source.tree.ExpressionTree;
@@ -161,6 +162,12 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
             }
         }
         return super.visitVariable(node, p);
+    }
+
+    @Override
+    protected void checkExceptionParameter(CatchTree node) {
+        // TODO Issue 363
+        // https://github.com/eisop/checker-framework/issues/363
     }
 
     @Override

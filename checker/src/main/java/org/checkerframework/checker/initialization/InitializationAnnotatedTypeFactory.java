@@ -372,12 +372,6 @@ public class InitializationAnnotatedTypeFactory
         return true;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>In most cases, subclasses want to call this method first because it may clear all
-     * annotations and use the hierarchy's root annotations.
-     */
     @Override
     public void postAsMemberOf(
             AnnotatedTypeMirror type, AnnotatedTypeMirror owner, Element element) {
@@ -387,8 +381,8 @@ public class InitializationAnnotatedTypeFactory
             Collection<? extends AnnotationMirror> declaredFieldAnnotations =
                     getDeclAnnotations(element);
             AnnotatedTypeMirror fieldAnnotations = getAnnotatedType(element);
-            computeFieldAccessType(
-                    type, declaredFieldAnnotations, owner, fieldAnnotations, element);
+            computeFieldAccessInitializationType(
+                    type, declaredFieldAnnotations, owner, fieldAnnotations);
         }
     }
 
@@ -627,19 +621,19 @@ public class InitializationAnnotatedTypeFactory
     }
 
     /**
-     * Determine the type of a field access (implicit or explicit) based on the receiver type and
-     * the declared annotations for the field.
+     * Determine the initialization type of a field access (implicit or explicit) based on the
+     * receiver type and the declared annotations for the field.
      *
      * @param type type of the field access expression
-     * @param declaredFieldAnnotations annotations on the element
+     * @param declaredFieldAnnotations declared annotations on the field
      * @param receiverType inferred annotations of the receiver
+     * @param fieldType inferred annotations of the field
      */
-    private void computeFieldAccessType(
+    private void computeFieldAccessInitializationType(
             AnnotatedTypeMirror type,
             Collection<? extends AnnotationMirror> declaredFieldAnnotations,
             AnnotatedTypeMirror receiverType,
-            AnnotatedTypeMirror fieldAnnotations,
-            Element element) {
+            AnnotatedTypeMirror fieldType) {
         // not necessary for primitive fields
         if (TypesUtils.isPrimitive(type.getUnderlyingType())) {
             return;
@@ -647,36 +641,13 @@ public class InitializationAnnotatedTypeFactory
         // not necessary if there is an explicit UnknownInitialization
         // annotation on the field
         if (AnnotationUtils.containsSameByName(
-                fieldAnnotations.getAnnotations(), UNKNOWN_INITIALIZATION)) {
+                fieldType.getAnnotations(), UNKNOWN_INITIALIZATION)) {
             return;
         }
         if (isUnknownInitialization(receiverType) || isUnderInitialization(receiverType)) {
-
-            TypeMirror fieldDeclarationType = element.getEnclosingElement().asType();
-            boolean isInitializedForFrame =
-                    isInitializedForFrame(receiverType, fieldDeclarationType);
-            if (isInitializedForFrame) {
-                // The receiver is initialized for this frame.
-                // Change the type of the field to @UnknownInitialization so that
-                // anything can be assigned to this field.
-                type.replaceAnnotation(UNKNOWN_INITIALIZATION);
-            } else if (computingAnnotatedTypeMirrorOfLHS) {
-                // The receiver is not initialized for this frame, but the type of a lhs is being
-                // computed.
-                // Change the type of the field to @UnknownInitialization so that
-                // anything can be assigned to this field.
+            if (AnnotationUtils.containsSame(declaredFieldAnnotations, NOT_ONLY_INITIALIZED)) {
                 type.replaceAnnotation(UNKNOWN_INITIALIZATION);
             } else {
-                // The receiver is not initialized for this frame and the type being computed is not
-                // a LHS.
-                // Replace all annotations with the top annotation for that hierarchy.
-                type.clearAnnotations();
-                type.addAnnotations(qualHierarchy.getTopAnnotations());
-            }
-
-            if (!AnnotationUtils.containsSame(declaredFieldAnnotations, NOT_ONLY_INITIALIZED)) {
-                // add root annotation for all other hierarchies, and
-                // Initialized for the initialization hierarchy
                 type.replaceAnnotation(INITIALIZED);
             }
         }
