@@ -2,7 +2,9 @@ package org.checkerframework.checker.initialization;
 
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.ExpressionTree;
+import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.LiteralTree;
+import com.sun.source.tree.MemberReferenceTree;
 import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.NewClassTree;
@@ -386,24 +388,6 @@ public class InitializationAnnotatedTypeFactory
         }
     }
 
-    /**
-     * Controls which hierarchies' qualifiers are changed based on the receiver type and the
-     * declared annotations for a field.
-     *
-     * @see #computeFieldAccessType
-     * @see #getAnnotatedTypeLhs(Tree)
-     */
-    private boolean computingAnnotatedTypeMirrorOfLHS = false;
-
-    @Override
-    public AnnotatedTypeMirror getAnnotatedTypeLhs(Tree lhsTree) {
-        boolean oldComputingAnnotatedTypeMirrorOfLHS = computingAnnotatedTypeMirrorOfLHS;
-        computingAnnotatedTypeMirrorOfLHS = true;
-        AnnotatedTypeMirror result = super.getAnnotatedTypeLhs(lhsTree);
-        computingAnnotatedTypeMirrorOfLHS = oldComputingAnnotatedTypeMirrorOfLHS;
-        return result;
-    }
-
     @Override
     public AnnotatedDeclaredType getSelfType(Tree tree) {
         AnnotatedDeclaredType selfType = super.getSelfType(tree);
@@ -698,6 +682,95 @@ public class InitializationAnnotatedTypeFactory
                         getUnderInitializationAnnotationOfSuperType(underlyingType));
             }
             return result;
+        }
+    }
+
+    /**
+     * This annotator should be added to {@link GenericAnnotatedTypeFactory#createTreeAnnotator} for
+     * this initialization checker's parent checker. It ensures that the fields of an uninitialized
+     * receiver have the top type in the parent checker's hierarchy.
+     */
+    public static class CommitmentFieldAccessTreeAnnotator extends TreeAnnotator {
+
+        /**
+         * Creates a new CommitmentFieldAccessTreeAnnotator.
+         *
+         * @param atypeFactory the type factory belonging to the init checker's parent.
+         */
+        public CommitmentFieldAccessTreeAnnotator(
+                GenericAnnotatedTypeFactory<?, ?, ?, ?> atypeFactory) {
+            super(atypeFactory);
+        }
+
+        @Override
+        public Void visitIdentifier(IdentifierTree node, AnnotatedTypeMirror p) {
+            super.visitIdentifier(node, p);
+            computeFieldAccessType(node, p);
+            return null;
+        }
+
+        @Override
+        public Void visitMemberSelect(MemberSelectTree node, AnnotatedTypeMirror p) {
+            super.visitMemberSelect(node, p);
+            computeFieldAccessType(node, p);
+            return null;
+        }
+
+        @Override
+        public Void visitMemberReference(MemberReferenceTree node, AnnotatedTypeMirror p) {
+            super.visitMemberReference(node, p);
+            computeFieldAccessType(node, p);
+            return null;
+        }
+
+        private void computeFieldAccessType(ExpressionTree node, AnnotatedTypeMirror type) {
+            GenericAnnotatedTypeFactory<?, ?, ?, ?> factory =
+                    (GenericAnnotatedTypeFactory<?, ?, ?, ?>) atypeFactory;
+            InitializationAnnotatedTypeFactory initFactory =
+                    factory.getChecker().getTypeFactoryOfSubchecker(InitializationChecker.class);
+            Element element = TreeUtils.elementFromUse(node);
+            AnnotatedTypeMirror owner = initFactory.getReceiverType(node);
+
+            if (owner == null) {
+                return;
+            }
+
+            Collection<? extends AnnotationMirror> declaredFieldAnnotations =
+                    factory.getDeclAnnotations(element);
+            AnnotatedTypeMirror fieldAnnotations = factory.getAnnotatedType(element);
+
+            // not necessary for primitive fields
+            if (TypesUtils.isPrimitive(type.getUnderlyingType())) {
+                return;
+            }
+            // not necessary if there is an explicit UnknownInitialization
+            // annotation on the field
+            if (AnnotationUtils.containsSameByName(
+                    fieldAnnotations.getAnnotations(), initFactory.UNKNOWN_INITIALIZATION)) {
+                return;
+            }
+            if (initFactory.isUnknownInitialization(owner)
+                    || initFactory.isUnderInitialization(owner)) {
+
+                TypeMirror fieldDeclarationType = element.getEnclosingElement().asType();
+                boolean isInitializedForFrame =
+                        initFactory.isInitializedForFrame(owner, fieldDeclarationType);
+                if (!isInitializedForFrame && !factory.isComputingAnnotatedTypeMirrorOfLHS()) {
+                    // The receiver is not initialized for this frame and the type being computed is
+                    // not
+                    // a LHS.
+                    // Replace all annotations with the top annotation for that hierarchy.
+                    type.clearAnnotations();
+                    type.addAnnotations(factory.getQualifierHierarchy().getTopAnnotations());
+                }
+
+                if (!AnnotationUtils.containsSame(
+                        declaredFieldAnnotations, initFactory.NOT_ONLY_INITIALIZED)) {
+                    // add root annotation for all other hierarchies, and
+                    // Initialized for the initialization hierarchy
+                    type.replaceAnnotation(initFactory.INITIALIZED);
+                }
+            }
         }
     }
 

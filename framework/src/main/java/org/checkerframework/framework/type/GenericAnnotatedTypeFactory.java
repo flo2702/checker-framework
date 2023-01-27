@@ -1643,6 +1643,26 @@ public abstract class GenericAnnotatedTypeFactory<
     }
 
     /**
+     * Controls which hierarchies' qualifiers are changed based on the receiver type and the
+     * declared annotations for a field.
+     *
+     * @see #getAnnotatedTypeLhs(Tree)
+     */
+    private boolean computingAnnotatedTypeMirrorOfLHS = false;
+
+    /**
+     * Returns whether {@link #getAnnotatedTypeLhs(Tree)} is running right now. This controls which
+     * hierarchies' qualifiers are changed based on the receiver type and the declared annotations
+     * for a field.
+     *
+     * @return whether {@link #getAnnotatedTypeLhs(Tree)} is running right now
+     * @see #getAnnotatedTypeLhs(Tree)
+     */
+    public boolean isComputingAnnotatedTypeMirrorOfLHS() {
+        return computingAnnotatedTypeMirrorOfLHS;
+    }
+
+    /**
      * Returns the type of a left-hand side of an assignment.
      *
      * <p>The default implementation returns the type without considering dataflow type refinement.
@@ -1652,6 +1672,9 @@ public abstract class GenericAnnotatedTypeFactory<
      * @return AnnotatedTypeMirror of {@code lhsTree}
      */
     public AnnotatedTypeMirror getAnnotatedTypeLhs(Tree lhsTree) {
+        boolean oldComputingAnnotatedTypeMirrorOfLHS = computingAnnotatedTypeMirrorOfLHS;
+        computingAnnotatedTypeMirrorOfLHS = true;
+
         AnnotatedTypeMirror res;
         boolean oldUseFlow = useFlow;
         boolean oldShouldCache = shouldCache;
@@ -1685,6 +1708,8 @@ public abstract class GenericAnnotatedTypeFactory<
         }
         useFlow = oldUseFlow;
         shouldCache = oldShouldCache;
+
+        computingAnnotatedTypeMirrorOfLHS = oldComputingAnnotatedTypeMirrorOfLHS;
         return res;
     }
 

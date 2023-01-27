@@ -16,6 +16,7 @@ import com.sun.source.tree.TypeCastTree;
 import com.sun.source.tree.UnaryTree;
 import com.sun.source.tree.VariableTree;
 
+import org.checkerframework.checker.initialization.InitializationAnnotatedTypeFactory;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -542,7 +543,8 @@ public class NullnessAnnotatedTypeFactory
                 // DebugListTreeAnnotator(new Tree.Kind[] {Tree.Kind.CONDITIONAL_EXPRESSION},
                 new NullnessPropagationTreeAnnotator(this),
                 new LiteralTreeAnnotator(this),
-                new NullnessTreeAnnotator(this));
+                new NullnessTreeAnnotator(this),
+                new InitializationAnnotatedTypeFactory.CommitmentFieldAccessTreeAnnotator(this));
     }
 
     /**
