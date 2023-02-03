@@ -68,7 +68,14 @@ public abstract class AbstractAnalysis<
     protected final Worklist worklist;
 
     /** Abstract values of nodes. */
-    protected final IdentityHashMap<Node, V> nodeValues = new IdentityHashMap<>();
+    protected final IdentityHashMap<Node, V> nodeValues =
+            new IdentityHashMap<Node, V>() {
+                @Override
+                public V put(Node key, V value) {
+                    return super.put(key, value);
+                }
+                ;
+            };
 
     /** Map from (effectively final) local variable elements to their abstract value. */
     protected final HashMap<VariableElement, V> finalLocalValues = new HashMap<>();
