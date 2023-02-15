@@ -21,6 +21,7 @@ import org.checkerframework.dataflow.expression.ThisReference;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 import org.checkerframework.framework.qual.MonotonicQualifier;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
+import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
@@ -35,9 +36,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.StringJoiner;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BinaryOperator;
+import java.util.stream.Collectors;
 
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ExecutableElement;
@@ -62,7 +65,7 @@ import javax.lang.model.util.Types;
 // TODO: Split this class into two parts: one that is reusable generally and
 // one that is specific to the Checker Framework.
 public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CFAbstractStore<V, S>>
-        implements Store<S>, UniqueId {
+implements Store<S>, UniqueId {
 
     /** The analysis class this store belongs to. */
     protected final CFAbstractAnalysis<V, S, ?> analysis;
@@ -215,10 +218,12 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      * Furthermore, if the method is deterministic, we store its result {@code val} in the store.
      */
     public void updateForMethodCall(
-            MethodInvocationNode n, AnnotatedTypeFactory atypeFactory, V val) {
+            MethodInvocationNode n, AnnotatedTypeFactory factory, V val) {
         ExecutableElement method = n.getTarget().getMethod();
+        GenericAnnotatedTypeFactory<?, ?, ?, ?> atypeFactory = 
+                ((GenericAnnotatedTypeFactory<?, ?, ?, ?>) factory);
 
-        // case 1: remove information if necessary
+        // remove information if necessary
         if (!(analysis.checker.hasOption("assumeSideEffectFree")
                 || analysis.checker.hasOption("assumePure")
                 || atypeFactory.isSideEffectFree(method))) {
@@ -231,8 +236,8 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
             // isUnmodifiableByOtherCode.  Example: @KeyFor("valueThatCanBeMutated").
             if (sideEffectsUnrefineAliases) {
                 localVariableValues
-                        .entrySet()
-                        .removeIf(e -> !e.getKey().isUnmodifiableByOtherCode());
+                .entrySet()
+                .removeIf(e -> !e.getKey().isUnmodifiableByOtherCode());
             }
 
             // update this value
@@ -249,48 +254,55 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                 for (Map.Entry<FieldAccess, V> e : fieldValues.entrySet()) {
                     FieldAccess fieldAccess = e.getKey();
                     V otherVal = e.getValue();
+                    
+                    // Case 1: The field is unassignable
+                    if (fieldAccess.isUnassignableByOtherCode()) {
+                        // Keep information.
+                        newFieldValues.put(fieldAccess, otherVal);
+                        continue;
+                    }
 
-                    // case 3: the field has a monotonic annotation
-                    if (!((GenericAnnotatedTypeFactory<?, ?, ?, ?>) atypeFactory)
+                    // Case 2: The field has a monotonic annotation.
+                    if (!atypeFactory
                             .getSupportedMonotonicTypeQualifiers()
                             .isEmpty()) {
-                        List<Pair<AnnotationMirror, AnnotationMirror>> fieldAnnotations =
+                        Set<AnnotationMirror> fieldAnnotations =
                                 atypeFactory.getAnnotationWithMetaAnnotation(
-                                        fieldAccess.getField(), MonotonicQualifier.class);
-                        V newOtherVal = null;
-                        for (Pair<AnnotationMirror, AnnotationMirror> fieldAnnotation :
-                                fieldAnnotations) {
-                            AnnotationMirror monotonicAnnotation = fieldAnnotation.second;
-                            @SuppressWarnings("deprecation") // permitted for use in the framework
-                            Name annotation =
-                                    AnnotationUtils.getElementValueClassName(
-                                            monotonicAnnotation, "value", false);
-                            AnnotationMirror target =
-                                    AnnotationBuilder.fromName(
-                                            atypeFactory.getElementUtils(), annotation);
-                            // Make sure the 'target' annotation is present.
-                            if (AnnotationUtils.containsSame(otherVal.getAnnotations(), target)) {
-                                newOtherVal =
-                                        analysis.createSingleAnnotationValue(
-                                                        target, otherVal.getUnderlyingType())
-                                                .mostSpecific(newOtherVal, null);
-                            }
-                        }
+                                        fieldAccess.getField(), MonotonicQualifier.class)
+                                .stream().map(p -> p.second).map(anno -> {
+                                    @SuppressWarnings("deprecation") // permitted for use in the framework
+                                    Name name = AnnotationUtils.getElementValueClassName(
+                                            anno, "value", false);
+                                    return
+                                            AnnotationBuilder.fromName(
+                                                    atypeFactory.getElementUtils(), name);
+                                }).collect(Collectors.toSet());
+                        V newOtherVal = getMonotonicValue(
+                                otherVal, fieldAnnotations, atypeFactory);
                         if (newOtherVal != null) {
-                            // keep information for all hierarchies where we had a
-                            // monotone annotation.
+                            // Keep information for all hierarchies where we had a
+                            // monotonic annotation.
                             newFieldValues.put(fieldAccess, newOtherVal);
                             continue;
                         }
                     }
 
-                    // case 2:
-                    if (!fieldAccess.isUnassignableByOtherCode()) {
-                        continue; // remove information completely
+                    // Case 3:
+                    // If otherVal is a subtype of the field's declared type,
+                    // add the declared type; otherwise remove all information.
+                    // This is useful for checkers that use the InitializationChecker
+                    // and thus allow a field's value to contradict its declared type.
+                    AnnotatedTypeMirror declaredType =
+                            atypeFactory.fromElement(fieldAccess.getField());
+                    atypeFactory.addDefaultAnnotations(declaredType);
+                    V newOtherVal = getMonotonicValue(
+                            otherVal, declaredType.getAnnotations(), atypeFactory);
+                    if (newOtherVal != null) {
+                        // Keep information for all hierarchies where the value matched the
+                        // declared type.
+                        newFieldValues.put(fieldAccess, newOtherVal);
+                        continue;
                     }
-
-                    // keep information
-                    newFieldValues.put(fieldAccess, otherVal);
                 }
                 fieldValues = newFieldValues;
             }
@@ -305,6 +317,22 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
         // store information about method call if possible
         JavaExpression methodCall = JavaExpression.fromNode(n);
         replaceValue(methodCall, val);
+    }
+    
+    private V getMonotonicValue(
+            V value, Set<AnnotationMirror> monotonicAnnotations, AnnotatedTypeFactory atypeFactory) {
+        V result = null;
+        for (AnnotationMirror monotonicAnnotation : monotonicAnnotations) {
+            // Make sure the target annotation is present.
+            AnnotationMirror actual = atypeFactory.getQualifierHierarchy()
+                    .findAnnotationInHierarchy(value.getAnnotations(), monotonicAnnotation);
+            if (actual != null && atypeFactory.getQualifierHierarchy().isSubtype(actual, monotonicAnnotation)) {
+                result = analysis.createSingleAnnotationValue(
+                                monotonicAnnotation, value.getUnderlyingType())
+                        .mostSpecific(result, null);
+            }
+        }
+        return result;
     }
 
     /**
@@ -635,8 +663,8 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                 AnnotationMirror monotonicAnnotation = fieldAnnotation.second;
                 @SuppressWarnings("deprecation") // permitted for use in the framework
                 Name annotation =
-                        AnnotationUtils.getElementValueClassName(
-                                monotonicAnnotation, "value", false);
+                AnnotationUtils.getElementValueClassName(
+                        monotonicAnnotation, "value", false);
                 AnnotationMirror target =
                         AnnotationBuilder.fromName(atypeFactory.getElementUtils(), annotation);
                 // Make sure the 'target' annotation is present.
