@@ -4,7 +4,6 @@ import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.LiteralTree;
-import com.sun.source.tree.MemberReferenceTree;
 import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.NewClassTree;
@@ -21,7 +20,14 @@ import org.checkerframework.checker.initialization.qual.UnderInitialization;
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
 import org.checkerframework.checker.nullness.NullnessChecker;
 import org.checkerframework.common.basetype.BaseTypeChecker;
+import org.checkerframework.dataflow.cfg.node.ClassNameNode;
+import org.checkerframework.dataflow.cfg.node.FieldAccessNode;
+import org.checkerframework.dataflow.cfg.node.ImplicitThisNode;
+import org.checkerframework.dataflow.cfg.node.Node;
 import org.checkerframework.framework.flow.CFAbstractAnalysis;
+import org.checkerframework.framework.flow.CFAbstractStore;
+import org.checkerframework.framework.flow.CFAbstractTransfer;
+import org.checkerframework.framework.flow.CFAbstractValue;
 import org.checkerframework.framework.qual.Unused;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
@@ -45,10 +51,14 @@ import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.StringJoiner;
+import java.util.function.Predicate;
 
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
@@ -103,6 +113,8 @@ public class InitializationAnnotatedTypeFactory
 
     /** Cache for the initialization annotations. */
     protected final Set<Class<? extends Annotation>> initAnnos;
+
+    protected final Map<Tree, List<VariableTree>> uninitializedFields = new HashMap<>();
 
     /**
      * String representation of all initialization annotations.
@@ -541,6 +553,135 @@ public class InitializationAnnotatedTypeFactory
     }
 
     /**
+     * Reports an error for every field not initialized by a given constructor or static
+     * initializer.
+     *
+     * @param <Value> the parent factory's value type
+     * @param <Store> the parent factory's store type
+     * @param <Transfer> the parent factory's transfer type
+     * @param <Analysis> the parent factory's analysis type
+     * @param <Factory> the parent factory type
+     * @param node the constructor or static initializer to check
+     * @param staticFields whether or not to check for initialization of static fields
+     * @param factory the parent factory
+     * @param enclosingClass the enclosing class for {@code node}
+     * @param invariant the invariant annotation
+     * @param filter a predicate which is false if the field should not be checked for
+     *     initialization
+     */
+    public <
+                    Value extends CFAbstractValue<Value>,
+                    Store extends CFAbstractStore<Value, Store>,
+                    Transfer extends CFAbstractTransfer<Value, Store, Transfer>,
+                    Analysis extends CFAbstractAnalysis<Value, Store, Transfer>,
+                    Factory extends GenericAnnotatedTypeFactory<Value, Store, Transfer, Analysis>>
+            void reportUninitializedFields(
+                    Tree node,
+                    boolean staticFields,
+                    Factory factory,
+                    ClassTree enclosingClass,
+                    AnnotationMirror invariant,
+                    Predicate<VariableTree> filter) {
+        reportUninitializedFields(
+                node,
+                staticFields,
+                filter.and(
+                        var -> {
+                            // filter out variables that have the invariant
+                            Store store = factory.getRegularExitStore(node);
+                            Node receiver;
+                            if (ElementUtils.isStatic(TreeUtils.elementFromDeclaration(var))) {
+                                receiver = new ClassNameNode(enclosingClass);
+                            } else {
+                                receiver =
+                                        new ImplicitThisNode(
+                                                TreeUtils.elementFromDeclaration(enclosingClass)
+                                                        .asType());
+                            }
+
+                            Value value =
+                                    store.getValue(
+                                            new FieldAccessNode(
+                                                    var,
+                                                    TreeUtils.elementFromDeclaration(var),
+                                                    receiver));
+                            if (value != null) {
+                                Set<AnnotationMirror> annotations = value.getAnnotations();
+                                for (AnnotationMirror annotation : annotations) {
+                                    if (factory.getQualifierHierarchy()
+                                            .isSubtype(annotation, invariant)) {
+                                        return false;
+                                    }
+                                }
+                            }
+
+                            // filter out variables whose declaration doesn't have the invariant
+                            AnnotatedTypeMirror declType = factory.getAnnotatedTypeLhs(var);
+                            if (!AnnotationUtils.containsSame(
+                                    declType.getAnnotations(), invariant)) {
+                                return false;
+                            }
+
+                            return true;
+                        }));
+    }
+
+    /**
+     * Reports an error for every field not initialized by a given constructor or static
+     * initializer.
+     *
+     * @param node the constructor or static initializer to check
+     * @param staticFields whether or not to check for initialization of static fields
+     * @param filter a predicate which is false if the field should not be checked for
+     *     initialization
+     */
+    public void reportUninitializedFields(
+            Tree node, boolean staticFields, Predicate<VariableTree> filter) {
+        List<VariableTree> uninitializedFields = this.uninitializedFields.get(node);
+
+        if (uninitializedFields == null || uninitializedFields.isEmpty()) {
+            return;
+        }
+
+        // Errors are issued at the field declaration if the field is static or if the constructor
+        // is the default constructor.
+        // Errors are issued at the constructor declaration if the field is non-static and the
+        // constructor is non-default.
+        boolean errorAtField = staticFields || TreeUtils.isSynthetic((MethodTree) node);
+
+        String FIELDS_UNINITIALIZED_KEY =
+                (staticFields
+                        ? "initialization.static.field.uninitialized"
+                        : errorAtField
+                                ? "initialization.field.uninitialized"
+                                : "initialization.fields.uninitialized");
+
+        // Remove fields with a relevant @SuppressWarnings annotation.
+        uninitializedFields.removeIf(
+                f ->
+                        checker.shouldSuppressWarnings(
+                                TreeUtils.elementFromDeclaration(f), FIELDS_UNINITIALIZED_KEY));
+
+        uninitializedFields.removeIf(filter.negate());
+
+        if (!uninitializedFields.isEmpty()) {
+            if (errorAtField) {
+                // Issue each error at the relevant field
+                for (VariableTree f : uninitializedFields) {
+                    checker.reportError(f, FIELDS_UNINITIALIZED_KEY, f.getName());
+                }
+            } else {
+                // Issue all the errors at the relevant constructor
+                StringJoiner fieldsString = new StringJoiner(", ");
+                for (VariableTree f : uninitializedFields) {
+                    fieldsString.add(f.getName());
+                }
+                checker.reportError(node, FIELDS_UNINITIALIZED_KEY, fieldsString);
+            }
+        }
+    }
+
+    /**
      * Returns the fields are initialized in a given store.
      *
      * @param store a store
@@ -635,6 +776,12 @@ public class InitializationAnnotatedTypeFactory
                 type.replaceAnnotation(INITIALIZED);
             }
         }
+
+        if (!AnnotationUtils.containsSame(declaredFieldAnnotations, NOT_ONLY_INITIALIZED)) {
+            // add root annotation for all other hierarchies, and
+            // Initialized for the initialization hierarchy
+            type.replaceAnnotation(INITIALIZED);
+        }
     }
 
     @Override
@@ -716,13 +863,6 @@ public class InitializationAnnotatedTypeFactory
             return null;
         }
 
-        @Override
-        public Void visitMemberReference(MemberReferenceTree node, AnnotatedTypeMirror p) {
-            super.visitMemberReference(node, p);
-            computeFieldAccessType(node, p);
-            return null;
-        }
-
         private void computeFieldAccessType(ExpressionTree node, AnnotatedTypeMirror type) {
             GenericAnnotatedTypeFactory<?, ?, ?, ?> factory =
                     (GenericAnnotatedTypeFactory<?, ?, ?, ?>) atypeFactory;
@@ -735,8 +875,10 @@ public class InitializationAnnotatedTypeFactory
                 return;
             }
 
-            Collection<? extends AnnotationMirror> declaredFieldAnnotations =
-                    factory.getDeclAnnotations(element);
+            if (type instanceof AnnotatedExecutableType) {
+                return;
+            }
+
             AnnotatedTypeMirror fieldAnnotations = factory.getAnnotatedType(element);
 
             // not necessary for primitive fields
@@ -773,13 +915,6 @@ public class InitializationAnnotatedTypeFactory
                     // Replace all annotations with the top annotation for that hierarchy.
                     type.clearAnnotations();
                     type.addAnnotations(factory.getQualifierHierarchy().getTopAnnotations());
-                }
-
-                if (!AnnotationUtils.containsSame(
-                        declaredFieldAnnotations, initFactory.NOT_ONLY_INITIALIZED)) {
-                    // add root annotation for all other hierarchies, and
-                    // Initialized for the initialization hierarchy
-                    type.replaceAnnotation(initFactory.INITIALIZED);
                 }
             }
         }

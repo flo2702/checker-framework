@@ -36,6 +36,8 @@ import com.sun.source.util.TreePath;
 
 import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
 import org.checkerframework.checker.formatter.qual.FormatMethod;
+import org.checkerframework.checker.initialization.InitializationAnnotatedTypeFactory;
+import org.checkerframework.checker.initialization.InitializationChecker;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.common.basetype.BaseTypeChecker;
@@ -240,6 +242,30 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
         // determined @PolyNull is @Nullable at the RHS, then it is also @Nullable for the LHS.
         atypeFactory.replacePolyQualifier(varType, valueExp);
         super.commonAssignmentCheck(varType, valueExp, errorKey, extraArgs);
+    }
+
+    @Override
+    public Void scan(@Nullable Tree tree, Void p) {
+        InitializationAnnotatedTypeFactory initFactory =
+                atypeFactory.getTypeFactoryOfSubchecker(InitializationChecker.class);
+
+        if (tree != null) {
+            Element element = TreeUtils.elementFromTree(tree);
+            boolean staticFields =
+                    (methodTree != null
+                                    && ElementUtils.isStatic(
+                                            TreeUtils.elementFromDeclaration(methodTree)))
+                            || (element != null && ElementUtils.isStatic(element));
+            initFactory.reportUninitializedFields(
+                    tree,
+                    staticFields,
+                    atypeFactory,
+                    classTree,
+                    atypeFactory.NONNULL,
+                    var -> !atypeFactory.getAnnotatedType(var).getKind().isPrimitive());
+        }
+
+        return super.scan(tree, p);
     }
 
     @Override

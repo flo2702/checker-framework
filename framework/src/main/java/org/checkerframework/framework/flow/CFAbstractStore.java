@@ -1,5 +1,7 @@
 package org.checkerframework.framework.flow;
 
+import com.sun.source.tree.Tree;
+
 import org.checkerframework.checker.nullness.qual.EnsuresNonNullIf;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.analysis.Store;
@@ -65,7 +67,7 @@ import javax.lang.model.util.Types;
 // TODO: Split this class into two parts: one that is reusable generally and
 // one that is specific to the Checker Framework.
 public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CFAbstractStore<V, S>>
-implements Store<S>, UniqueId {
+        implements Store<S>, UniqueId {
 
     /** The analysis class this store belongs to. */
     protected final CFAbstractAnalysis<V, S, ?> analysis;
@@ -217,10 +219,9 @@ implements Store<S>, UniqueId {
      *
      * Furthermore, if the method is deterministic, we store its result {@code val} in the store.
      */
-    public void updateForMethodCall(
-            MethodInvocationNode n, AnnotatedTypeFactory factory, V val) {
+    public void updateForMethodCall(MethodInvocationNode n, AnnotatedTypeFactory factory, V val) {
         ExecutableElement method = n.getTarget().getMethod();
-        GenericAnnotatedTypeFactory<?, ?, ?, ?> atypeFactory = 
+        GenericAnnotatedTypeFactory<?, ?, ?, ?> atypeFactory =
                 ((GenericAnnotatedTypeFactory<?, ?, ?, ?>) factory);
 
         // remove information if necessary
@@ -236,8 +237,8 @@ implements Store<S>, UniqueId {
             // isUnmodifiableByOtherCode.  Example: @KeyFor("valueThatCanBeMutated").
             if (sideEffectsUnrefineAliases) {
                 localVariableValues
-                .entrySet()
-                .removeIf(e -> !e.getKey().isUnmodifiableByOtherCode());
+                        .entrySet()
+                        .removeIf(e -> !e.getKey().isUnmodifiableByOtherCode());
             }
 
             // update this value
@@ -254,7 +255,7 @@ implements Store<S>, UniqueId {
                 for (Map.Entry<FieldAccess, V> e : fieldValues.entrySet()) {
                     FieldAccess fieldAccess = e.getKey();
                     V otherVal = e.getValue();
-                    
+
                     // Case 1: The field is unassignable
                     if (fieldAccess.isUnassignableByOtherCode()) {
                         // Keep information.
@@ -263,22 +264,27 @@ implements Store<S>, UniqueId {
                     }
 
                     // Case 2: The field has a monotonic annotation.
-                    if (!atypeFactory
-                            .getSupportedMonotonicTypeQualifiers()
-                            .isEmpty()) {
+                    if (!atypeFactory.getSupportedMonotonicTypeQualifiers().isEmpty()) {
                         Set<AnnotationMirror> fieldAnnotations =
-                                atypeFactory.getAnnotationWithMetaAnnotation(
-                                        fieldAccess.getField(), MonotonicQualifier.class)
-                                .stream().map(p -> p.second).map(anno -> {
-                                    @SuppressWarnings("deprecation") // permitted for use in the framework
-                                    Name name = AnnotationUtils.getElementValueClassName(
-                                            anno, "value", false);
-                                    return
-                                            AnnotationBuilder.fromName(
-                                                    atypeFactory.getElementUtils(), name);
-                                }).collect(Collectors.toSet());
-                        V newOtherVal = getMonotonicValue(
-                                otherVal, fieldAnnotations, atypeFactory);
+                                atypeFactory
+                                        .getAnnotationWithMetaAnnotation(
+                                                fieldAccess.getField(), MonotonicQualifier.class)
+                                        .stream()
+                                        .map(p -> p.second)
+                                        .map(
+                                                anno -> {
+                                                    @SuppressWarnings(
+                                                            "deprecation") // permitted for use in
+                                                    // the framework
+                                                    Name name =
+                                                            AnnotationUtils
+                                                                    .getElementValueClassName(
+                                                                            anno, "value", false);
+                                                    return AnnotationBuilder.fromName(
+                                                            atypeFactory.getElementUtils(), name);
+                                                })
+                                        .collect(Collectors.toSet());
+                        V newOtherVal = getMonotonicValue(otherVal, fieldAnnotations, atypeFactory);
                         if (newOtherVal != null) {
                             // Keep information for all hierarchies where we had a
                             // monotonic annotation.
@@ -295,8 +301,9 @@ implements Store<S>, UniqueId {
                     AnnotatedTypeMirror declaredType =
                             atypeFactory.fromElement(fieldAccess.getField());
                     atypeFactory.addDefaultAnnotations(declaredType);
-                    V newOtherVal = getMonotonicValue(
-                            otherVal, declaredType.getAnnotations(), atypeFactory);
+                    V newOtherVal =
+                            getMonotonicValue(
+                                    otherVal, declaredType.getAnnotations(), atypeFactory);
                     if (newOtherVal != null) {
                         // Keep information for all hierarchies where the value matched the
                         // declared type.
@@ -318,18 +325,26 @@ implements Store<S>, UniqueId {
         JavaExpression methodCall = JavaExpression.fromNode(n);
         replaceValue(methodCall, val);
     }
-    
+
     private V getMonotonicValue(
-            V value, Set<AnnotationMirror> monotonicAnnotations, AnnotatedTypeFactory atypeFactory) {
+            V value,
+            Set<AnnotationMirror> monotonicAnnotations,
+            AnnotatedTypeFactory atypeFactory) {
         V result = null;
         for (AnnotationMirror monotonicAnnotation : monotonicAnnotations) {
             // Make sure the target annotation is present.
-            AnnotationMirror actual = atypeFactory.getQualifierHierarchy()
-                    .findAnnotationInHierarchy(value.getAnnotations(), monotonicAnnotation);
-            if (actual != null && atypeFactory.getQualifierHierarchy().isSubtype(actual, monotonicAnnotation)) {
-                result = analysis.createSingleAnnotationValue(
-                                monotonicAnnotation, value.getUnderlyingType())
-                        .mostSpecific(result, null);
+            AnnotationMirror actual =
+                    atypeFactory
+                            .getQualifierHierarchy()
+                            .findAnnotationInHierarchy(value.getAnnotations(), monotonicAnnotation);
+            if (actual != null
+                    && atypeFactory
+                            .getQualifierHierarchy()
+                            .isSubtype(actual, monotonicAnnotation)) {
+                result =
+                        analysis.createSingleAnnotationValue(
+                                        monotonicAnnotation, value.getUnderlyingType())
+                                .mostSpecific(result, null);
             }
         }
         return result;
@@ -663,8 +678,8 @@ implements Store<S>, UniqueId {
                 AnnotationMirror monotonicAnnotation = fieldAnnotation.second;
                 @SuppressWarnings("deprecation") // permitted for use in the framework
                 Name annotation =
-                AnnotationUtils.getElementValueClassName(
-                        monotonicAnnotation, "value", false);
+                        AnnotationUtils.getElementValueClassName(
+                                monotonicAnnotation, "value", false);
                 AnnotationMirror target =
                         AnnotationBuilder.fromName(atypeFactory.getElementUtils(), annotation);
                 // Make sure the 'target' annotation is present.
@@ -731,6 +746,41 @@ implements Store<S>, UniqueId {
         } else { // thisValue ...
             // No other types of expressions are stored.
         }
+    }
+
+    /**
+     * Returns the abstract value for {@link Tree} {@code t}, or {@code null} if no information is
+     * available.
+     *
+     * @param tree a tree
+     * @return the abstract value for {@link Tree} {@code t}, or {@code null} if no information is
+     *     available
+     */
+    public @Nullable V getValue(Tree tree) {
+        Set<Node> nodes = analysis.getNodesForTree(tree);
+
+        if (nodes == null) {
+            return null;
+        }
+        V merged = null;
+        for (Node aNode : nodes) {
+            V a = null;
+
+            if (aNode instanceof FieldAccessNode) {
+                a = getValue((FieldAccessNode) aNode);
+            } else if (aNode instanceof MethodInvocationNode) {
+                a = getValue((MethodInvocationNode) aNode);
+            } else if (aNode instanceof ArrayAccessNode) {
+                a = getValue((ArrayAccessNode) aNode);
+            }
+
+            if (merged == null) {
+                merged = a;
+            } else if (a != null) {
+                merged = merged.leastUpperBound(a);
+            }
+        }
+        return merged;
     }
 
     /**

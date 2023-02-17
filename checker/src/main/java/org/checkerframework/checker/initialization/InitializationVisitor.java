@@ -38,7 +38,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.StringJoiner;
 
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
@@ -399,57 +398,6 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
         // Remove fields that have already been initialized by an initializer block.
         uninitializedFields.removeAll(initializedFields);
 
-        // Errors are issued at the field declaration if the field is static or if the constructor
-        // is the default constructor.
-        // Errors are issued at the constructor declaration if the field is non-static and the
-        // constructor is non-default.
-        boolean errorAtField = staticFields || TreeUtils.isSynthetic((MethodTree) node);
-
-        String FIELDS_UNINITIALIZED_KEY =
-                (staticFields
-                        ? "initialization.static.field.uninitialized"
-                        : errorAtField
-                                ? "initialization.field.uninitialized"
-                                : "initialization.fields.uninitialized");
-
-        // Remove fields with a relevant @SuppressWarnings annotation.
-        uninitializedFields.removeIf(
-                f ->
-                        checker.shouldSuppressWarnings(
-                                TreeUtils.elementFromDeclaration(f), FIELDS_UNINITIALIZED_KEY));
-
-        if (!uninitializedFields.isEmpty()) {
-            if (errorAtField) {
-                // Issue each error at the relevant field
-                for (VariableTree f : uninitializedFields) {
-                    checker.reportError(f, FIELDS_UNINITIALIZED_KEY, f.getName());
-                }
-            } else {
-                // Issue all the errors at the relevant constructor
-                StringJoiner fieldsString = new StringJoiner(", ");
-                for (VariableTree f : uninitializedFields) {
-                    fieldsString.add(f.getName());
-                }
-                checker.reportError(node, FIELDS_UNINITIALIZED_KEY, fieldsString);
-            }
-        }
-
-        /* NO-AFU
-        // Support -Ainfer command-line argument.
-        WholeProgramInference wpi = atypeFactory.getWholeProgramInference();
-        if (wpi != null) {
-          // For each uninitialized field, treat it as if the default value is assigned to it.
-          List<VariableTree> uninitFields = new ArrayList<>(violatingFields);
-          uninitFields.addAll(nonviolatingFields);
-          for (VariableTree fieldTree : uninitFields) {
-            Element elt = TreeUtils.elementFromDeclaration(fieldTree);
-            wpi.updateFieldFromType(
-                fieldTree,
-                elt,
-                fieldTree.getName().toString(),
-                atypeFactory.getDefaultValueAnnotatedType(elt.asType()));
-          }
-        }
-        */
+        atypeFactory.uninitializedFields.put(node, uninitializedFields);
     }
 }
