@@ -11,7 +11,7 @@ public class FlowFbc {
     public FlowFbc(String arg) {
         // :: error: (dereference.of.nullable)
         f.toLowerCase();
-        // :: error: (dereference.of.nullable)
+        // :: error: (dereference.of.nullable) :: error: (method.invocation.invalid)
         g.toLowerCase();
         f = arg;
         g = arg;

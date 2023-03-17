@@ -25,6 +25,7 @@ import org.checkerframework.framework.qual.MonotonicQualifier;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
+import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.BugInCF;
@@ -246,6 +247,18 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                 thisValue = null;
             }
 
+            AnnotatedTypeMirror receiverType;
+            if (thisValue != null) {
+                receiverType =
+                        AnnotatedTypeMirror.createType(
+                                thisValue.getUnderlyingType(), atypeFactory, false);
+                for (AnnotationMirror anno : thisValue.getAnnotations()) {
+                    receiverType.replaceAnnotation(anno);
+                }
+            } else {
+                receiverType = null;
+            }
+
             // update field values
             if (sideEffectsUnrefineAliases) {
                 fieldValues.entrySet().removeIf(e -> !e.getKey().isUnmodifiableByOtherCode());
@@ -298,17 +311,22 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                     // add the declared type; otherwise remove all information.
                     // This is useful for checkers that use the InitializationChecker
                     // and thus allow a field's value to contradict its declared type.
-                    AnnotatedTypeMirror declaredType =
-                            atypeFactory.fromElement(fieldAccess.getField());
-                    atypeFactory.addDefaultAnnotations(declaredType);
-                    V newOtherVal =
-                            getMonotonicValue(
-                                    otherVal, declaredType.getAnnotations(), atypeFactory);
-                    if (newOtherVal != null) {
-                        // Keep information for all hierarchies where the value matched the
-                        // declared type.
-                        newFieldValues.put(fieldAccess, newOtherVal);
-                        continue;
+                    if (receiverType != null) {
+                        AnnotatedTypeMirror declaredType =
+                                AnnotatedTypes.asMemberOf(
+                                        atypeFactory.types,
+                                        atypeFactory,
+                                        receiverType,
+                                        fieldAccess.getField());
+                        V newOtherVal =
+                                getMonotonicValue(
+                                        otherVal, declaredType.getAnnotations(), atypeFactory);
+                        if (newOtherVal != null) {
+                            // Keep information for all hierarchies where the value matched the
+                            // declared type.
+                            newFieldValues.put(fieldAccess, newOtherVal);
+                            continue;
+                        }
                     }
                 }
                 fieldValues = newFieldValues;
