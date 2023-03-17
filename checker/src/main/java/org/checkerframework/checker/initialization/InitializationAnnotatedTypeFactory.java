@@ -775,12 +775,12 @@ public class InitializationAnnotatedTypeFactory
             } else {
                 type.replaceAnnotation(INITIALIZED);
             }
-        }
 
-        if (!AnnotationUtils.containsSame(declaredFieldAnnotations, NOT_ONLY_INITIALIZED)) {
-            // add root annotation for all other hierarchies, and
-            // Initialized for the initialization hierarchy
-            type.replaceAnnotation(INITIALIZED);
+            if (!AnnotationUtils.containsSame(declaredFieldAnnotations, NOT_ONLY_INITIALIZED)) {
+                // add root annotation for all other hierarchies, and
+                // Initialized for the initialization hierarchy
+                type.replaceAnnotation(INITIALIZED);
+            }
         }
     }
 
