@@ -38,6 +38,7 @@ import org.checkerframework.dataflow.cfg.visualize.DOTCFGVisualizer;
 import org.checkerframework.dataflow.expression.FieldAccess;
 import org.checkerframework.dataflow.expression.JavaExpression;
 import org.checkerframework.dataflow.expression.LocalVariable;
+import org.checkerframework.dataflow.qual.Pure;
 import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.flow.CFAbstractAnalysis.FieldInitialValue;
 import org.checkerframework.framework.flow.CFAbstractStore;
@@ -1275,6 +1276,17 @@ public abstract class GenericAnnotatedTypeFactory<
      */
     public HashMap<VariableElement, Value> getFinalLocalValues() {
         return flowResult.getFinalLocalValues();
+    }
+
+    /**
+     * Returns true if the receiver of a method or constructor might not yet be fully initialized.
+     *
+     * @param methodDeclTree the declaration of the method or constructor
+     * @return true if the receiver of a method or constructor might not yet be fully initialized
+     */
+    @Pure
+    public boolean isNotFullyInitializedReceiver(MethodTree methodDeclTree) {
+        return TreeUtils.isConstructor(methodDeclTree);
     }
 
     /**

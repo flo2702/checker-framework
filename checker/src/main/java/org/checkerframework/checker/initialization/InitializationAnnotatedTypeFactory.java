@@ -785,6 +785,21 @@ public class InitializationAnnotatedTypeFactory
     }
 
     @Override
+    public boolean isNotFullyInitializedReceiver(MethodTree methodTree) {
+        if (super.isNotFullyInitializedReceiver(methodTree)) {
+            return true;
+        }
+        final AnnotatedDeclaredType receiverType =
+                analysis.getTypeFactory().getAnnotatedType(methodTree).getReceiverType();
+        if (receiverType != null) {
+            return isUnknownInitialization(receiverType) || isUnderInitialization(receiverType);
+        } else {
+            // There is no receiver e.g. in static methods.
+            return false;
+        }
+    }
+
+    @Override
     protected InitializationAnalysis createFlowAnalysis() {
         return new InitializationAnalysis(checker, this);
     }

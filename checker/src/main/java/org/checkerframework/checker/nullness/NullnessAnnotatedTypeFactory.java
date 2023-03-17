@@ -17,6 +17,7 @@ import com.sun.source.tree.UnaryTree;
 import com.sun.source.tree.VariableTree;
 
 import org.checkerframework.checker.initialization.InitializationAnnotatedTypeFactory;
+import org.checkerframework.checker.initialization.InitializationChecker;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -510,6 +511,13 @@ public class NullnessAnnotatedTypeFactory
     }
 
     @Override
+    public boolean isNotFullyInitializedReceiver(MethodTree methodDeclTree) {
+        InitializationAnnotatedTypeFactory initFactory =
+                getTypeFactoryOfSubchecker(InitializationChecker.class);
+        return initFactory.isNotFullyInitializedReceiver(methodDeclTree);
+    }
+
+    @Override
     protected DefaultForTypeAnnotator createDefaultForTypeAnnotator() {
         DefaultForTypeAnnotator defaultForTypeAnnotator = new DefaultForTypeAnnotator(this);
         defaultForTypeAnnotator.addAtmClass(AnnotatedNoType.class, NONNULL);
@@ -585,8 +593,7 @@ public class NullnessAnnotatedTypeFactory
         }
     }
 
-    protected class NullnessTreeAnnotator extends TreeAnnotator
-    /*extends InitializationAnnotatedTypeFactory<NullnessValue, NullnessStore, NullnessTransfer, NullnessAnalysis>.CommitmentTreeAnnotator*/ {
+    protected class NullnessTreeAnnotator extends TreeAnnotator {
 
         public NullnessTreeAnnotator(NullnessAnnotatedTypeFactory atypeFactory) {
             super(atypeFactory);
