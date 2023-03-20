@@ -928,10 +928,12 @@ public class InitializationAnnotatedTypeFactory
                         initFactory.declarationFromElement(TreeUtils.elementFromTree(node));
 
                 boolean isFieldInitialized =
-                        initFactory
-                                .getInitializedFields(
-                                        initFactory.getStoreBefore(node), initFactory.getPath(node))
-                                .contains(declaration);
+                        TreeUtils.isSelfAccess(node)
+                                && initFactory
+                                        .getInitializedFields(
+                                                initFactory.getStoreBefore(node),
+                                                initFactory.getPath(node))
+                                        .contains(declaration);
                 if (!isOwnerInitialized
                         && !isFieldInitialized
                         && !factory.isComputingAnnotatedTypeMirrorOfLHS()) {
