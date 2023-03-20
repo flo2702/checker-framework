@@ -1,5 +1,6 @@
 package org.checkerframework.checker.initialization;
 
+import com.sun.source.tree.BinaryTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.IdentifierTree;
@@ -8,6 +9,7 @@ import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.Tree;
+import com.sun.source.tree.UnaryTree;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
 import com.sun.tools.javac.code.Type;
@@ -36,6 +38,8 @@ import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
 import org.checkerframework.framework.type.MostlyNoElementQualifierHierarchy;
 import org.checkerframework.framework.type.QualifierHierarchy;
 import org.checkerframework.framework.type.treeannotator.ListTreeAnnotator;
+import org.checkerframework.framework.type.treeannotator.LiteralTreeAnnotator;
+import org.checkerframework.framework.type.treeannotator.PropagationTreeAnnotator;
 import org.checkerframework.framework.type.treeannotator.TreeAnnotator;
 import org.checkerframework.framework.type.typeannotator.ListTypeAnnotator;
 import org.checkerframework.framework.type.typeannotator.TypeAnnotator;
@@ -824,8 +828,15 @@ public class InitializationAnnotatedTypeFactory
 
     @Override
     protected TreeAnnotator createTreeAnnotator() {
-        return new ListTreeAnnotator(
-                super.createTreeAnnotator(), new CommitmentTreeAnnotator(this));
+        // Don't call super.createTreeAnnotator because we want our CommitmentTreeAnnotator
+        // instead of the default PropagationTreeAnnotator
+        List<TreeAnnotator> treeAnnotators = new ArrayList<>(2);
+        treeAnnotators.add(new LiteralTreeAnnotator(this).addStandardLiteralQualifiers());
+        if (dependentTypesHelper.hasDependentAnnotations()) {
+            treeAnnotators.add(dependentTypesHelper.createDependentTypesTreeAnnotator());
+        }
+        treeAnnotators.add(new CommitmentTreeAnnotator(this));
+        return new ListTreeAnnotator(treeAnnotators);
     }
 
     protected class CommitmentTypeAnnotator extends TypeAnnotator {
@@ -935,7 +946,7 @@ public class InitializationAnnotatedTypeFactory
         }
     }
 
-    protected class CommitmentTreeAnnotator extends TreeAnnotator {
+    protected class CommitmentTreeAnnotator extends PropagationTreeAnnotator {
 
         public CommitmentTreeAnnotator(InitializationAnnotatedTypeFactory atypeFactory) {
             super(atypeFactory);
@@ -987,6 +998,17 @@ public class InitializationAnnotatedTypeFactory
                 annotatedTypeMirror.replaceAnnotation(INITIALIZED);
             }
             return super.visitMemberSelect(node, annotatedTypeMirror);
+        }
+
+        /* The result of a binary or unary operator is always @Initialized. */
+        @Override
+        public Void visitBinary(BinaryTree node, AnnotatedTypeMirror type) {
+            return null;
+        }
+
+        @Override
+        public Void visitUnary(UnaryTree node, AnnotatedTypeMirror type) {
+            return null;
         }
     }
 

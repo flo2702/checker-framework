@@ -556,10 +556,8 @@ public class NullnessAnnotatedTypeFactory
     }
 
     /**
-     * Nullness doesn't call propagation on binary and unary because the result is
-     * always @Initialized (the default qualifier).
-     *
-     * <p>Would this be valid to move into CommitmentTreeAnnotator.
+     * Nullness doesn't call propagation on binary and unary because the result is always @NonNull
+     * (the default qualifier).
      */
     protected static class NullnessPropagationTreeAnnotator extends PropagationTreeAnnotator {
 
