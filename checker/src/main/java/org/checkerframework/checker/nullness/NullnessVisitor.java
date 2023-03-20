@@ -245,30 +245,6 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
     }
 
     @Override
-    public Void scan(@Nullable Tree tree, Void p) {
-        InitializationAnnotatedTypeFactory initFactory =
-                atypeFactory.getTypeFactoryOfSubchecker(InitializationChecker.class);
-
-        if (tree != null) {
-            Element element = TreeUtils.elementFromTree(tree);
-            boolean staticFields =
-                    (methodTree != null
-                                    && ElementUtils.isStatic(
-                                            TreeUtils.elementFromDeclaration(methodTree)))
-                            || (element != null && ElementUtils.isStatic(element));
-            initFactory.reportUninitializedFields(
-                    tree,
-                    staticFields,
-                    atypeFactory,
-                    classTree,
-                    atypeFactory.NONNULL,
-                    var -> !atypeFactory.getAnnotatedType(var).getKind().isPrimitive());
-        }
-
-        return super.scan(tree, p);
-    }
-
-    @Override
     @FormatMethod
     protected void commonAssignmentCheck(
             AnnotatedTypeMirror varType,
@@ -285,6 +261,22 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
             }
         }
         super.commonAssignmentCheck(varType, valueType, valueTree, errorKey, extraArgs);
+    }
+
+    protected void reportInitializationErrors(Tree tree) {
+        InitializationAnnotatedTypeFactory initFactory =
+                atypeFactory.getTypeFactoryOfSubchecker(InitializationChecker.class);
+
+        Element element = TreeUtils.elementFromTree(tree);
+        boolean staticFields =
+                tree instanceof ClassTree || (element != null && ElementUtils.isStatic(element));
+        initFactory.reportUninitializedFields(
+                tree,
+                staticFields,
+                atypeFactory,
+                classTree,
+                atypeFactory.NONNULL,
+                var -> !atypeFactory.getAnnotatedType(var).getKind().isPrimitive());
     }
 
     /** Case 1: Check for null dereferencing. */
@@ -550,6 +542,8 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
 
     @Override
     public Void visitMethod(MethodTree node, Void p) {
+        reportInitializationErrors(node);
+
         if (TreeUtils.isConstructor(node)) {
             List<? extends AnnotationTree> annoTrees = node.getModifiers().getAnnotations();
             if (atypeFactory.containsNullnessAnnotation(annoTrees)) {
@@ -606,6 +600,7 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
 
     @Override
     public void processClassTree(ClassTree classTree) {
+        reportInitializationErrors(classTree);
 
         Tree extendsClause = classTree.getExtendsClause();
         if (extendsClause != null) {
