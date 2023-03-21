@@ -7,6 +7,7 @@ import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.LiteralTree;
 import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodTree;
+import com.sun.source.tree.NewArrayTree;
 import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.UnaryTree;
@@ -32,6 +33,7 @@ import org.checkerframework.framework.flow.CFAbstractTransfer;
 import org.checkerframework.framework.flow.CFAbstractValue;
 import org.checkerframework.framework.qual.Unused;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
+import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedArrayType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
 import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
@@ -43,6 +45,7 @@ import org.checkerframework.framework.type.treeannotator.PropagationTreeAnnotato
 import org.checkerframework.framework.type.treeannotator.TreeAnnotator;
 import org.checkerframework.framework.type.typeannotator.ListTypeAnnotator;
 import org.checkerframework.framework.type.typeannotator.TypeAnnotator;
+import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.framework.util.QualifierKind;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
@@ -621,8 +624,10 @@ public class InitializationAnnotatedTypeFactory
 
                             // filter out variables whose declaration doesn't have the invariant
                             AnnotatedTypeMirror declType = factory.getAnnotatedTypeLhs(var);
-                            if (!AnnotationUtils.containsSame(
-                                    declType.getAnnotations(), invariant)) {
+                            Set<AnnotationMirror> annotations =
+                                    AnnotatedTypes.findEffectiveLowerBoundAnnotations(
+                                            factory.getQualifierHierarchy(), declType);
+                            if (!AnnotationUtils.containsSame(annotations, invariant)) {
                                 return false;
                             }
 
@@ -927,6 +932,15 @@ public class InitializationAnnotatedTypeFactory
                 Tree declaration =
                         initFactory.declarationFromElement(TreeUtils.elementFromTree(node));
 
+                // If the field has been initialized, don't clear annotations.
+                // This is ok even if the field was initialized with a non-invariant
+                // value because in that case, there must have been an error before.
+                // E.g.:
+                //     { f1 = f2;
+                //       f2 = f1; }
+                // Here, we will get an error for the first assignment, but we won't get another
+                // error for the second assignment.
+                // See the AssignmentDuringInitialization test case.
                 boolean isFieldInitialized =
                         TreeUtils.isSelfAccess(node)
                                 && initFactory
@@ -991,6 +1005,18 @@ public class InitializationAnnotatedTypeFactory
                 type.addAnnotation(INITIALIZED);
             }
             return super.visitLiteral(tree, type);
+        }
+
+        @Override
+        public Void visitNewArray(NewArrayTree node, AnnotatedTypeMirror type) {
+            // The most precise element type for `new Object[] {null}` is @FBCBottom, but
+            // the most useful element type is @Initialized (which is also accurate).
+            AnnotatedArrayType arrayType = (AnnotatedArrayType) type;
+            AnnotatedTypeMirror componentType = arrayType.getComponentType();
+            if (componentType.hasEffectiveAnnotation(FBCBOTTOM)) {
+                componentType.replaceAnnotation(INITIALIZED);
+            }
+            return null;
         }
 
         @Override
