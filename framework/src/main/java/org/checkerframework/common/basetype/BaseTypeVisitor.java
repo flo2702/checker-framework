@@ -1336,24 +1336,6 @@ public class BaseTypeVisitor<Factory extends GenericAnnotatedTypeFactory<?, ?, ?
     }
 
     /**
-     * Returns a string representation of an expression and type qualifier.
-     *
-     * @param expression a Java expression
-     * @param qualifier the expression's type, or null if no information is available
-     * @return a string representation of the expression and type qualifier
-     */
-    private String contractExpressionAndType(
-            String expression, @Nullable AnnotationMirror qualifier) {
-        if (qualifier == null) {
-            return "no information about " + expression;
-        } else {
-            return expression
-                    + " is "
-                    + atypeFactory.getAnnotationFormatter().formatAnnotationMirror(qualifier);
-        }
-    }
-
-    /**
      * Check that the expression's type is annotated with {@code annotation} at every regular exit
      * that returns {@code result}.
      *
@@ -1419,6 +1401,24 @@ public class BaseTypeVisitor<Factory extends GenericAnnotatedTypeFactory<?, ?, ?
                         contractExpressionAndType(expression.toString(), inferredAnno),
                         contractExpressionAndType(expression.toString(), annotation));
             }
+        }
+    }
+
+    /**
+     * Returns a string representation of an expression and type qualifier.
+     *
+     * @param expression a Java expression
+     * @param qualifier the expression's type, or null if no information is available
+     * @return a string representation of the expression and type qualifier
+     */
+    private String contractExpressionAndType(
+            String expression, @Nullable AnnotationMirror qualifier) {
+        if (qualifier == null) {
+            return "no information about " + expression;
+        } else {
+            return expression
+                    + " is "
+                    + atypeFactory.getAnnotationFormatter().formatAnnotationMirror(qualifier);
         }
     }
 
@@ -1919,29 +1919,11 @@ public class BaseTypeVisitor<Factory extends GenericAnnotatedTypeFactory<?, ?, ?
             }
 
             CFAbstractStore<?, ?> store = atypeFactory.getStoreBefore(tree);
-            CFAbstractValue<?> value = null;
-            if (CFAbstractStore.canInsertJavaExpression(exprJe)) {
-                value = store.getValue(exprJe);
-            }
-            AnnotationMirror inferredAnno = null;
-            if (value != null) {
-                QualifierHierarchy hierarchy = atypeFactory.getQualifierHierarchy();
-                Set<AnnotationMirror> annos = value.getAnnotations();
-                inferredAnno = hierarchy.findAnnotationInSameHierarchy(annos, anno);
-            } else {
-                // If there is no information in the store (possible if e.g., no refinement
-                // of the field has occurred), use top instead of automatically
-                // issuing a warning. This is not perfectly precise: for example,
-                // if jeExpr is a field it would be more precise to use the field's
-                // declared type rather than top. However, doing so would be unsound
-                // in at least three circumstances where the type of the field depends
-                // on the type of the receiver: (1) all fields in Nullness Checker,
-                // because of possibility that the receiver is under initialization,
-                // (2) polymorphic fields, and (3) fields whose type is a type variable.
-                // Using top here instead means that there is no need for special cases
-                // for these situations.
-                inferredAnno = atypeFactory.getQualifierHierarchy().getTopAnnotation(anno);
-            }
+            QualifierHierarchy hierarchy = atypeFactory.getQualifierHierarchy();
+            Set<AnnotationMirror> annos =
+                    atypeFactory.getAnnotatedTypeBefore(exprJe, tree).getAnnotations();
+            AnnotationMirror inferredAnno = hierarchy.findAnnotationInSameHierarchy(annos, anno);
+
             if (!checkContract(exprJe, anno, inferredAnno, store)) {
                 if (exprJe != null) {
                     expressionString = exprJe.toString();

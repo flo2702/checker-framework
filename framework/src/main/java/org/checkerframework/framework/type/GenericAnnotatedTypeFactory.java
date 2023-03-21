@@ -1675,6 +1675,43 @@ public abstract class GenericAnnotatedTypeFactory<
     }
 
     /**
+     * Returns the type of a JavaExpression {@code expr} if it were evaluated before a tree {@code
+     * tree}.
+     *
+     * @param expr the expression to type.
+     * @param tree a tree.
+     * @return the type of {@code expr} if it were evaluated before tree {@code tree}.
+     */
+    public AnnotatedTypeMirror getAnnotatedTypeBefore(JavaExpression expr, Tree tree) {
+        CFAbstractStore<?, ?> store = getStoreBefore(tree);
+        CFAbstractValue<?> value = null;
+        if (CFAbstractStore.canInsertJavaExpression(expr)) {
+            value = store.getValue(expr);
+        }
+        Set<? extends AnnotationMirror> annos;
+        if (value != null) {
+            annos = value.getAnnotations();
+        } else {
+            // If there is no information in the store (possible if e.g., no refinement
+            // of the field has occurred), use top instead of automatically
+            // issuing a warning. This is not perfectly precise: for example,
+            // if jeExpr is a field it would be more precise to use the field's
+            // declared type rather than top. However, doing so would be unsound
+            // in at least three circumstances where the type of the field depends
+            // on the type of the receiver: (1) all fields in Nullness Checker,
+            // because of possibility that the receiver is under initialization,
+            // (2) polymorphic fields, and (3) fields whose type is a type variable.
+            // Using top here instead means that there is no need for special cases
+            // for these situations.
+            annos = getQualifierHierarchy().getTopAnnotations();
+        }
+
+        AnnotatedTypeMirror res = AnnotatedTypeMirror.createType(expr.getType(), this, false);
+        res.addAnnotations(annos);
+        return res;
+    }
+
+    /**
      * Returns the type of a left-hand side of an assignment.
      *
      * <p>The default implementation returns the type without considering dataflow type refinement.

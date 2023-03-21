@@ -25,6 +25,8 @@ import org.checkerframework.checker.nullness.qual.PolyNull;
 import org.checkerframework.checker.signature.qual.FullyQualifiedName;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.dataflow.cfg.node.Node;
+import org.checkerframework.dataflow.expression.FieldAccess;
+import org.checkerframework.dataflow.expression.JavaExpression;
 import org.checkerframework.dataflow.util.NodeUtils;
 import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.qual.DefaultQualifier;
@@ -515,6 +517,25 @@ public class NullnessAnnotatedTypeFactory
         InitializationAnnotatedTypeFactory initFactory =
                 getTypeFactoryOfSubchecker(InitializationChecker.class);
         return initFactory.isNotFullyInitializedReceiver(methodDeclTree);
+    }
+
+    @Override
+    public AnnotatedTypeMirror getAnnotatedTypeBefore(JavaExpression expr, Tree tree) {
+        InitializationAnnotatedTypeFactory initFactory =
+                getTypeFactoryOfSubchecker(InitializationChecker.class);
+        if (expr instanceof FieldAccess
+                && initFactory.isExpressionInitialized(expr, initFactory.getStoreBefore(tree))) {
+            FieldAccess fa = (FieldAccess) expr;
+            AnnotatedTypeMirror declared = getAnnotatedType(fa.getField());
+            AnnotatedTypeMirror refined = super.getAnnotatedTypeBefore(expr, tree);
+            AnnotatedTypeMirror res = AnnotatedTypeMirror.createType(fa.getType(), this, false);
+            res.addAnnotations(
+                    qualHierarchy.greatestLowerBounds(
+                            declared.getAnnotations(), refined.getAnnotations()));
+            return res;
+        } else {
+            return super.getAnnotatedTypeBefore(expr, tree);
+        }
     }
 
     @Override

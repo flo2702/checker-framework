@@ -16,13 +16,7 @@ import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
 import org.checkerframework.checker.nullness.NullnessChecker;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
-import org.checkerframework.dataflow.expression.ClassName;
-import org.checkerframework.dataflow.expression.FieldAccess;
-import org.checkerframework.dataflow.expression.JavaExpression;
-import org.checkerframework.dataflow.expression.LocalVariable;
-import org.checkerframework.dataflow.expression.ThisReference;
 import org.checkerframework.framework.flow.CFAbstractAnalysis.FieldInitialValue;
-import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
@@ -40,7 +34,6 @@ import java.util.List;
 import java.util.Set;
 
 import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.VariableElement;
 
@@ -167,56 +160,6 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
     protected void checkExceptionParameter(CatchTree node) {
         // TODO Issue 363
         // https://github.com/eisop/checker-framework/issues/363
-    }
-
-    @Override
-    protected boolean checkContract(
-            JavaExpression expr,
-            AnnotationMirror necessaryAnnotation,
-            AnnotationMirror inferredAnnotation,
-            CFAbstractStore<?, ?> store) {
-        if (!(expr instanceof FieldAccess)) {
-            return super.checkContract(expr, necessaryAnnotation, inferredAnnotation, store);
-        }
-        if (expr.containsUnknown()) {
-            return false;
-        }
-
-        FieldAccess fa = (FieldAccess) expr;
-        if (fa.getReceiver() instanceof ThisReference || fa.getReceiver() instanceof ClassName) {
-            @SuppressWarnings("unchecked")
-            InitializationStore s = (InitializationStore) store;
-            if (s.isFieldInitialized(fa.getField())) {
-                return true;
-            }
-        } else {
-            @SuppressWarnings("unchecked")
-            InitializationValue value = (InitializationValue) store.getValue(fa.getReceiver());
-
-            Set<AnnotationMirror> receiverAnnoSet;
-            if (value != null) {
-                receiverAnnoSet = value.getAnnotations();
-            } else if (fa.getReceiver() instanceof LocalVariable) {
-                Element elem = ((LocalVariable) fa.getReceiver()).getElement();
-                AnnotatedTypeMirror receiverType = atypeFactory.getAnnotatedType(elem);
-                receiverAnnoSet = receiverType.getAnnotations();
-            } else {
-                // Is there anything better we could do?
-                return false;
-            }
-
-            boolean isReceiverInitialized = false;
-            for (AnnotationMirror anno : receiverAnnoSet) {
-                if (atypeFactory.isInitialized(anno)) {
-                    isReceiverInitialized = true;
-                }
-            }
-
-            if (isReceiverInitialized) {
-                return true;
-            }
-        }
-        return super.checkContract(expr, necessaryAnnotation, inferredAnnotation, store);
     }
 
     @Override
