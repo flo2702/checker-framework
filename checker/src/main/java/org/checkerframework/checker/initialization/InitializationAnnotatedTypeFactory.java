@@ -883,6 +883,9 @@ public class InitializationAnnotatedTypeFactory
         @Override
         public Void visitIdentifier(IdentifierTree node, AnnotatedTypeMirror p) {
             super.visitIdentifier(node, p);
+            if (node.getName().contentEquals("this") || node.getName().contentEquals("super")) {
+                return null;
+            }
             computeFieldAccessType(node, p);
             return null;
         }
