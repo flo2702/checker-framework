@@ -36,6 +36,7 @@ import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.flow.CFAbstractTransfer;
 import org.checkerframework.framework.flow.CFAbstractValue;
+import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.framework.qual.Unused;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedArrayType;
@@ -65,8 +66,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -94,10 +93,7 @@ import javax.lang.model.util.Types;
  */
 public class InitializationAnnotatedTypeFactory
         extends GenericAnnotatedTypeFactory<
-                InitializationValue,
-                InitializationStore,
-                InitializationTransfer,
-                InitializationAnalysis> {
+                CFValue, InitializationStore, InitializationTransfer, InitializationAnalysis> {
 
     /** {@link UnknownInitialization}. */
     protected final AnnotationMirror UNKNOWN_INITIALIZATION;
@@ -124,21 +120,7 @@ public class InitializationAnnotatedTypeFactory
     /** The UnknownInitialization.value field/element. */
     protected final ExecutableElement unknownInitializationValueElement;
 
-    /** Cache for the initialization annotations. */
-    protected final Set<Class<? extends Annotation>> initAnnos;
-
     protected final Map<Tree, List<VariableTree>> uninitializedFields = new HashMap<>();
-
-    /**
-     * String representation of all initialization annotations.
-     *
-     * <p>{@link UnknownInitialization} {@link UnderInitialization} {@link Initialized} {@link
-     * FBCBottom}
-     *
-     * <p>This is used to quickly check of an AnnotationMirror is one of the initialization
-     * annotations without having to repeatedly convert them to strings.
-     */
-    protected final Set<String> initAnnoNames;
 
     /**
      * Create a new InitializationAnnotatedTypeFactory.
@@ -162,22 +144,6 @@ public class InitializationAnnotatedTypeFactory
         unknownInitializationValueElement =
                 TreeUtils.getMethod(UnknownInitialization.class, "value", 0, processingEnv);
 
-        Set<Class<? extends Annotation>> tempInitAnnos = new LinkedHashSet<>(4);
-        tempInitAnnos.add(UnderInitialization.class);
-        tempInitAnnos.add(Initialized.class);
-        tempInitAnnos.add(UnknownInitialization.class);
-        tempInitAnnos.add(FBCBottom.class);
-
-        initAnnos = Collections.unmodifiableSet(tempInitAnnos);
-
-        Set<String> tempInitAnnoNames = new HashSet<>(4);
-        tempInitAnnoNames.add(AnnotationUtils.annotationName(UNKNOWN_INITIALIZATION));
-        tempInitAnnoNames.add(AnnotationUtils.annotationName(UNDER_INITALIZATION));
-        tempInitAnnoNames.add(AnnotationUtils.annotationName(INITIALIZED));
-        tempInitAnnoNames.add(AnnotationUtils.annotationName(FBCBOTTOM));
-
-        initAnnoNames = Collections.unmodifiableSet(tempInitAnnoNames);
-
         postInit();
     }
 
@@ -186,33 +152,13 @@ public class InitializationAnnotatedTypeFactory
         return (InitializationChecker) super.getChecker();
     }
 
-    public Set<Class<? extends Annotation>> getInitializationAnnotations() {
-        return initAnnos;
-    }
-
-    /**
-     * Is the annotation {@code anno} an initialization qualifier?
-     *
-     * @param anno the annotation to check
-     * @return true if the argument is an initialization qualifier
-     */
-    protected boolean isInitializationAnnotation(AnnotationMirror anno) {
-        assert anno != null;
-        return initAnnoNames.contains(AnnotationUtils.annotationName(anno));
-    }
-
-    /*
-     * The following method can be used to appropriately configure the
-     * commitment type-system.
-     */
-
     /**
      * Returns the list of annotations that is forbidden for the constructor return type.
      *
      * @return the list of annotations that is forbidden for the constructor return type
      */
     public Set<Class<? extends Annotation>> getInvalidConstructorReturnTypeAnnotations() {
-        return getInitializationAnnotations();
+        return getSupportedTypeQualifiers();
     }
 
     /**
@@ -581,7 +527,7 @@ public class InitializationAnnotatedTypeFactory
                     return true;
                 }
             } else {
-                InitializationValue value = store.getValue(fa.getReceiver());
+                CFValue value = store.getValue(fa.getReceiver());
 
                 Set<AnnotationMirror> receiverAnnoSet;
                 if (value != null) {
@@ -872,8 +818,7 @@ public class InitializationAnnotatedTypeFactory
 
     @Override
     public InitializationTransfer createFlowTransferFunction(
-            CFAbstractAnalysis<InitializationValue, InitializationStore, InitializationTransfer>
-                    analysis) {
+            CFAbstractAnalysis<CFValue, InitializationStore, InitializationTransfer> analysis) {
         return new InitializationTransfer((InitializationAnalysis) analysis);
     }
 
@@ -1142,10 +1087,6 @@ public class InitializationAnnotatedTypeFactory
                 AnnotationMirror anno2,
                 QualifierKind qual2,
                 QualifierKind lubKind) {
-            if (!isInitializationAnnotation(anno1) || !isInitializationAnnotation(anno2)) {
-                return null;
-            }
-
             // Handle the case where one is a subtype of the other.
             if (isSubtypeWithElements(anno1, qual1, anno2, qual2)) {
                 return anno2;
@@ -1203,10 +1144,6 @@ public class InitializationAnnotatedTypeFactory
                 AnnotationMirror anno2,
                 QualifierKind qual2,
                 QualifierKind glbKind) {
-            if (!isInitializationAnnotation(anno1) || !isInitializationAnnotation(anno2)) {
-                return null;
-            }
-
             // Handle the case where one is a subtype of the other.
             if (isSubtypeWithElements(anno1, qual1, anno2, qual2)) {
                 return anno1;

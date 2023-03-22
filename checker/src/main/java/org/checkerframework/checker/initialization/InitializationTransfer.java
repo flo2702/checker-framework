@@ -14,7 +14,7 @@ import org.checkerframework.dataflow.cfg.node.ThisNode;
 import org.checkerframework.dataflow.expression.FieldAccess;
 import org.checkerframework.dataflow.expression.JavaExpression;
 import org.checkerframework.framework.flow.CFAbstractTransfer;
-import org.checkerframework.framework.flow.CFAbstractValue;
+import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.javacutil.TreePathUtil;
 import org.checkerframework.javacutil.TreeUtils;
 
@@ -36,22 +36,14 @@ import javax.lang.model.util.ElementFilter;
  * <p>More precisely, the following refinements are performed:
  *
  * <ol>
- *   <li>After the call to a constructor ("this()" call), all non-null fields of the current class
- *       can safely be considered initialized.
- *   <li>After a method call with a postcondition that ensures a field to be non-null, that field
- *       can safely be considered initialized (this is done in {@link
- *       InitializationStore#insertValue(JavaExpression, CFAbstractValue)}).
- *   <li>All non-null fields with an initializer can be considered initialized (this is done in
- *       {@link InitializationStore#insertValue(JavaExpression, CFAbstractValue)}).
- *   <li>After the call to a super constructor ("super()" call), all non-null fields of the super
- *       class can safely be considered initialized.
+ *   <li>After the call to a constructor ("this()" call), all fields of the current class can safely
+ *       be considered initialized.
+ *   <li>After the call to a super constructor ("super()" call), all fields of the super class can
+ *       safely be considered initialized.
  * </ol>
- *
- * @see InitializationStore
  */
 public class InitializationTransfer
-        extends CFAbstractTransfer<
-                InitializationValue, InitializationStore, InitializationTransfer> {
+        extends CFAbstractTransfer<CFValue, InitializationStore, InitializationTransfer> {
 
     protected final InitializationAnnotatedTypeFactory atypeFactory;
 
@@ -76,7 +68,7 @@ public class InitializationTransfer
         String methodString = tree.getMethodSelect().toString();
 
         // Case 1: After a call to the constructor of the same class, all
-        // invariant fields are guaranteed to be initialized.
+        // fields are guaranteed to be initialized.
         if (isConstructor && receiver instanceof ThisNode && methodString.equals("this")) {
             ClassTree clazz = TreePathUtil.enclosingClass(analysis.getTypeFactory().getPath(tree));
             TypeElement clazzElem = TreeUtils.elementFromDeclaration(clazz);
@@ -84,7 +76,7 @@ public class InitializationTransfer
         }
 
         // Case 4: After a call to the constructor of the super class, all
-        // invariant fields of any super class are guaranteed to be initialized.
+        // fields of any super class are guaranteed to be initialized.
         if (isConstructor && receiver instanceof ThisNode && methodString.equals("super")) {
             ClassTree clazz = TreePathUtil.enclosingClass(analysis.getTypeFactory().getPath(tree));
             TypeElement clazzElem = TreeUtils.elementFromDeclaration(clazz);
@@ -101,8 +93,8 @@ public class InitializationTransfer
     }
 
     /**
-     * Adds all the fields of the class {@code clazzElem} that have the 'invariant annotation' to
-     * the set of initialized fields {@code result}.
+     * Adds all the fields of the class {@code clazzElem} to the set of initialized fields {@code
+     * result}.
      */
     protected void markFieldsAsInitialized(List<VariableElement> result, TypeElement clazzElem) {
         List<VariableElement> fields = ElementFilter.fieldsIn(clazzElem.getEnclosedElements());
@@ -119,10 +111,9 @@ public class InitializationTransfer
     }
 
     @Override
-    public TransferResult<InitializationValue, InitializationStore> visitAssignment(
-            AssignmentNode n, TransferInput<InitializationValue, InitializationStore> in) {
-        TransferResult<InitializationValue, InitializationStore> result =
-                super.visitAssignment(n, in);
+    public TransferResult<CFValue, InitializationStore> visitAssignment(
+            AssignmentNode n, TransferInput<CFValue, InitializationStore> in) {
+        TransferResult<CFValue, InitializationStore> result = super.visitAssignment(n, in);
         JavaExpression lhs = JavaExpression.fromNode(n.getTarget());
 
         // If this is an assignment to a field of 'this', then mark the field as initialized.
@@ -140,10 +131,9 @@ public class InitializationTransfer
     }
 
     @Override
-    public TransferResult<InitializationValue, InitializationStore> visitMethodInvocation(
-            MethodInvocationNode n, TransferInput<InitializationValue, InitializationStore> in) {
-        TransferResult<InitializationValue, InitializationStore> result =
-                super.visitMethodInvocation(n, in);
+    public TransferResult<CFValue, InitializationStore> visitMethodInvocation(
+            MethodInvocationNode n, TransferInput<CFValue, InitializationStore> in) {
+        TransferResult<CFValue, InitializationStore> result = super.visitMethodInvocation(n, in);
         List<VariableElement> newlyInitializedFields = initializedFieldsAfterCall(n);
         if (!newlyInitializedFields.isEmpty()) {
             for (VariableElement f : newlyInitializedFields) {

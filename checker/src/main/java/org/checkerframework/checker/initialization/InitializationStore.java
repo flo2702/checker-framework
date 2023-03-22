@@ -6,6 +6,7 @@ import org.checkerframework.dataflow.expression.FieldAccess;
 import org.checkerframework.dataflow.expression.JavaExpression;
 import org.checkerframework.dataflow.expression.ThisReference;
 import org.checkerframework.framework.flow.CFAbstractStore;
+import org.checkerframework.framework.flow.CFValue;
 import org.plumelib.util.ToStringComparator;
 
 import java.util.HashSet;
@@ -20,7 +21,7 @@ import javax.lang.model.element.VariableElement;
  *
  * @see InitializationTransfer
  */
-public class InitializationStore extends CFAbstractStore<InitializationValue, InitializationStore> {
+public class InitializationStore extends CFAbstractStore<CFValue, InitializationStore> {
 
     /** The set of fields that are initialized. */
     protected final Set<VariableElement> initializedFields;
@@ -43,8 +44,7 @@ public class InitializationStore extends CFAbstractStore<InitializationValue, In
      * initialized.
      */
     @Override
-    public void insertValue(
-            JavaExpression je, InitializationValue value, boolean permitNondeterministic) {
+    public void insertValue(JavaExpression je, CFValue value, boolean permitNondeterministic) {
         if (!shouldInsert(je, value, permitNondeterministic)) {
             return;
         }
@@ -97,7 +97,7 @@ public class InitializationStore extends CFAbstractStore<InitializationValue, In
     }
 
     @Override
-    protected boolean supersetOf(CFAbstractStore<InitializationValue, InitializationStore> o) {
+    protected boolean supersetOf(CFAbstractStore<CFValue, InitializationStore> o) {
         if (!(o instanceof InitializationStore)) {
             return false;
         }
@@ -123,8 +123,7 @@ public class InitializationStore extends CFAbstractStore<InitializationValue, In
     }
 
     @Override
-    protected String internalVisualize(
-            CFGVisualizer<InitializationValue, InitializationStore, ?> viz) {
+    protected String internalVisualize(CFGVisualizer<CFValue, InitializationStore, ?> viz) {
         String superVisualize = super.internalVisualize(viz);
 
         String initializedVisualize =

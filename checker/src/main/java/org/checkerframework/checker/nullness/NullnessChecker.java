@@ -83,6 +83,8 @@ public class NullnessChecker extends BaseTypeChecker {
                 super.getImmediateSubcheckerClasses();
         if (!hasOptionNoSubcheckers("assumeKeyFor")) {
             checkers.add(KeyForSubchecker.class);
+        }
+        if (!hasOptionNoSubcheckers("assumeInit")) {
             checkers.add(InitializationChecker.class);
         }
         return checkers;

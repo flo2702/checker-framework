@@ -17,6 +17,7 @@ import org.checkerframework.checker.nullness.NullnessChecker;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
 import org.checkerframework.framework.flow.CFAbstractAnalysis.FieldInitialValue;
+import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
@@ -141,7 +142,7 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
             Set<AnnotationMirror> annotationMirrors =
                     atypeFactory.getAnnotatedType(node).getExplicitAnnotations();
             // Fields cannot have commitment annotations.
-            for (Class<? extends Annotation> c : atypeFactory.getInitializationAnnotations()) {
+            for (Class<? extends Annotation> c : atypeFactory.getSupportedTypeQualifiers()) {
                 for (AnnotationMirror a : annotationMirrors) {
                     if (atypeFactory.isUnknownInitialization(a)) {
                         continue; // unknown initialization is allowed
@@ -169,7 +170,7 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
         AnnotationMirror exprAnno = null, castAnno = null;
 
         // find commitment annotation
-        for (Class<? extends Annotation> a : atypeFactory.getInitializationAnnotations()) {
+        for (Class<? extends Annotation> a : atypeFactory.getSupportedTypeQualifiers()) {
             if (castType.hasAnnotation(a)) {
                 assert castAnno == null;
                 castAnno = castType.getAnnotation(a);
@@ -218,7 +219,7 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
                 InitializationStore store = atypeFactory.getRegularExitStore(block);
 
                 // Add field values for fields with an initializer.
-                for (FieldInitialValue<InitializationValue> fieldInitialValue :
+                for (FieldInitialValue<CFValue> fieldInitialValue :
                         store.getAnalysis().getFieldInitialValues()) {
                     if (fieldInitialValue.initializer != null) {
                         store.addInitializedField(fieldInitialValue.fieldDecl.getField());
@@ -243,7 +244,7 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
             // the regular exit store of the class here.
             InitializationStore store = atypeFactory.getRegularExitStore(node);
             // Add field values for fields with an initializer.
-            for (FieldInitialValue<InitializationValue> fieldInitialValue :
+            for (FieldInitialValue<CFValue> fieldInitialValue :
                     store.getAnalysis().getFieldInitialValues()) {
                 if (fieldInitialValue.initializer != null) {
                     store.addInitializedField(fieldInitialValue.fieldDecl.getField());
@@ -310,12 +311,6 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
      * @param store the store
      * @param receiverAnnotations the annotations on the receiver
      */
-    // TODO: the code for checking if fields are initialized should be re-written,
-    // as the current version contains quite a few ugly parts, is hard to understand,
-    // and it is likely that it does not take full advantage of the information
-    // about initialization we compute in
-    // GenericAnnotatedTypeFactory.initializationStaticStore and
-    // GenericAnnotatedTypeFactory.initializationStore.
     protected void checkFieldsInitialized(
             Tree node,
             boolean staticFields,

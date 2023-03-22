@@ -1,6 +1,5 @@
 package org.checkerframework.checker.nullness;
 
-import org.checkerframework.checker.initialization.InitializationStore;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.checker.nullness.qual.PolyNull;
@@ -9,8 +8,8 @@ import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.flow.CFAbstractStore;
 
 /**
- * Behaves like {@link InitializationStore}, but additionally tracks whether {@link PolyNull} is
- * known to be {@link NonNull} or {@link Nullable} (or not known to be either).
+ * In addition to the base class behavior, tracks whether {@link PolyNull} is known to be {@link
+ * NonNull} or {@link Nullable} (or not known to be either).
  */
 public class NullnessStore extends CFAbstractStore<NullnessValue, NullnessStore> {
 

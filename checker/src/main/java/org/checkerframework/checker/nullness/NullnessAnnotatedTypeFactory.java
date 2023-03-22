@@ -665,7 +665,6 @@ public class NullnessAnnotatedTypeFactory
         @Override
         public Void visitCompoundAssignment(CompoundAssignmentTree node, AnnotatedTypeMirror type) {
             type.replaceAnnotation(NONNULL);
-            // Commitment will run after for initialization defaults
             return null;
         }
 
