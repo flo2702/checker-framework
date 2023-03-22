@@ -51,6 +51,7 @@ import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedArrayTyp
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedPrimitiveType;
+import org.checkerframework.framework.util.AnnotationMirrorSet;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.TreePathUtil;
@@ -275,7 +276,7 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
                 staticFields,
                 atypeFactory,
                 classTree,
-                atypeFactory.NONNULL,
+                AnnotationMirrorSet.singleElementSet(atypeFactory.NONNULL),
                 var -> !atypeFactory.getAnnotatedType(var).getKind().isPrimitive());
     }
 

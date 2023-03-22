@@ -51,6 +51,7 @@ import org.checkerframework.framework.type.treeannotator.TreeAnnotator;
 import org.checkerframework.framework.type.typeannotator.ListTypeAnnotator;
 import org.checkerframework.framework.type.typeannotator.TypeAnnotator;
 import org.checkerframework.framework.util.AnnotatedTypes;
+import org.checkerframework.framework.util.AnnotationMirrorSet;
 import org.checkerframework.framework.util.QualifierKind;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
@@ -627,7 +628,7 @@ public class InitializationAnnotatedTypeFactory
      * @param staticFields whether or not to check for initialization of static fields
      * @param factory the parent factory
      * @param enclosingClass the enclosing class for {@code node}
-     * @param invariant the invariant annotation
+     * @param invariants the invariant annotations
      * @param filter a predicate which is false if the field should not be checked for
      *     initialization
      */
@@ -642,7 +643,7 @@ public class InitializationAnnotatedTypeFactory
                     boolean staticFields,
                     Factory factory,
                     ClassTree enclosingClass,
-                    AnnotationMirror invariant,
+                    AnnotationMirrorSet invariants,
                     Predicate<VariableTree> filter) {
         reportUninitializedFields(
                 node,
@@ -660,7 +661,6 @@ public class InitializationAnnotatedTypeFactory
                                                 TreeUtils.elementFromDeclaration(enclosingClass)
                                                         .asType());
                             }
-
                             Value value =
                                     store.getValue(
                                             new FieldAccessNode(
@@ -669,10 +669,12 @@ public class InitializationAnnotatedTypeFactory
                                                     receiver));
                             if (value != null) {
                                 Set<AnnotationMirror> annotations = value.getAnnotations();
-                                for (AnnotationMirror annotation : annotations) {
-                                    if (factory.getQualifierHierarchy()
-                                            .isSubtype(annotation, invariant)) {
-                                        return false;
+                                for (AnnotationMirror invariant : invariants) {
+                                    for (AnnotationMirror annotation : annotations) {
+                                        if (factory.getQualifierHierarchy()
+                                                .isSubtype(annotation, invariant)) {
+                                            return false;
+                                        }
                                     }
                                 }
                             }
@@ -682,7 +684,7 @@ public class InitializationAnnotatedTypeFactory
                             Set<AnnotationMirror> annotations =
                                     AnnotatedTypes.findEffectiveLowerBoundAnnotations(
                                             factory.getQualifierHierarchy(), declType);
-                            if (!AnnotationUtils.containsSame(annotations, invariant)) {
+                            if (Collections.disjoint(annotations, invariants)) {
                                 return false;
                             }
 
