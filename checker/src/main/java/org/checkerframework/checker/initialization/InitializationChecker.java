@@ -13,7 +13,7 @@ import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.SortedSet;
+import java.util.NavigableSet;
 
 /**
  * Tracks whether a value is initialized (all its fields are set), and checks that values are
@@ -57,8 +57,8 @@ import java.util.SortedSet;
 public class InitializationChecker extends BaseTypeChecker {
 
     @Override
-    public SortedSet<String> getSuppressWarningsPrefixes() {
-        SortedSet<String> result = super.getSuppressWarningsPrefixes();
+    public NavigableSet<String> getSuppressWarningsPrefixes() {
+        NavigableSet<String> result = super.getSuppressWarningsPrefixes();
         // "fbc" is for backward compatibility only; you should use
         // "initialization" instead.
         result.add("fbc");

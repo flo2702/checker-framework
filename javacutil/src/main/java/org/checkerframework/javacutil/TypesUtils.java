@@ -14,17 +14,13 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.checker.signature.qual.BinaryName;
 import org.checkerframework.checker.signature.qual.CanonicalNameOrEmpty;
 import org.checkerframework.checker.signature.qual.DotSeparatedIdentifiers;
-import org.checkerframework.checker.signature.qual.FullyQualifiedName;
 import org.plumelib.util.CollectionsPlume;
 import org.plumelib.util.ImmutableTypes;
 import org.plumelib.util.StringsPlume;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.StringJoiner;
 
 import javax.annotation.processing.ProcessingEnvironment;
@@ -35,6 +31,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.TypeParameterElement;
 import javax.lang.model.type.ArrayType;
 import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.IntersectionType;
 import javax.lang.model.type.PrimitiveType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
@@ -138,8 +135,7 @@ public final class TypesUtils {
                 // BUG: need to compute a @ClassGetName, but this code computes a
                 // @CanonicalNameOrEmpty.  They are different for inner classes.
                 @SuppressWarnings("signature") // https://tinyurl.com/cfissue/658 for Names.toString
-                @DotSeparatedIdentifiers String typeString =
-                        TypesUtils.getQualifiedName((DeclaredType) typeMirror).toString();
+                @DotSeparatedIdentifiers String typeString = TypesUtils.getQualifiedName((DeclaredType) typeMirror);
                 if (typeString.equals("<nulltype>")) {
                     return void.class;
                 }
@@ -185,6 +181,12 @@ public final class TypesUtils {
                 return ((TypeVariable) type).asElement().getSimpleName().toString();
             case DECLARED:
                 return ((DeclaredType) type).asElement().getSimpleName().toString();
+            case INTERSECTION:
+                StringJoiner sjI = new StringJoiner(" & ");
+                for (TypeMirror bound : ((IntersectionType) type).getBounds()) {
+                    sjI.add(simpleTypeName(bound));
+                }
+                return sjI.toString();
             case NULL:
                 return "<nulltype>";
             case VOID:
@@ -296,9 +298,9 @@ public final class TypesUtils {
     /// Predicates
 
     /**
-     * Checks if the type represents a java.lang.Object declared type.
+     * Returns true iff the type represents a java.lang.Object declared type.
      *
-     * @param type the type
+     * @param type the type to check
      * @return true iff type represents java.lang.Object
      */
     public static boolean isObject(TypeMirror type) {
@@ -306,9 +308,9 @@ public final class TypesUtils {
     }
 
     /**
-     * Checks if the type represents the java.lang.Class declared type.
+     * Return true iff the type represents a java.lang.Class declared type.
      *
-     * @param type the type
+     * @param type the type to check
      * @return true iff type represents java.lang.Class
      */
     public static boolean isClass(TypeMirror type) {
@@ -316,9 +318,9 @@ public final class TypesUtils {
     }
 
     /**
-     * Checks if the type represents a java.lang.String declared type.
+     * Returns true iff the type represents a java.lang.String declared type.
      *
-     * @param type the type
+     * @param type the type to check
      * @return true iff type represents java.lang.String
      */
     public static boolean isString(TypeMirror type) {
@@ -326,31 +328,31 @@ public final class TypesUtils {
     }
 
     /**
-     * Checks if the type represents a boolean type, i.e., it is either boolean (primitive type) or
-     * java.lang.Boolean.
+     * Returns true iff the type represents either boolean (primitive type) or a java.lang.Boolean
+     * declared type.
      *
-     * @param type the type to test
+     * @param type the type to check
      * @return true iff type represents a boolean type
      */
     public static boolean isBooleanType(TypeMirror type) {
-        return isDeclaredOfName(type, "java.lang.Boolean") || type.getKind() == TypeKind.BOOLEAN;
+        return type.getKind() == TypeKind.BOOLEAN || isDeclaredOfName(type, "java.lang.Boolean");
     }
 
     /**
-     * Checks if the type represents a character type, i.e., it is either char (primitive type) or
-     * java.lang.Character.
+     * Returns true iff the type represents either char (primitive type) or a java.lang.Character
+     * declared type.
      *
-     * @param type the type to test
+     * @param type the type to check
      * @return true iff type represents a character type
      */
     public static boolean isCharType(TypeMirror type) {
-        return isDeclaredOfName(type, "java.lang.Character") || type.getKind() == TypeKind.CHAR;
+        return type.getKind() == TypeKind.CHAR || isDeclaredOfName(type, "java.lang.Character");
     }
 
     /**
-     * Check if the type represents a declared type of the given qualified name.
+     * Returns true iff the type represents a declared type of the given qualified name.
      *
-     * @param type the type
+     * @param type the type to check
      * @return type iff type represents a declared type of the qualified name
      */
     public static boolean isDeclaredOfName(TypeMirror type, CharSequence qualifiedName) {
@@ -358,40 +360,36 @@ public final class TypesUtils {
                 && getQualifiedName((DeclaredType) type).contentEquals(qualifiedName);
     }
 
+    /**
+     * Returns true iff the {@code type} represents a boxed primitive type.
+     *
+     * @param type the type to check
+     * @return true iff type represents a boxed primitive type
+     */
     public static boolean isBoxedPrimitive(TypeMirror type) {
-        if (type.getKind() != TypeKind.DECLARED) {
-            return false;
-        }
-
-        String qualifiedName = getQualifiedName((DeclaredType) type).toString();
-
-        return (qualifiedName.equals("java.lang.Boolean")
-                || qualifiedName.equals("java.lang.Byte")
-                || qualifiedName.equals("java.lang.Character")
-                || qualifiedName.equals("java.lang.Short")
-                || qualifiedName.equals("java.lang.Integer")
-                || qualifiedName.equals("java.lang.Long")
-                || qualifiedName.equals("java.lang.Double")
-                || qualifiedName.equals("java.lang.Float"));
+        return TypeKindUtils.boxedToTypeKind(type) != null;
     }
 
     /**
-     * Return true if this is an immutable type in the JDK.
+     * Returns true iff this is an immutable type in the JDK.
      *
      * <p>This does not use immutability annotations and always returns false for user-defined
      * classes.
+     *
+     * @param type the type to check
+     * @return true iff this is an immutable type in the JDK
      */
     public static boolean isImmutableTypeInJdk(TypeMirror type) {
         return isPrimitive(type)
                 || (type.getKind() == TypeKind.DECLARED
-                        && ImmutableTypes.isImmutable(
-                                getQualifiedName((DeclaredType) type).toString()));
+                        && ImmutableTypes.isImmutable(getQualifiedName((DeclaredType) type)));
     }
 
     /**
-     * Returns true if type represents a Throwable type (e.g. Exception, Error).
+     * Returns true iff type represents a Throwable type (e.g. Exception, Error).
      *
-     * @return true if type represents a Throwable type (e.g. Exception, Error)
+     * @param type the type to check
+     * @return true iff type represents a Throwable type (e.g. Exception, Error)
      */
     public static boolean isThrowable(TypeMirror type) {
         while (type != null && type.getKind() == TypeKind.DECLARED) {
@@ -409,6 +407,7 @@ public final class TypesUtils {
     /**
      * Returns true iff the argument is an anonymous type.
      *
+     * @param type the type to check
      * @return whether the argument is an anonymous type
      */
     public static boolean isAnonymous(TypeMirror type) {
@@ -420,22 +419,11 @@ public final class TypesUtils {
     /**
      * Returns true iff the argument is a primitive type.
      *
+     * @param type the type to check
      * @return whether the argument is a primitive type
      */
     public static boolean isPrimitive(TypeMirror type) {
-        switch (type.getKind()) {
-            case BOOLEAN:
-            case BYTE:
-            case CHAR:
-            case DOUBLE:
-            case FLOAT:
-            case INT:
-            case LONG:
-            case SHORT:
-                return true;
-            default:
-                return false;
-        }
+        return type.getKind().isPrimitive();
     }
 
     /**
@@ -445,31 +433,7 @@ public final class TypesUtils {
      * @return true if the argument is a primitive type or a boxed primitive type
      */
     public static boolean isPrimitiveOrBoxed(TypeMirror type) {
-        switch (type.getKind()) {
-            case BOOLEAN:
-            case BYTE:
-            case CHAR:
-            case DOUBLE:
-            case FLOAT:
-            case INT:
-            case LONG:
-            case SHORT:
-                return true;
-
-            case DECLARED:
-                String qualifiedName = getQualifiedName((DeclaredType) type).toString();
-                return (qualifiedName.equals("java.lang.Boolean")
-                        || qualifiedName.equals("java.lang.Byte")
-                        || qualifiedName.equals("java.lang.Character")
-                        || qualifiedName.equals("java.lang.Short")
-                        || qualifiedName.equals("java.lang.Integer")
-                        || qualifiedName.equals("java.lang.Long")
-                        || qualifiedName.equals("java.lang.Double")
-                        || qualifiedName.equals("java.lang.Float"));
-
-            default:
-                return false;
-        }
+        return isPrimitive(type) || isBoxedPrimitive(type);
     }
 
     /**
@@ -482,18 +446,6 @@ public final class TypesUtils {
         return TypeKindUtils.isNumeric(type.getKind());
     }
 
-    /** The fully-qualified names of the numeric boxed types. */
-    static final Set<@FullyQualifiedName String> numericBoxedTypes =
-            new HashSet<>(
-                    Arrays.asList(
-                            "java.lang.Byte",
-                            "java.lang.Character",
-                            "java.lang.Short",
-                            "java.lang.Integer",
-                            "java.lang.Long",
-                            "java.lang.Double",
-                            "java.lang.Float"));
-
     /**
      * Returns true iff the argument is a boxed numeric type.
      *
@@ -501,8 +453,8 @@ public final class TypesUtils {
      * @return true if the argument is a boxed numeric type
      */
     public static boolean isNumericBoxed(TypeMirror type) {
-        return type.getKind() == TypeKind.DECLARED
-                && numericBoxedTypes.contains(getQualifiedName((DeclaredType) type).toString());
+        TypeKind boxedPrimitiveKind = TypeKindUtils.boxedToTypeKind(type);
+        return boxedPrimitiveKind != null && TypeKindUtils.isNumeric(boxedPrimitiveKind);
     }
 
     /**
@@ -512,16 +464,7 @@ public final class TypesUtils {
      * @return whether the argument is an integral primitive type
      */
     public static boolean isIntegralPrimitive(TypeMirror type) {
-        switch (type.getKind()) {
-            case BYTE:
-            case CHAR:
-            case INT:
-            case LONG:
-            case SHORT:
-                return true;
-            default:
-                return false;
-        }
+        return TypeKindUtils.isIntegral(type.getKind());
     }
 
     /**
@@ -544,32 +487,8 @@ public final class TypesUtils {
      * @return true if {@code declaredType} is a box of {@code primitiveType}
      */
     public static boolean isBoxOf(TypeMirror declaredType, TypeMirror primitiveType) {
-        if (declaredType.getKind() != TypeKind.DECLARED) {
-            return false;
-        }
-
-        final String qualifiedName = getQualifiedName((DeclaredType) declaredType).toString();
-        switch (primitiveType.getKind()) {
-            case BOOLEAN:
-                return qualifiedName.equals("java.lang.Boolean");
-            case BYTE:
-                return qualifiedName.equals("java.lang.Byte");
-            case CHAR:
-                return qualifiedName.equals("java.lang.Character");
-            case DOUBLE:
-                return qualifiedName.equals("java.lang.Double");
-            case FLOAT:
-                return qualifiedName.equals("java.lang.Float");
-            case INT:
-                return qualifiedName.equals("java.lang.Integer");
-            case LONG:
-                return qualifiedName.equals("java.lang.Long");
-            case SHORT:
-                return qualifiedName.equals("java.lang.Short");
-
-            default:
-                return false;
-        }
+        TypeKind boxedPrimitiveKind = TypeKindUtils.boxedToTypeKind(declaredType);
+        return boxedPrimitiveKind == primitiveType.getKind();
     }
 
     /**
@@ -579,12 +498,8 @@ public final class TypesUtils {
      * @return whether the argument is a boxed floating point type
      */
     public static boolean isBoxedFloating(TypeMirror type) {
-        if (type.getKind() != TypeKind.DECLARED) {
-            return false;
-        }
-
-        String qualifiedName = getQualifiedName((DeclaredType) type).toString();
-        return qualifiedName.equals("java.lang.Double") || qualifiedName.equals("java.lang.Float");
+        TypeKind boxedPrimitiveKind = TypeKindUtils.boxedToTypeKind(type);
+        return boxedPrimitiveKind != null && TypeKindUtils.isFloatingPoint(boxedPrimitiveKind);
     }
 
     /**
@@ -594,13 +509,7 @@ public final class TypesUtils {
      * @return whether the argument is a primitive floating point type
      */
     public static boolean isFloatingPrimitive(TypeMirror type) {
-        switch (type.getKind()) {
-            case DOUBLE:
-            case FLOAT:
-                return true;
-            default:
-                return false;
-        }
+        return TypeKindUtils.isFloatingPoint(type.getKind());
     }
 
     /**
@@ -685,6 +594,18 @@ public final class TypesUtils {
      * Get the type parameter for this wildcard from the underlying type's bound field This field is
      * sometimes null, in that case this method will return null.
      *
+     * @param wildcard wildcard type
+     * @return the TypeParameterElement the wildcard is an argument to, {@code null} otherwise
+     */
+    public static @Nullable TypeParameterElement wildcardToTypeParam(final WildcardType wildcard) {
+        return wildcardToTypeParam((Type.WildcardType) wildcard);
+    }
+
+    /**
+     * Get the type parameter for this wildcard from the underlying type's bound field This field is
+     * sometimes null, in that case this method will return null.
+     *
+     * @param wildcard wildcard type
      * @return the TypeParameterElement the wildcard is an argument to, {@code null} otherwise
      */
     public static @Nullable TypeParameterElement wildcardToTypeParam(
@@ -889,8 +810,8 @@ public final class TypesUtils {
         }
         // Special case for primitives.
         if (isPrimitive(t1) || isPrimitive(t2)) {
-            // NOTE: we need to know which type is primitive because e.g. int and Integer are
-            // assignable to each other.
+            // NOTE: we need to know which type is primitive because e.g. int and Integer
+            // are assignable to each other.
             if (isPrimitive(t1) && types.isAssignable(t1, t2)) {
                 return t2;
             } else if (isPrimitive(t2) && types.isAssignable(t2, t1)) {
@@ -1175,7 +1096,7 @@ public final class TypesUtils {
      */
     public static List<TypeVariable> order(Collection<TypeVariable> collection, Types types) {
         List<TypeVariable> list = new ArrayList<>(collection);
-        List<TypeVariable> ordered = new ArrayList<>();
+        List<TypeVariable> ordered = new ArrayList<>(list.size());
         while (!list.isEmpty()) {
             TypeVariable free = doesNotContainOthers(list, types);
             list.remove(free);

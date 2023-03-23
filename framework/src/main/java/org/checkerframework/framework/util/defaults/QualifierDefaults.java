@@ -10,8 +10,6 @@ import com.sun.source.tree.Tree;
 import com.sun.source.tree.TypeParameterTree;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
-import com.sun.tools.javac.code.BoundKind;
-import com.sun.tools.javac.code.Type.WildcardType;
 
 import org.checkerframework.checker.interning.qual.FindDistinct;
 import org.checkerframework.framework.qual.AnnotatedFor;
@@ -28,6 +26,7 @@ import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedWildcard
 import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
 import org.checkerframework.framework.type.QualifierHierarchy;
 import org.checkerframework.framework.type.visitor.AnnotatedTypeScanner;
+import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.BugInCF;
@@ -601,7 +600,7 @@ public class QualifierDefaults {
     }
 
     /** The default {@code value} element for a @DefaultQualifier annotation. */
-    private static TypeUseLocation[] defaultQualifierValueDefault =
+    private static final TypeUseLocation[] defaultQualifierValueDefault =
             new TypeUseLocation[] {org.checkerframework.framework.qual.TypeUseLocation.ALL};
 
     /**
@@ -817,7 +816,7 @@ public class QualifierDefaults {
                     && !isElementAnnotatedForThisChecker(annotationScope);
         } else if (isFromStubFile) {
             // TODO: Types in stub files not annotated for a particular checker should be
-            // treated as unchecked bytecode.   For now, all types in stub files are treated as
+            // treated as unchecked bytecode.  For now, all types in stub files are treated as
             // checked code. Eventually, @AnnotateFor(checker) will be programmatically added
             // to methods in stub files supplied via the @Stubfile annotation.  Stub files will
             // be treated like unchecked code except for methods in the scope for an @AnnotatedFor.
@@ -1314,24 +1313,23 @@ public class QualifierDefaults {
      * Returns the BoundType of annotatedWildcard. If it is unbounded, use the type parameter to
      * which its an argument.
      *
-     * @param annotatedWildcard the annotated wildcard type
+     * @param wildcardType the annotated wildcard type
      * @return the BoundType of annotatedWildcard. If it is unbounded, use the type parameter to
      *     which its an argument
      */
-    public BoundType getWildcardBoundType(final AnnotatedWildcardType annotatedWildcard) {
-
-        final WildcardType wildcard = (WildcardType) annotatedWildcard.getUnderlyingType();
-
-        final BoundType boundType;
-        if (wildcard.kind == BoundKind.UNBOUND && wildcard.bound != null) {
-            boundType = getTypeVarBoundType((TypeParameterElement) wildcard.bound.asElement());
-
+    public BoundType getWildcardBoundType(final AnnotatedWildcardType wildcardType) {
+        if (AnnotatedTypes.hasNoExplicitBound(wildcardType)) {
+            TypeParameterElement e =
+                    TypesUtils.wildcardToTypeParam(wildcardType.getUnderlyingType());
+            if (e != null) {
+                return getTypeVarBoundType(e);
+            } else {
+                return BoundType.UNBOUNDED;
+            }
+        } else if (AnnotatedTypes.hasExplicitSuperBound(wildcardType)) {
+            return BoundType.LOWER;
         } else {
-            // note: isSuperBound will be true for unbounded and lowers, but the unbounded case is
-            // already handled
-            boundType = wildcard.isSuperBound() ? BoundType.LOWER : BoundType.UPPER;
+            return BoundType.UPPER;
         }
-
-        return boundType;
     }
 }

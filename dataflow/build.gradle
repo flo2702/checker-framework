@@ -97,13 +97,20 @@ def testDataflowAnalysis(taskName, dirName, className, diff) {
                 }
                 else if (JavaVersion.current() > JavaVersion.VERSION_11) {
                     jvmArgs += [
-                        "--add-opens", "jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED",
-                        "--add-opens", "jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED",
-                        "--add-opens", "jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED",
-                        "--add-opens", "jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED",
-                        "--add-opens", "jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED",
-                        "--add-opens", "jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED",
-                        "--add-opens", "jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED"
+                        '--add-opens',
+                        'jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED',
+                        '--add-opens',
+                        'jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED',
+                        '--add-opens',
+                        'jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED',
+                        '--add-opens',
+                        'jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED',
+                        '--add-opens',
+                        'jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED',
+                        '--add-opens',
+                        'jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED',
+                        '--add-opens',
+                        'jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED',
                     ]
                 }
 
@@ -115,7 +122,11 @@ def testDataflowAnalysis(taskName, dirName, className, diff) {
                 exec {
                     workingDir = "tests/${dirName}"
                     executable 'diff'
-                    args = ['-u', 'Expected.txt', 'Out.txt']
+                    args = [
+                        '-u',
+                        'Expected.txt',
+                        'Out.txt'
+                    ]
                 }
             }
         }
@@ -131,7 +142,7 @@ testDataflowAnalysis("liveVariableTest", "live-variable", "livevar.LiveVariable"
 testDataflowAnalysis("issue3447Test", "issue3447", "livevar.LiveVariable", false)
 testDataflowAnalysis("reachingDefinitionTest", "reachingdef", "reachingdef.ReachingDefinition", true)
 
-apply from: rootProject.file("gradle-mvn-push.gradle")
+apply from: rootProject.file('gradle-mvn-push.gradle')
 
 /** Adds information to the publication for uploading the dataflow artifacts to Maven repositories. */
 final dataflowPom(publication) {
@@ -185,8 +196,7 @@ publishing {
 
         dataflowShaded(MavenPublication) {
             dataflowShadedPom(it, 'shaded')
-
-            artifact getTasksByName('dataflowshadedJar',false).iterator().next()
+            artifact project.tasks.getByName('dataflowshadedJar').archiveFile
             artifact sourcesJar
             artifact javadocJar
         }
@@ -194,7 +204,7 @@ publishing {
         dataflowShadednullaway(MavenPublication) {
             dataflowShadedPom(it, 'nullaway')
 
-            artifact getTasksByName('dataflownullawayJar',false).iterator().next()
+            artifact project.tasks.getByName('dataflownullawayJar').archiveFile
             artifact sourcesJar
             artifact javadocJar
         }
@@ -202,7 +212,7 @@ publishing {
         dataflowShadederrorprone(MavenPublication) {
             dataflowShadedPom(it, 'errorprone')
 
-            artifact getTasksByName('dataflowerrorproneJar',false).iterator().next()
+            artifact project.tasks.getByName('dataflowerrorproneJar').archiveFile
             artifact sourcesJar
             artifact javadocJar
         }
@@ -215,3 +225,19 @@ signing {
     sign publishing.publications.dataflowShadednullaway
     sign publishing.publications.dataflowShadederrorprone
 }
+
+publishDataflowPublicationToMavenRepository.dependsOn(signDataflowShadedPublication)
+publishDataflowPublicationToMavenRepository.dependsOn(signDataflowShadederrorpronePublication)
+publishDataflowPublicationToMavenRepository.dependsOn(signDataflowShadednullawayPublication)
+
+publishDataflowShadedPublicationToMavenRepository.dependsOn(signDataflowPublication)
+publishDataflowShadedPublicationToMavenRepository.dependsOn(signDataflowShadederrorpronePublication)
+publishDataflowShadedPublicationToMavenRepository.dependsOn(signDataflowShadednullawayPublication)
+
+publishDataflowShadederrorpronePublicationToMavenRepository.dependsOn(signDataflowShadedPublication)
+publishDataflowShadederrorpronePublicationToMavenRepository.dependsOn(signDataflowPublication)
+publishDataflowShadederrorpronePublicationToMavenRepository.dependsOn(signDataflowShadednullawayPublication)
+
+publishDataflowShadednullawayPublicationToMavenRepository.dependsOn(signDataflowShadederrorpronePublication)
+publishDataflowShadednullawayPublicationToMavenRepository.dependsOn(signDataflowShadedPublication)
+publishDataflowShadednullawayPublicationToMavenRepository.dependsOn(signDataflowPublication)

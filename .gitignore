@@ -45,7 +45,6 @@ checker/bin/.do-like-javac
 checker/bin/.scc/
 checker/bin-devel/.html-tools
 checker/bin-devel/.plume-scripts
-checker/bin-devel/.run-google-java-format
 checker/bin-devel/dockerdir
 checker/src/main/resources/git.properties
 # These tests are generated from those in checker/tests/calledmethods-lombok during the build.
@@ -59,6 +58,8 @@ plume-bib
 manual.aux
 manual.blg
 manual.dvi
+manual.fdb_latexmk
+manual.fls
 manual.haux
 manual.html
 manual.htoc
@@ -163,8 +164,12 @@ checker/jtreg/multipleexecutions/Main.class
 checker-qual-android/src
 
 # Some tests produce output into the tests/ directory instead of the build/ directory.
+checker/tests/ainfer-index/annotated/
+checker/tests/ainfer-index/inference-output/
 checker/tests/ainfer-nullness/annotated/
 checker/tests/ainfer-nullness/inference-output/
 checker/tests/ainfer-testchecker/annotated/
 checker/tests/ainfer-testchecker/inference-output/
+checker/tests/ainfer-resourceleak/annotated/
+checker/tests/ainfer-resourceleak/inference-output/
 framework/tests/returnsreceiverdelomboked/

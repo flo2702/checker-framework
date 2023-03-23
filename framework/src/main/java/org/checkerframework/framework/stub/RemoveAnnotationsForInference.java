@@ -1,7 +1,6 @@
 package org.checkerframework.framework.stub;
 
 import com.github.javaparser.ParseResult;
-import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.Position;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.Node;
@@ -11,6 +10,7 @@ import com.github.javaparser.ast.expr.ArrayInitializerExpr;
 import com.github.javaparser.ast.expr.Expression;
 import com.github.javaparser.ast.expr.MarkerAnnotationExpr;
 import com.github.javaparser.ast.expr.MemberValuePair;
+import com.github.javaparser.ast.expr.NameExpr;
 import com.github.javaparser.ast.expr.NormalAnnotationExpr;
 import com.github.javaparser.ast.expr.SingleMemberAnnotationExpr;
 import com.github.javaparser.ast.expr.StringLiteralExpr;
@@ -26,22 +26,32 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.reflect.ClassPath;
 
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.framework.util.JavaParserUtil;
 import org.checkerframework.javacutil.BugInCF;
+import org.plumelib.util.ArraysPlume;
 import org.plumelib.util.CollectionsPlume;
+import org.plumelib.util.StringsPlume;
 
 import java.io.BufferedWriter;
+import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Process Java source files to remove annotations that ought to be inferred.
@@ -49,6 +59,15 @@ import java.util.Optional;
  * <p>Removes annotations from all files in the given directories. Modifies the files in place.
  *
  * <p>Does not remove trusted annotations: those that the checker trusts rather than verifies.
+ *
+ * <p>Also does not remove annotations that the user requests to keep in the source code. Provide a
+ * list of annotations to keep via the {@code -keepFile} command line argument, which must be the
+ * first argument to this program if it is present. The second argument to the program should be the
+ * path to the keep file. The keep file itself should be a list of newline-separated annotation
+ * names (without {@literal @} symbols). Both the simple and fully-qualified name of each annotation
+ * usually should be included in the keep file (simple string-matching between the annotations in
+ * the keep file and the annotation names used in the source code whose annotations are being
+ * removed is used for annotation comparison). TODO: remove this restriction?
  *
  * <p>Does not remove annotations at locations where inference does no work:
  *
@@ -65,12 +84,63 @@ import java.util.Optional;
 public class RemoveAnnotationsForInference {
 
     /**
+     * Do not instantiate. This is a standalone program whose entry point is {@link
+     * #main(String[])}.
+     */
+    private RemoveAnnotationsForInference() {
+        throw new Error("Do not instantiate RemoveAnnotationsForInference.");
+    }
+
+    /**
+     * A list of annotations not to remove (i.e., to keep in the source code). Used to prevent
+     * project-specific annotations that must remain for the project to build from being removed by
+     * this program. (It would be burdensome to add all project-specific annotations to the global
+     * list in {@link #isTrustedAnnotation(String)}.)
+     */
+    private static @MonotonicNonNull Set<String> annotationsToKeep = null;
+
+    /**
      * Processes each provided command-line argument; see {@link RemoveAnnotationsForInference class
      * documentation} for details.
      *
      * @param args command-line arguments: directories to process
      */
     public static void main(String[] args) {
+        // TODO: using plume-lib's options here would be better, but would add a dependency
+        // to the whole Checker Framework, which is undesirable. Move this program elsewhere
+        // (e.g., to a plume-lib project)?
+        if (args[0].contentEquals("-keepFile")) {
+            if (args.length < 2) {
+                System.err.println(
+                        "Usage: -keepFile requires an argument immediately after it: the path to the keep"
+                                + " file.");
+                System.exit(2);
+            }
+            String keepFilePath = args[1];
+            try (Stream<String> lines = Files.lines(Paths.get(keepFilePath))) {
+                annotationsToKeep = lines.collect(Collectors.toSet());
+            } catch (FileNotFoundException e) {
+                System.err.println("Error: Keep file " + keepFilePath + " not found.");
+                System.exit(3);
+            } catch (IOException e) {
+                System.err.println(
+                        "Problem reading keep file " + keepFilePath + ": " + e.getMessage());
+                System.exit(4);
+            }
+
+            // Check for common mistake of adding "@" before the annotation name.
+            for (String annotationToKeep : annotationsToKeep) {
+                if (annotationToKeep.startsWith("@")) {
+                    System.err.println(
+                            "Error: Keep file includes an @ symbol before this annotation: "
+                                    + annotationToKeep
+                                    + ". Annotations should be listed in the keep file without the @ symbol.");
+                    System.exit(5);
+                }
+            }
+
+            args = ArraysPlume.subarray(args, 2, args.length - 2);
+        }
         if (args.length < 1) {
             System.err.println("Usage: provide one or more directory names to process");
             System.exit(1);
@@ -114,8 +184,7 @@ public class RemoveAnnotationsForInference {
         CollectionStrategy strategy = new ParserCollectionStrategy();
         // Required to include directories that contain a module-info.java, which don't parse by
         // default.
-        strategy.getParserConfiguration()
-                .setLanguageLevel(ParserConfiguration.LanguageLevel.JAVA_11);
+        strategy.getParserConfiguration().setLanguageLevel(JavaParserUtil.DEFAULT_LANGUAGE_LEVEL);
         ProjectRoot projectRoot = strategy.collect(root);
 
         for (SourceRoot sourceRoot : projectRoot.getSourceRoots()) {
@@ -197,7 +266,7 @@ public class RemoveAnnotationsForInference {
                 String newLine = prefix + suffix;
                 replaceLine(lines, beginLine, newLine);
             } else {
-                String newLastLine = lines.get(endLine).substring(0, endColumn);
+                String newLastLine = lines.get(endLine).substring(endColumn);
                 replaceLine(lines, endLine, newLastLine);
                 for (int lineno = endLine - 1; lineno > beginLine; lineno--) {
                     lines.remove(lineno);
@@ -225,25 +294,11 @@ public class RemoveAnnotationsForInference {
      * @param newLine the new line for index {@code lineno}
      */
     static void replaceLine(List<String> lines, int lineno, String newLine) {
-        if (isBlank(newLine)) {
+        if (StringsPlume.isBlank(newLine)) {
             lines.remove(lineno);
         } else {
             lines.set(lineno, newLine);
         }
-    }
-
-    // TODO: Put the following utility methods in StringsPlume.
-
-    /**
-     * Returns true if the string contains only white space codepoints, otherwise false.
-     *
-     * <p>In Java 11, use {@code String.isBlank()} instead.
-     *
-     * @param s a string
-     * @return true if the string contains only white space codepoints, otherwise false
-     */
-    static boolean isBlank(String s) {
-        return s.chars().allMatch(Character::isWhitespace);
     }
 
     /**
@@ -257,14 +312,16 @@ public class RemoveAnnotationsForInference {
             extends GenericListVisitorAdapter<AnnotationExpr, Void> {
 
         /**
-         * Returns the argument if it should be removed from source code.
+         * Returns annotations that should be removed from source code.
          *
          * @param n an annotation
-         * @param superResult the result of processing the subcomponents of n
+         * @param superResult the result of calling {@code super.visit} on n; this includes
+         *     processing the subcomponents of n
          * @return the argument to remove it, or superResult to retain it
          */
         List<AnnotationExpr> processAnnotation(AnnotationExpr n, List<AnnotationExpr> superResult) {
             if (n == null) {
+                // TODO: How is this possible?
                 return superResult;
             }
 
@@ -276,6 +333,10 @@ public class RemoveAnnotationsForInference {
             }
             // Retain trusted annotations.
             if (isTrustedAnnotation(name)) {
+                return superResult;
+            }
+            // Retain annotations that the user requested specifically should be kept.
+            if (shouldBeKept(name)) {
                 return superResult;
             }
             // Retain annotations for which warnings are suppressed.
@@ -363,6 +424,17 @@ public class RemoveAnnotationsForInference {
                 || name.equals("org.checkerframework.common.aliasing.qual.LeakedToResult");
     }
 
+    /**
+     * Returns true iff the annotation is present in the user-supplied file of annotations to keep
+     * (via the {@code -keepFile} command-line option).
+     *
+     * @param name the annotation's name (simple or fully-qualified)
+     * @return true if the user requested that this annotation be kept in the source code
+     */
+    private static boolean shouldBeKept(String name) {
+        return annotationsToKeep != null && annotationsToKeep.contains(name);
+    }
+
     // This approach searches upward to find all the active warning suppressions.
     // An alternative, more efficient approach would be to track the current set of warning
     // suppressions, using a stack.
@@ -448,8 +520,9 @@ public class RemoveAnnotationsForInference {
     }
 
     /**
-     * Given a @SuppressWarnings annotation, returns its strings. Given an annotation that
-     * suppresses warnings, returns strings for what it suppresses. Otherwise, returns null.
+     * Given a @SuppressWarnings annotation, returns its strings. Given a different annotation that
+     * suppresses warnings (e.g., @IgnoreInWholeProgramInference, @Inject, @Singleton), returns
+     * strings for what it suppresses. Otherwise, returns null.
      *
      * @param n an annotation
      * @return the (effective) arguments to {@code @SuppressWarnings}, or null
@@ -489,11 +562,13 @@ public class RemoveAnnotationsForInference {
 
     /**
      * Given an annotation argument for an element of type String[], return a list of strings.
+     * Returns null if the list of suppressed strings is unknown (e.g., if the argument is a name
+     * expression).
      *
      * @param e an annotation argument
      * @return the strings expressed by {@code e}
      */
-    private static List<String> annotationElementStrings(Expression e) {
+    private static @Nullable List<String> annotationElementStrings(Expression e) {
         if (e instanceof StringLiteralExpr) {
             return Collections.singletonList(((StringLiteralExpr) e).asString());
         } else if (e instanceof ArrayInitializerExpr) {
@@ -502,12 +577,24 @@ public class RemoveAnnotationsForInference {
             for (Expression v : values) {
                 if (v instanceof StringLiteralExpr) {
                     result.add(((StringLiteralExpr) v).asString());
+                } else if (v instanceof NameExpr) {
+                    // TODO: is it better to return null here, thus causing nothing under this
+                    // warning to be treated as "suppressed", or to return any keys that are string
+                    // literals?
+                    // Returning null here ensures that if any argument to the SW annotation isn't a
+                    // string literal, then none of them are considered.
+                    return null;
                 } else {
                     throw new BugInCF(
                             "Unexpected annotation element of type %s: %s", v.getClass(), v);
                 }
             }
             return result;
+        } else if (e instanceof NameExpr) {
+            // TODO: it would be better to check if the NameExpr represents a compile-time constant,
+            // and, if so, to use its value. But, it's not possible to determine that from just the
+            // result of the parser.
+            return null;
         } else {
             throw new BugInCF("Unexpected %s: %s", e.getClass(), e);
         }

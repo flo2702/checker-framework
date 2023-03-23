@@ -8,7 +8,7 @@ import org.checkerframework.framework.qual.StubFiles;
 import org.checkerframework.framework.source.SupportedLintOptions;
 
 import java.util.LinkedHashSet;
-import java.util.SortedSet;
+import java.util.NavigableSet;
 
 import javax.annotation.processing.SupportedOptions;
 
@@ -77,6 +77,9 @@ public class NullnessChecker extends BaseTypeChecker {
     /** Default for {@link #LINT_PERMITCLEARPROPERTY}. */
     public static final boolean LINT_DEFAULT_PERMITCLEARPROPERTY = false;
 
+    /** Default constructor for NullnessChecker. */
+    public NullnessChecker() {}
+
     @Override
     protected LinkedHashSet<Class<? extends BaseTypeChecker>> getImmediateSubcheckerClasses() {
         LinkedHashSet<Class<? extends BaseTypeChecker>> checkers =
@@ -96,8 +99,8 @@ public class NullnessChecker extends BaseTypeChecker {
     }
 
     @Override
-    public SortedSet<String> getSuppressWarningsPrefixes() {
-        SortedSet<String> result = super.getSuppressWarningsPrefixes();
+    public NavigableSet<String> getSuppressWarningsPrefixes() {
+        NavigableSet<String> result = super.getSuppressWarningsPrefixes();
         result.add("nullness");
         return result;
     }

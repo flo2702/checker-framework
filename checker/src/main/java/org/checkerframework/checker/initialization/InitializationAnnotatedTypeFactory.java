@@ -51,9 +51,9 @@ import org.checkerframework.framework.type.treeannotator.TreeAnnotator;
 import org.checkerframework.framework.type.typeannotator.ListTypeAnnotator;
 import org.checkerframework.framework.type.typeannotator.TypeAnnotator;
 import org.checkerframework.framework.util.AnnotatedTypes;
-import org.checkerframework.framework.util.AnnotationMirrorSet;
 import org.checkerframework.framework.util.QualifierKind;
 import org.checkerframework.javacutil.AnnotationBuilder;
+import org.checkerframework.javacutil.AnnotationMirrorSet;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.TreePathUtil;
@@ -1022,9 +1022,9 @@ public class InitializationAnnotatedTypeFactory
         }
 
         @Override
-        public Void visitMethod(MethodTree node, AnnotatedTypeMirror p) {
-            Void result = super.visitMethod(node, p);
-            if (TreeUtils.isConstructor(node)) {
+        public Void visitMethod(MethodTree tree, AnnotatedTypeMirror p) {
+            Void result = super.visitMethod(tree, p);
+            if (TreeUtils.isConstructor(tree)) {
                 assert p instanceof AnnotatedExecutableType;
                 AnnotatedExecutableType exeType = (AnnotatedExecutableType) p;
                 DeclaredType underlyingType =
@@ -1036,11 +1036,11 @@ public class InitializationAnnotatedTypeFactory
         }
 
         @Override
-        public Void visitNewClass(NewClassTree node, AnnotatedTypeMirror p) {
-            super.visitNewClass(node, p);
+        public Void visitNewClass(NewClassTree tree, AnnotatedTypeMirror p) {
+            super.visitNewClass(tree, p);
             boolean allInitialized = true;
-            Type type = ((JCTree) node).type;
-            for (ExpressionTree a : node.getArguments()) {
+            Type type = ((JCTree) tree).type;
+            for (ExpressionTree a : tree.getArguments()) {
                 final AnnotatedTypeMirror t = getAnnotatedType(a);
                 allInitialized &= (isInitialized(t) || isFbcBottom(t));
             }
@@ -1074,11 +1074,11 @@ public class InitializationAnnotatedTypeFactory
 
         @Override
         public Void visitMemberSelect(
-                MemberSelectTree node, AnnotatedTypeMirror annotatedTypeMirror) {
-            if (TreeUtils.isArrayLengthAccess(node)) {
+                MemberSelectTree tree, AnnotatedTypeMirror annotatedTypeMirror) {
+            if (TreeUtils.isArrayLengthAccess(tree)) {
                 annotatedTypeMirror.replaceAnnotation(INITIALIZED);
             }
-            return super.visitMemberSelect(node, annotatedTypeMirror);
+            return super.visitMemberSelect(tree, annotatedTypeMirror);
         }
 
         /* The result of a binary or unary operator is always @Initialized. */
