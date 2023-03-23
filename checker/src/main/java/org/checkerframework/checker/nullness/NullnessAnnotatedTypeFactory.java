@@ -56,6 +56,7 @@ import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.TreeUtils;
 
 import java.lang.annotation.Annotation;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -516,6 +517,10 @@ public class NullnessAnnotatedTypeFactory
     public boolean isNotFullyInitializedReceiver(MethodTree methodDeclTree) {
         InitializationAnnotatedTypeFactory initFactory =
                 getTypeFactoryOfSubchecker(InitializationChecker.class);
+        if (initFactory == null) {
+            // init checker is deactivated.
+            return super.isNotFullyInitializedReceiver(methodDeclTree);
+        }
         return initFactory.isNotFullyInitializedReceiver(methodDeclTree);
     }
 
@@ -523,6 +528,10 @@ public class NullnessAnnotatedTypeFactory
     public AnnotatedTypeMirror getAnnotatedTypeBefore(JavaExpression expr, Tree tree) {
         InitializationAnnotatedTypeFactory initFactory =
                 getTypeFactoryOfSubchecker(InitializationChecker.class);
+        if (initFactory == null) {
+            // init checker is deactivated.
+            return super.getAnnotatedTypeBefore(expr, tree);
+        }
         if (expr instanceof FieldAccess
                 && initFactory.isExpressionInitialized(expr, initFactory.getStoreBefore(tree))) {
             FieldAccess fa = (FieldAccess) expr;
@@ -568,12 +577,18 @@ public class NullnessAnnotatedTypeFactory
     protected TreeAnnotator createTreeAnnotator() {
         // Don't call super.createTreeAnnotator because the default tree annotators are incorrect
         // for the Nullness Checker.
-        return new ListTreeAnnotator(
-                // DebugListTreeAnnotator(new Tree.Kind[] {Tree.Kind.CONDITIONAL_EXPRESSION},
-                new NullnessPropagationTreeAnnotator(this),
-                new LiteralTreeAnnotator(this),
-                new NullnessTreeAnnotator(this),
-                new InitializationAnnotatedTypeFactory.CommitmentFieldAccessTreeAnnotator(this));
+        List<TreeAnnotator> annotators = new ArrayList<>(3);
+        // annotators.add(new DebugListTreeAnnotator(new Tree.Kind[]
+        // {Tree.Kind.CONDITIONAL_EXPRESSION}));
+        annotators.add(new NullnessPropagationTreeAnnotator(this));
+        annotators.add(new LiteralTreeAnnotator(this));
+        annotators.add(new NullnessTreeAnnotator(this));
+        if (!checker.hasOptionNoSubcheckers("assumeInit")) {
+            annotators.add(
+                    new InitializationAnnotatedTypeFactory.CommitmentFieldAccessTreeAnnotator(
+                            this));
+        }
+        return new ListTreeAnnotator(annotators);
     }
 
     /**

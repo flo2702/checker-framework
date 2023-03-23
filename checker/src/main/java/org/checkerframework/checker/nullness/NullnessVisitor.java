@@ -270,6 +270,11 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
     }
 
     protected void reportInitializationErrors(Tree tree) {
+        if (initFactory == null) {
+            // init checker is deactivated.
+            return;
+        }
+
         initFactory.reportInitializionErrors(
                 tree,
                 atypeFactory,
