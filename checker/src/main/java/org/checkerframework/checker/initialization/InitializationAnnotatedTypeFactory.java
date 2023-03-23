@@ -120,7 +120,32 @@ public class InitializationAnnotatedTypeFactory
     /** The UnknownInitialization.value field/element. */
     protected final ExecutableElement unknownInitializationValueElement;
 
-    protected final Map<Tree, List<VariableTree>> uninitializedFields = new HashMap<>();
+    protected final Map<Tree, InitializationError> initializationErrors = new HashMap<>();
+
+    protected static class InitializationError {
+
+        protected final Tree tree;
+        protected final List<VariableTree> uninitializedFields;
+        protected final String errorMsg;
+        protected final Object[] errorArgs;
+        protected final boolean storeBefore;
+        protected final boolean errorAtField;
+
+        public InitializationError(
+                Tree tree,
+                List<VariableTree> uninitializedFields,
+                String errorMsg,
+                Object[] errorArgs,
+                boolean storeBefore,
+                boolean errorAtField) {
+            this.tree = tree;
+            this.uninitializedFields = uninitializedFields;
+            this.errorMsg = errorMsg;
+            this.errorArgs = errorArgs;
+            this.storeBefore = storeBefore;
+            this.errorAtField = errorAtField;
+        }
+    }
 
     /**
      * Create a new InitializationAnnotatedTypeFactory.
@@ -562,8 +587,7 @@ public class InitializationAnnotatedTypeFactory
     }
 
     /**
-     * Reports an error for every field not initialized by a given constructor or static
-     * initializer.
+     * Reports an error at the specified node if there is one.
      *
      * @param <Value> the parent factory's value type
      * @param <Store> the parent factory's store type
@@ -571,7 +595,6 @@ public class InitializationAnnotatedTypeFactory
      * @param <Analysis> the parent factory's analysis type
      * @param <Factory> the parent factory type
      * @param node the constructor or static initializer to check
-     * @param staticFields whether or not to check for initialization of static fields
      * @param factory the parent factory
      * @param enclosingClass the enclosing class for {@code node}
      * @param invariants the invariant annotations
@@ -584,20 +607,27 @@ public class InitializationAnnotatedTypeFactory
                     Transfer extends CFAbstractTransfer<Value, Store, Transfer>,
                     Analysis extends CFAbstractAnalysis<Value, Store, Transfer>,
                     Factory extends GenericAnnotatedTypeFactory<Value, Store, Transfer, Analysis>>
-            void reportUninitializedFields(
+            void reportInitializionErrors(
                     Tree node,
-                    boolean staticFields,
                     Factory factory,
                     ClassTree enclosingClass,
                     AnnotationMirrorSet invariants,
                     Predicate<VariableTree> filter) {
-        reportUninitializedFields(
+        InitializationError error = this.initializationErrors.get(node);
+
+        if (error == null || error.uninitializedFields.isEmpty()) {
+            return;
+        }
+
+        reportInitializionErrors(
                 node,
-                staticFields,
                 filter.and(
                         var -> {
                             // filter out variables that have the invariant
-                            Store store = factory.getRegularExitStore(node);
+                            Store store =
+                                    error.storeBefore
+                                            ? factory.getStoreBefore(node)
+                                            : factory.getRegularExitStore(node);
                             Node receiver;
                             if (ElementUtils.isStatic(TreeUtils.elementFromDeclaration(var))) {
                                 receiver = new ClassNameNode(enclosingClass);
@@ -639,56 +669,41 @@ public class InitializationAnnotatedTypeFactory
     }
 
     /**
-     * Reports an error for every field not initialized by a given constructor or static
-     * initializer.
+     * Reports an error at the specified node if there is one.
      *
-     * @param node the constructor or static initializer to check
-     * @param staticFields whether or not to check for initialization of static fields
+     * @param node the node to check
      * @param filter a predicate which is false if the field should not be checked for
      *     initialization
      */
-    public void reportUninitializedFields(
-            Tree node, boolean staticFields, Predicate<VariableTree> filter) {
-        List<VariableTree> uninitializedFields = this.uninitializedFields.get(node);
+    public void reportInitializionErrors(Tree node, Predicate<VariableTree> filter) {
+        InitializationError error = this.initializationErrors.get(node);
 
-        if (uninitializedFields == null || uninitializedFields.isEmpty()) {
+        if (error == null || error.uninitializedFields.isEmpty()) {
             return;
         }
 
-        // Errors are issued at the field declaration if the field is static or if the constructor
-        // is the default constructor.
-        // Errors are issued at the constructor declaration if the field is non-static and the
-        // constructor is non-default.
-        boolean errorAtField = staticFields || TreeUtils.isSynthetic((MethodTree) node);
-
-        String FIELDS_UNINITIALIZED_KEY =
-                (staticFields
-                        ? "initialization.static.field.uninitialized"
-                        : errorAtField
-                                ? "initialization.field.uninitialized"
-                                : "initialization.fields.uninitialized");
-
-        // Remove fields with a relevant @SuppressWarnings annotation.
-        uninitializedFields.removeIf(
+        error.uninitializedFields.removeIf(
                 f ->
                         checker.shouldSuppressWarnings(
-                                TreeUtils.elementFromDeclaration(f), FIELDS_UNINITIALIZED_KEY));
+                                TreeUtils.elementFromDeclaration(f), error.errorMsg));
+        error.uninitializedFields.removeIf(filter.negate());
 
-        uninitializedFields.removeIf(filter.negate());
-
-        if (!uninitializedFields.isEmpty()) {
-            if (errorAtField) {
+        if (!error.uninitializedFields.isEmpty()) {
+            if (error.errorAtField) {
                 // Issue each error at the relevant field
-                for (VariableTree f : uninitializedFields) {
-                    checker.reportError(f, FIELDS_UNINITIALIZED_KEY, f.getName());
+                for (VariableTree f : error.uninitializedFields) {
+                    checker.reportError(f, error.errorMsg, f.getName());
                 }
             } else {
-                // Issue all the errors at the relevant constructor
+                // Issue all the errors at the relevant node
                 StringJoiner fieldsString = new StringJoiner(", ");
-                for (VariableTree f : uninitializedFields) {
+                for (VariableTree f : error.uninitializedFields) {
                     fieldsString.add(f.getName());
                 }
-                checker.reportError(node, FIELDS_UNINITIALIZED_KEY, fieldsString);
+                checker.reportError(
+                        error.tree,
+                        error.errorMsg,
+                        error.errorArgs == null ? new Object[] {fieldsString} : error.errorArgs);
             }
         }
     }

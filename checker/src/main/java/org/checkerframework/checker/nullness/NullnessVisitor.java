@@ -112,6 +112,9 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
     /** True if checked code may clear system properties. */
     private final boolean permitClearProperty;
 
+    /** The init checker's factory. */
+    private InitializationAnnotatedTypeFactory initFactory;
+
     /**
      * Create a new NullnessVisitor.
      *
@@ -135,6 +138,8 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
                 checker.getLintOption(
                         NullnessChecker.LINT_PERMITCLEARPROPERTY,
                         NullnessChecker.LINT_DEFAULT_PERMITCLEARPROPERTY);
+
+        initFactory = atypeFactory.getTypeFactoryOfSubchecker(InitializationChecker.class);
     }
 
     @Override
@@ -265,19 +270,18 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
     }
 
     protected void reportInitializationErrors(Tree tree) {
-        InitializationAnnotatedTypeFactory initFactory =
-                atypeFactory.getTypeFactoryOfSubchecker(InitializationChecker.class);
-
-        Element element = TreeUtils.elementFromTree(tree);
-        boolean staticFields =
-                tree instanceof ClassTree || (element != null && ElementUtils.isStatic(element));
-        initFactory.reportUninitializedFields(
+        initFactory.reportInitializionErrors(
                 tree,
-                staticFields,
                 atypeFactory,
                 classTree,
                 AnnotationMirrorSet.singleElementSet(atypeFactory.NONNULL),
                 var -> !atypeFactory.getAnnotatedType(var).getKind().isPrimitive());
+    }
+
+    @Override
+    public Void scan(@Nullable Tree tree, Void p) {
+        reportInitializationErrors(tree);
+        return super.scan(tree, p);
     }
 
     /** Case 1: Check for null dereferencing. */
@@ -543,8 +547,6 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
 
     @Override
     public Void visitMethod(MethodTree node, Void p) {
-        reportInitializationErrors(node);
-
         if (TreeUtils.isConstructor(node)) {
             List<? extends AnnotationTree> annoTrees = node.getModifiers().getAnnotations();
             if (atypeFactory.containsNullnessAnnotation(annoTrees)) {
@@ -602,7 +604,6 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
     @Override
     public void processClassTree(ClassTree classTree) {
         reportInitializationErrors(classTree);
-
         Tree extendsClause = classTree.getExtendsClause();
         if (extendsClause != null) {
             reportErrorIfSupertypeContainsNullnessAnnotation(extendsClause);

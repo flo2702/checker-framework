@@ -2945,16 +2945,33 @@ public class BaseTypeVisitor<Factory extends GenericAnnotatedTypeFactory<?, ?, ?
 
         commonAssignmentCheckEndDiagnostic(success, null, varType, valueType, valueTree);
 
-        // Use an error key only if it's overridden by a checker.
         if (!success) {
-            FoundRequired pair = FoundRequired.of(valueType, varType);
-            String valueTypeString = pair.found;
-            String varTypeString = pair.required;
-            checker.reportError(
-                    valueTree,
-                    errorKey,
-                    ArraysPlume.concatenate(extraArgs, valueTypeString, varTypeString));
+            reportCommonAssignmentError(varType, widenedValueType, valueTree, errorKey, extraArgs);
         }
+    }
+
+    /**
+     * Report a common assignment error. Allows checkers to change how the message is output.
+     *
+     * @param varType the annotated type of the variable
+     * @param valueType the annotated type of the value
+     * @param valueTree the location to use when reporting the error message
+     * @param errorKey the error message key to use if the check fails
+     * @param extraArgs arguments to the error message key, before "found" and "expected" types
+     */
+    protected void reportCommonAssignmentError(
+            AnnotatedTypeMirror varType,
+            AnnotatedTypeMirror valueType,
+            Tree valueTree,
+            @CompilerMessageKey String errorKey,
+            Object... extraArgs) {
+        FoundRequired pair = FoundRequired.of(valueType, varType);
+        String valueTypeString = pair.found;
+        String varTypeString = pair.required;
+        checker.reportError(
+                valueTree,
+                errorKey,
+                ArraysPlume.concatenate(extraArgs, valueTypeString, varTypeString));
     }
 
     /**
@@ -3046,7 +3063,7 @@ public class BaseTypeVisitor<Factory extends GenericAnnotatedTypeFactory<?, ?, ?
      * Class that creates string representations of {@link AnnotatedTypeMirror}s which are only
      * verbose if required to differentiate the two types.
      */
-    private static class FoundRequired {
+    protected static class FoundRequired {
         public final String found;
         public final String required;
 
@@ -3075,7 +3092,7 @@ public class BaseTypeVisitor<Factory extends GenericAnnotatedTypeFactory<?, ?, ?
          * Creates string representations of {@link AnnotatedTypeMirror}s which are only verbose if
          * required to differentiate the two types.
          */
-        static FoundRequired of(AnnotatedTypeMirror found, AnnotatedTypeMirror required) {
+        public static FoundRequired of(AnnotatedTypeMirror found, AnnotatedTypeMirror required) {
             return new FoundRequired(found, required);
         }
 
@@ -3084,7 +3101,8 @@ public class BaseTypeVisitor<Factory extends GenericAnnotatedTypeFactory<?, ?, ?
          * AnnotatedTypeParameterBounds}s which are only verbose if required to differentiate the
          * two types.
          */
-        static FoundRequired of(AnnotatedTypeMirror found, AnnotatedTypeParameterBounds required) {
+        public static FoundRequired of(
+                AnnotatedTypeMirror found, AnnotatedTypeParameterBounds required) {
             return new FoundRequired(found, required);
         }
     }
