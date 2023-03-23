@@ -1964,9 +1964,23 @@ public class BaseTypeVisitor<Factory extends GenericAnnotatedTypeFactory<?, ?, ?
 
             CFAbstractStore<?, ?> store = atypeFactory.getStoreBefore(tree);
             QualifierHierarchy hierarchy = atypeFactory.getQualifierHierarchy();
+
             Set<AnnotationMirror> annos =
                     atypeFactory.getAnnotatedTypeBefore(exprJe, tree).getAnnotations();
+
             AnnotationMirror inferredAnno = hierarchy.findAnnotationInSameHierarchy(annos, anno);
+
+            // If the expression is "this", then get the type of the method receiver.
+            // TODO: There are other expressions that can be converted to trees, "#1" for
+            // example.
+            if (expressionString.equals("this")
+                    && hierarchy.getTopAnnotations().contains(inferredAnno)) {
+                AnnotatedTypeMirror atype = atypeFactory.getReceiverType(tree);
+                if (atype != null) {
+                    annos = atype.getEffectiveAnnotations();
+                    inferredAnno = hierarchy.findAnnotationInSameHierarchy(annos, anno);
+                }
+            }
 
             if (!checkContract(exprJe, anno, inferredAnno, store)) {
                 if (exprJe != null) {

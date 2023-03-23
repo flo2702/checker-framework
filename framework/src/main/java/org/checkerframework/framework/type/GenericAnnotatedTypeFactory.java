@@ -1702,20 +1702,10 @@ public abstract class GenericAnnotatedTypeFactory<
         if (CFAbstractStore.canInsertJavaExpression(expr)) {
             value = store.getValue(expr);
         }
-        Set<? extends AnnotationMirror> annos;
+        Set<? extends AnnotationMirror> annos = null;
         if (value != null) {
             annos = value.getAnnotations();
         } else {
-            // If the expression is "this", then get the type of the method receiver.
-            // TODO: There are other expressions that can be converted to trees, "#1" for
-            // example.
-            if (expr.toString().equals("this")) {
-                AnnotatedTypeMirror atype = getReceiverType(tree);
-                if (atype != null) {
-                    annos = atype.getEffectiveAnnotations();
-                }
-            }
-
             // If there is no information in the store (possible if e.g., no refinement
             // of the field has occurred), use top instead of automatically
             // issuing a warning. This is not perfectly precise: for example,
@@ -2525,7 +2515,7 @@ public abstract class GenericAnnotatedTypeFactory<
         result.addAll(postconds);
         return result;
     }
-    */
+     */
 
     /* NO-AFU
      * Return the precondition annotations for the given AMethod. Does not modify the AMethod. This
@@ -2558,7 +2548,7 @@ public abstract class GenericAnnotatedTypeFactory<
         Collections.sort(result, Ordering.usingToString());
         return result;
     }
-    */
+     */
 
     /* NO-AFU
      * Return the postcondition annotations for the given AMethod. Does not modify the AMethod. This
@@ -2597,7 +2587,7 @@ public abstract class GenericAnnotatedTypeFactory<
         Collections.sort(result, Ordering.usingToString());
         return result;
     }
-    */
+     */
 
     /* NO-AFU
      * Return the contract annotations (that is, pre- and post-conditions) for the given
@@ -2615,7 +2605,7 @@ public abstract class GenericAnnotatedTypeFactory<
         result.addAll(postconds);
         return result;
     }
-    */
+     */
 
     /* NO-AFU
      * Return the precondition annotations for the given CallableDeclarationAnnos. Does not modify
@@ -2637,7 +2627,7 @@ public abstract class GenericAnnotatedTypeFactory<
         Collections.sort(result, Ordering.usingToString());
         return result;
     }
-    */
+     */
 
     /* NO-AFU
      * Return the postcondition annotations for the given CallableDeclarationAnnos. Does not modify
@@ -2665,7 +2655,7 @@ public abstract class GenericAnnotatedTypeFactory<
         Collections.sort(result, Ordering.usingToString());
         return result;
     }
-    */
+     */
 
     /* NO-AFU
      * Returns a list of inferred {@code @RequiresQualifier} annotations for the given expression.
@@ -2689,7 +2679,7 @@ public abstract class GenericAnnotatedTypeFactory<
         return getPreOrPostconditionAnnotations(
                 expression, inferredType, declaredType, BeforeOrAfter.BEFORE, null);
     }
-    */
+     */
 
     /* NO-AFU
      * Returns a list of inferred {@code @EnsuresQualifier} annotations for the given expression. By
@@ -2719,7 +2709,7 @@ public abstract class GenericAnnotatedTypeFactory<
         return getPreOrPostconditionAnnotations(
                 expression, inferredType, declaredType, BeforeOrAfter.AFTER, preconds);
     }
-    */
+     */
 
     /* NO-AFU
      * Creates pre- and postcondition annotations. Helper method for {@link
@@ -2776,7 +2766,7 @@ public abstract class GenericAnnotatedTypeFactory<
         }
         return result;
     }
-    */
+     */
 
     /**
      * Matches parameter expressions as they appear in {@link EnsuresQualifier} and {@link
