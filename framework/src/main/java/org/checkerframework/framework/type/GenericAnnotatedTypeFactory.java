@@ -1701,8 +1701,8 @@ public abstract class GenericAnnotatedTypeFactory<
             // on the type of the receiver: (1) all fields in Nullness Checker,
             // because of possibility that the receiver is under initialization,
             // (2) polymorphic fields, and (3) fields whose type is a type variable.
-            // Using top here instead means that there is no need for special cases
-            // for these situations.
+            // Using top here instead means that the method is always sound;
+            // a subclass can then override it with a more precise implementation.
             annos = getQualifierHierarchy().getTopAnnotations();
         }
 

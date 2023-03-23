@@ -21,7 +21,6 @@ import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.initialization.qual.NotOnlyInitialized;
 import org.checkerframework.checker.initialization.qual.UnderInitialization;
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
-import org.checkerframework.checker.nullness.NullnessChecker;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.dataflow.cfg.node.ClassNameNode;
 import org.checkerframework.dataflow.cfg.node.FieldAccessNode;
@@ -86,10 +85,9 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
 
 /**
- * The annotated type factory for the freedom-before-commitment type-system. The
- * freedom-before-commitment type-system and this class are abstract and need to be combined with
- * another type-system whose safe initialization should be tracked. For an example, see the {@link
- * NullnessChecker}.
+ * The annotated type factory for the freedom-before-commitment type system. When using this the
+ * freedom-before-commitment type system as a subchecker, you must ensure that the parent checker
+ * hooks into it properly. See {@link InitializationChecker} for further information.
  */
 public class InitializationAnnotatedTypeFactory
         extends GenericAnnotatedTypeFactory<
@@ -122,16 +120,46 @@ public class InitializationAnnotatedTypeFactory
 
     protected final Map<Tree, InitializationError> initializationErrors = new HashMap<>();
 
+    /**
+     * A possible type error caused by some fields of the current receiver not being initialized.
+     * The parent checker should use {@link #reportInitializionErrors(Tree,
+     * GenericAnnotatedTypeFactory, ClassTree, AnnotationMirrorSet, Predicate)} as explained in the
+     * documentation for {@link InitializationChecker} to either discharge or report every such
+     * error.
+     */
     protected static class InitializationError {
 
+        /** The tree at which this possible error occurs. */
         protected final Tree tree;
+        /** A list of possibly uninitialized fields. */
         protected final List<VariableTree> uninitializedFields;
+        /** The error message key. */
         protected final String errorMsg;
+        /** Additional arguments for the error report. */
         protected final Object[] errorArgs;
+        /**
+         * Whether field initialization should be checker in the store before or after {@link
+         * #tree}.
+         */
         protected final boolean storeBefore;
+        /**
+         * Whether the error should be reported at every uninitialized field or at {@link #tree}.
+         */
         protected final boolean errorAtField;
 
-        public InitializationError(
+        /**
+         * Creates a new InitializationError.
+         *
+         * @param tree the tree at which this possible error occurs.
+         * @param uninitializedFields a list of possibly uninitialized fields.
+         * @param errorMsg the error message key.
+         * @param errorArgs additional arguments for the error report.
+         * @param storeBefore whether field initialization should be checker in the store before or
+         *     after {@link #tree}.
+         * @param errorAtField whether the error should be reported at every uninitialized field or
+         *     at {@link #tree}.
+         */
+        protected InitializationError(
                 Tree tree,
                 List<VariableTree> uninitializedFields,
                 String errorMsg,
@@ -587,7 +615,9 @@ public class InitializationAnnotatedTypeFactory
     }
 
     /**
-     * Reports an error at the specified node if there is one.
+     * Reports an error at the specified node if there is one. This method uses a default filter
+     * which considers every field which either has one of the invariant annotations or whose
+     * declaration has none of the invariant annotations to be initialized.
      *
      * @param <Value> the parent factory's value type
      * @param <Store> the parent factory's store type
@@ -598,8 +628,9 @@ public class InitializationAnnotatedTypeFactory
      * @param factory the parent factory
      * @param enclosingClass the enclosing class for {@code node}
      * @param invariants the invariant annotations
-     * @param filter a predicate which is false if the field should not be checked for
+     * @param additionalFilter a predicate which is false if the field should not be checked for
      *     initialization
+     * @see #reportInitializionErrors(Tree, Predicate)
      */
     public <
                     Value extends CFAbstractValue<Value>,
@@ -612,7 +643,7 @@ public class InitializationAnnotatedTypeFactory
                     Factory factory,
                     ClassTree enclosingClass,
                     AnnotationMirrorSet invariants,
-                    Predicate<VariableTree> filter) {
+                    Predicate<VariableTree> additionalFilter) {
         InitializationError error = this.initializationErrors.get(node);
 
         if (error == null || error.uninitializedFields.isEmpty()) {
@@ -621,7 +652,7 @@ public class InitializationAnnotatedTypeFactory
 
         reportInitializionErrors(
                 node,
-                filter.and(
+                additionalFilter.and(
                         var -> {
                             // filter out variables that have the invariant
                             Store store =
@@ -674,6 +705,8 @@ public class InitializationAnnotatedTypeFactory
      * @param node the node to check
      * @param filter a predicate which is false if the field should not be checked for
      *     initialization
+     * @see #reportInitializionErrors(Tree, GenericAnnotatedTypeFactory, ClassTree,
+     *     AnnotationMirrorSet, Predicate)
      */
     public void reportInitializionErrors(Tree node, Predicate<VariableTree> filter) {
         InitializationError error = this.initializationErrors.get(node);
