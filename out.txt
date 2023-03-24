@@ -1,0 +1,56 @@
+> Task :checker-util:processResources NO-SOURCE
+> Task :dataflow:processResources NO-SOURCE
+> Task :checker-qual:processResources NO-SOURCE
+> Task :javacutil:processResources NO-SOURCE
+> Task :framework-test:processResources NO-SOURCE
+> Task :setLocalRepo
+> Task :installGitHooks UP-TO-DATE
+> Task :maybeCloneAndBuildDependencies SKIPPED
+> Task :checker:processResources UP-TO-DATE
+> Task :checker-qual:compileJava UP-TO-DATE
+> Task :checker-qual:classes UP-TO-DATE
+> Task :checker-qual:jar UP-TO-DATE
+> Task :checker-util:compileJava UP-TO-DATE
+> Task :javacutil:compileJava UP-TO-DATE
+> Task :checker-util:classes UP-TO-DATE
+> Task :javacutil:classes UP-TO-DATE
+> Task :javacutil:jar UP-TO-DATE
+> Task :checker-util:jar UP-TO-DATE
+> Task :dataflow:compileJava UP-TO-DATE
+> Task :dataflow:classes UP-TO-DATE
+> Task :dataflow:jar UP-TO-DATE
+> Task :framework-test:compileJava UP-TO-DATE
+> Task :framework-test:classes UP-TO-DATE
+> Task :framework-test:jar UP-TO-DATE
+> Task :checker:generateGitProperties UP-TO-DATE
+> Task :checker:compileTestannotationsJava UP-TO-DATE
+> Task :checker:processTestannotationsResources NO-SOURCE
+> Task :checker:testannotationsClasses UP-TO-DATE
+> Task :framework:cloneTypetoolsJdk
+> Task :framework:checkDependencies
+> Task :framework:compileJava UP-TO-DATE
+> Task :checker:compileJava UP-TO-DATE
+> Task :checker:classes UP-TO-DATE
+> Task :checker:compileTestJava UP-TO-DATE
+> Task :framework:copyAndMinimizeAnnotatedJdkFiles UP-TO-DATE
+> Task :framework:processResources UP-TO-DATE
+> Task :framework:classes UP-TO-DATE
+> Task :framework:jar UP-TO-DATE
+> Task :checker:shadowJar UP-TO-DATE
+> Task :checker:assembleForJavac
+
+> Task :checker:nullnessExtraTests
+make: Entering directory '/home/florian/git/checker-framework/checker/tests/nullness-extra'
+/home/florian/git/checker-framework/checker/bin/javac -AnoJreVersionCheck -processor org.checkerframework.checker.nullness.NullnessChecker Bug109_A.java Bug109_B.java
+/home/florian/git/checker-framework/checker/bin/javac -AnoJreVersionCheck -processor org.checkerframework.checker.nullness.NullnessChecker Bug109_B.java Bug109_A.java
+make -C compat
+make[1]: Entering directory '/home/florian/git/checker-framework/checker/tests/nullness-extra/compat'
+rm -f Out.txt CompatTest.class lib/Lib.class javax/annotation/Nullable.class
+/home/florian/git/checker-framework/checker/bin/javac -AnoJreVersionCheck -processor org.checkerframework.checker.nullness.NullnessChecker lib/Lib.java javax/annotation/Nullable.java CompatTest.java > Out.txt 2>&1 || true
+diff -u Expected.txt Out.txt
+make[1]: Leaving directory '/home/florian/git/checker-framework/checker/tests/nullness-extra/compat'
+make -C issue265
+make[1]: Entering directory '/home/florian/git/checker-framework/checker/tests/nullness-extra/issue265'
+mkdir -p bin
+/home/florian/git/checker-framework/checker/bin/javac -AnoJreVersionCheck -processor org.checkerframework.checker.nullness.NullnessChecker *.java -d bin/
+/home/florian/git/checker-framework/checker/bin/javac -AnoJreVersionCheck -processor org.checkerframework.checker.nullness.NullnessChecker Delta.java -cp bin/ -d bin/
