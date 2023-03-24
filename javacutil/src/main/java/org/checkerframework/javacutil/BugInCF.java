@@ -39,7 +39,7 @@ public class BugInCF extends RuntimeException {
      *
      * @param cause the cause; its detail message will be used and must be non-null
      */
-    @SuppressWarnings("nullness")
+    @SuppressWarnings({"initialization","nullness"})
     public BugInCF(Throwable cause) {
         this(cause.getMessage(), new Throwable());
     }
