@@ -45,11 +45,8 @@ import java.util.NavigableSet;
  * NullnessAnnotatedTypeFactory} for examples.
  *
  * <ol>
- *   <li>{@link
- *       GenericAnnotatedTypeFactory#isNotFullyInitializedReceiver(com.sun.source.tree.MethodTree)}
- *   <li>{@link
- *       GenericAnnotatedTypeFactory#getAnnotatedTypeBefore(org.checkerframework.dataflow.expression.JavaExpression,
- *       Tree)}
+ *   <li>{@link GenericAnnotatedTypeFactory#isNotFullyInitializedReceiver}
+ *   <li>{@link GenericAnnotatedTypeFactory#getAnnotatedTypeBefore}
  * </ol>
  *
  * @checker_framework.manual #initialization-checker Initialization Checker
