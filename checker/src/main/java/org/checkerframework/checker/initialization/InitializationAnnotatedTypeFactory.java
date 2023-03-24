@@ -884,6 +884,11 @@ public class InitializationAnnotatedTypeFactory
     }
 
     @Override
+    public boolean shouldWarnIfStubRedundantWithBytecode() {
+        return false;
+    }
+
+    @Override
     protected TreeAnnotator createTreeAnnotator() {
         // Don't call super.createTreeAnnotator because we want our CommitmentTreeAnnotator
         // instead of the default PropagationTreeAnnotator
