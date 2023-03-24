@@ -59,6 +59,7 @@ public class InitializationChecker extends BaseTypeChecker {
     @Override
     public NavigableSet<String> getSuppressWarningsPrefixes() {
         NavigableSet<String> result = super.getSuppressWarningsPrefixes();
+        result.add("initialization");
         // "fbc" is for backward compatibility only; you should use
         // "initialization" instead.
         result.add("fbc");

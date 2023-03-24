@@ -16,11 +16,13 @@ import com.sun.source.util.TreePath;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
 
+import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
 import org.checkerframework.checker.initialization.qual.FBCBottom;
 import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.initialization.qual.NotOnlyInitialized;
 import org.checkerframework.checker.initialization.qual.UnderInitialization;
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.dataflow.cfg.node.ClassNameNode;
 import org.checkerframework.dataflow.cfg.node.FieldAccessNode;
@@ -134,9 +136,9 @@ public class InitializationAnnotatedTypeFactory
         /** A list of possibly uninitialized fields. */
         protected final List<VariableTree> uninitializedFields;
         /** The error message key. */
-        protected final String errorMsg;
+        protected final @CompilerMessageKey String errorMsg;
         /** Additional arguments for the error report. */
-        protected final Object[] errorArgs;
+        protected final @Nullable Object[] errorArgs;
         /**
          * Whether field initialization should be checker in the store before or after {@link
          * #tree}.
@@ -162,8 +164,8 @@ public class InitializationAnnotatedTypeFactory
         protected InitializationError(
                 Tree tree,
                 List<VariableTree> uninitializedFields,
-                String errorMsg,
-                Object[] errorArgs,
+                @CompilerMessageKey String errorMsg,
+                @Nullable Object[] errorArgs,
                 boolean storeBefore,
                 boolean errorAtField) {
             this.tree = tree;
