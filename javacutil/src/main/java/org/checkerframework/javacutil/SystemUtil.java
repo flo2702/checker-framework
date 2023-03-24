@@ -269,7 +269,10 @@ public class SystemUtil {
     @Deprecated // 2021-03-10
     @SuppressWarnings("unchecked")
     public static <T> T[] concatenate(T firstElt, T[] array, T lastElt) {
-        @SuppressWarnings({"initialization","nullness"}) // elements are not non-null yet, but will be by return stmt
+        @SuppressWarnings({
+            "initialization",
+            "nullness"
+        }) // elements are not non-null yet, but will be by return stmt
         T[] result = Arrays.copyOf(array, array.length + 2);
         result[0] = firstElt;
         System.arraycopy(array, 0, result, 1, array.length);
@@ -330,7 +333,10 @@ public class SystemUtil {
     @Deprecated // 2021-03-28
     @SuppressWarnings("unchecked")
     public static <T> T[] concatenate(T[] array1, T... array2) {
-        @SuppressWarnings({"initialization","nullness"}) // elements are not non-null yet, but will be by return stmt
+        @SuppressWarnings({
+            "initialization",
+            "nullness"
+        }) // elements are not non-null yet, but will be by return stmt
         T[] result = Arrays.copyOf(array1, array1.length + array2.length);
         System.arraycopy(array2, 0, result, array1.length, array2.length);
         return result;

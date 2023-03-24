@@ -78,7 +78,7 @@ public class AnnotationBuilder {
      * @param env the processing environment
      * @param anno the class of the annotation to build
      */
-    @SuppressWarnings({"initialization","nullness"}) // getCanonicalName expected to be non-null
+    @SuppressWarnings({"initialization", "nullness"}) // getCanonicalName expected to be non-null
     public AnnotationBuilder(ProcessingEnvironment env, Class<? extends Annotation> anno) {
         this(env, anno.getCanonicalName());
     }

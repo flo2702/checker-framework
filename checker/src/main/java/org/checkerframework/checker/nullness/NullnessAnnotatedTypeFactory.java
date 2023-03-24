@@ -594,7 +594,6 @@ public class NullnessAnnotatedTypeFactory
         // {Tree.Kind.CONDITIONAL_EXPRESSION}));
         annotators.add(new NullnessPropagationTreeAnnotator(this));
         annotators.add(new LiteralTreeAnnotator(this));
-        annotators.add(new NullnessTreeAnnotator(this));
         if (!checker.hasOptionNoSubcheckers("assumeInit")) {
             annotators.add(
                     new InitializationAnnotatedTypeFactory.CommitmentFieldAccessTreeAnnotator(
@@ -603,25 +602,16 @@ public class NullnessAnnotatedTypeFactory
         return new ListTreeAnnotator(annotators);
     }
 
-    /**
-     * Nullness doesn't call propagation on binary and unary because the result is always @NonNull
-     * (the default qualifier).
-     */
-    protected static class NullnessPropagationTreeAnnotator extends PropagationTreeAnnotator {
+    /** Adds nullness-specific propagation rules */
+    protected class NullnessPropagationTreeAnnotator extends PropagationTreeAnnotator {
 
-        /** Create the NullnessPropagationTreeAnnotator. */
+        /**
+         * Creates a NullnessPropagationTreeAnnotator.
+         *
+         * @param atypeFactory this factory
+         */
         public NullnessPropagationTreeAnnotator(AnnotatedTypeFactory atypeFactory) {
             super(atypeFactory);
-        }
-
-        @Override
-        public Void visitBinary(BinaryTree tree, AnnotatedTypeMirror type) {
-            return null;
-        }
-
-        @Override
-        public Void visitUnary(UnaryTree tree, AnnotatedTypeMirror type) {
-            return null;
         }
 
         @Override
@@ -637,17 +627,9 @@ public class NullnessAnnotatedTypeFactory
             }
             return super.visitTypeCast(tree, type);
         }
-    }
-
-    protected class NullnessTreeAnnotator extends TreeAnnotator {
-
-        public NullnessTreeAnnotator(NullnessAnnotatedTypeFactory atypeFactory) {
-            super(atypeFactory);
-        }
 
         @Override
         public Void visitMemberSelect(MemberSelectTree tree, AnnotatedTypeMirror type) {
-
             Element elt = TreeUtils.elementFromUse(tree);
             assert elt != null;
             return null;
@@ -691,6 +673,7 @@ public class NullnessAnnotatedTypeFactory
         // The result of a compound operation is always non-null.
         @Override
         public Void visitCompoundAssignment(CompoundAssignmentTree tree, AnnotatedTypeMirror type) {
+            super.visitCompoundAssignment(tree, type);
             type.replaceAnnotation(NONNULL);
             return null;
         }
@@ -711,6 +694,8 @@ public class NullnessAnnotatedTypeFactory
 
         @Override
         public Void visitNewArray(NewArrayTree tree, AnnotatedTypeMirror type) {
+            super.visitNewArray(tree, type);
+
             // The result of newly allocated structures is always non-null.
             if (!type.isAnnotatedInHierarchy(NONNULL)) {
                 type.replaceAnnotation(NONNULL);

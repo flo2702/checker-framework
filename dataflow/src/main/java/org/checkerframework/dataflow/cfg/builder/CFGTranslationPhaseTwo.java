@@ -21,7 +21,7 @@ import java.util.Set;
 import javax.lang.model.type.TypeMirror;
 
 /** Class that performs phase two of the translation process. */
-@SuppressWarnings({"initialization","nullness"}) // TODO
+@SuppressWarnings({"initialization", "nullness"}) // TODO
 public class CFGTranslationPhaseTwo {
 
     private CFGTranslationPhaseTwo() {}

@@ -22,7 +22,6 @@ import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.initialization.qual.NotOnlyInitialized;
 import org.checkerframework.checker.initialization.qual.UnderInitialization;
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.dataflow.cfg.node.ClassNameNode;
 import org.checkerframework.dataflow.cfg.node.FieldAccessNode;
@@ -120,6 +119,7 @@ public class InitializationAnnotatedTypeFactory
     /** The UnknownInitialization.value field/element. */
     protected final ExecutableElement unknownInitializationValueElement;
 
+    /** Possible type errors. See {@link InitializationError} */
     protected final Map<Tree, InitializationError> initializationErrors = new HashMap<>();
 
     /**
@@ -138,7 +138,7 @@ public class InitializationAnnotatedTypeFactory
         /** The error message key. */
         protected final @CompilerMessageKey String errorMsg;
         /** Additional arguments for the error report. */
-        protected final @Nullable Object[] errorArgs;
+        protected final Object[] errorArgs;
         /**
          * Whether field initialization should be checker in the store before or after {@link
          * #tree}.
@@ -165,7 +165,7 @@ public class InitializationAnnotatedTypeFactory
                 Tree tree,
                 List<VariableTree> uninitializedFields,
                 @CompilerMessageKey String errorMsg,
-                @Nullable Object[] errorArgs,
+                Object[] errorArgs,
                 boolean storeBefore,
                 boolean errorAtField) {
             this.tree = tree;
@@ -911,7 +911,16 @@ public class InitializationAnnotatedTypeFactory
         return new ListTreeAnnotator(treeAnnotators);
     }
 
+    /**
+     * This type annotator adds the correct UnderInitialization annotation to super constructors.
+     */
     protected class CommitmentTypeAnnotator extends TypeAnnotator {
+
+        /**
+         * Creates a new CommitmentTypeAnnotator.
+         *
+         * @param atypeFactory this factory.
+         */
         public CommitmentTypeAnnotator(InitializationAnnotatedTypeFactory atypeFactory) {
             super(atypeFactory);
         }
@@ -964,6 +973,13 @@ public class InitializationAnnotatedTypeFactory
             return null;
         }
 
+        /**
+         * Adapts the type of a field access depending on the field's declared type and the
+         * receiver's initialization type.
+         *
+         * @param node the field access.
+         * @param type the field access's unadapted type.
+         */
         private void computeFieldAccessType(ExpressionTree node, AnnotatedTypeMirror type) {
             GenericAnnotatedTypeFactory<?, ?, ?, ?> factory =
                     (GenericAnnotatedTypeFactory<?, ?, ?, ?>) atypeFactory;
@@ -1032,8 +1048,17 @@ public class InitializationAnnotatedTypeFactory
         }
     }
 
+    /**
+     * This tree annotator modifies the propagation tree annotator to add propagation rules for the
+     * freedom-before-commitment system.
+     */
     protected class CommitmentTreeAnnotator extends PropagationTreeAnnotator {
 
+        /**
+         * Creates a new CommitmentTreeAnnotator.
+         *
+         * @param atypeFactory this factory.
+         */
         public CommitmentTreeAnnotator(InitializationAnnotatedTypeFactory atypeFactory) {
             super(atypeFactory);
         }

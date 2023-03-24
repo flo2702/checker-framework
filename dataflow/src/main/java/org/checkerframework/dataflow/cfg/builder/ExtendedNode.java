@@ -19,7 +19,7 @@ import org.checkerframework.javacutil.BugInCF;
  *       targets for both the 'then' and 'else' branch.
  * </ul>
  */
-@SuppressWarnings({"initialization","nullness"}) // TODO
+@SuppressWarnings({"initialization", "nullness"}) // TODO
 public abstract class ExtendedNode {
 
     /** The basic block this extended node belongs to (as determined in phase two). */

@@ -3129,7 +3129,11 @@ public class BaseTypeVisitor<Factory extends GenericAnnotatedTypeFactory<?, ?, ?
      * verbose if required to differentiate the two types.
      */
     protected static class FoundRequired {
+
+        /** The found type's string representation. */
         public final String found;
+
+        /** The required type's string representation. */
         public final String required;
 
         private FoundRequired(AnnotatedTypeMirror found, AnnotatedTypeMirror required) {

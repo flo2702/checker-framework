@@ -200,7 +200,7 @@ import javax.lang.model.util.Types;
  * <p>The entry point to process a single body (e.g., method) is {@link #process(TreePath,
  * UnderlyingAST)}.
  */
-@SuppressWarnings({"initialization","nullness"}) // TODO
+@SuppressWarnings({"initialization", "nullness"}) // TODO
 public class CFGTranslationPhaseOne extends TreeScanner<Node, Void> {
 
     /** Path to the tree currently being scanned. */

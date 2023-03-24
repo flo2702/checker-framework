@@ -28,8 +28,6 @@ import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
-import org.checkerframework.framework.util.AnnotationFormatter;
-import org.checkerframework.framework.util.DefaultAnnotationFormatter;
 import org.checkerframework.javacutil.AnnotationMirrorSet;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.ElementUtils;
@@ -59,8 +57,6 @@ import javax.lang.model.type.TypeMirror;
  */
 public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotatedTypeFactory> {
 
-    protected final AnnotationFormatter annoFormatter;
-
     // Error message keys
     private static final @CompilerMessageKey String COMMITMENT_INVALID_CAST =
             "initialization.invalid.cast";
@@ -76,7 +72,6 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
 
     public InitializationVisitor(BaseTypeChecker checker) {
         super(checker);
-        annoFormatter = new DefaultAnnotationFormatter();
         initializedFields = new ArrayList<>();
     }
 
@@ -186,8 +181,8 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
             checker.reportError(
                     tree,
                     COMMITMENT_INVALID_CAST,
-                    annoFormatter.formatAnnotationMirror(exprAnno),
-                    annoFormatter.formatAnnotationMirror(castAnno));
+                    atypeFactory.getAnnotationFormatter().formatAnnotationMirror(exprAnno),
+                    atypeFactory.getAnnotationFormatter().formatAnnotationMirror(castAnno));
             return p; // suppress cast.unsafe warning
         }
 

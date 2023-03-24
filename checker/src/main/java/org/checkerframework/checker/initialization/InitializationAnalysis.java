@@ -15,6 +15,12 @@ import javax.lang.model.type.TypeMirror;
 public class InitializationAnalysis
         extends CFAbstractAnalysis<CFValue, InitializationStore, InitializationTransfer> {
 
+    /**
+     * Creates a new {@code InitializationAnalysis}.
+     *
+     * @param checker the checker
+     * @param factory the factory
+     */
     protected InitializationAnalysis(
             BaseTypeChecker checker, InitializationAnnotatedTypeFactory factory) {
         super(checker, factory);

@@ -45,8 +45,14 @@ import javax.lang.model.util.ElementFilter;
 public class InitializationTransfer
         extends CFAbstractTransfer<CFValue, InitializationStore, InitializationTransfer> {
 
+    /** The initialization type factory */
     protected final InitializationAnnotatedTypeFactory atypeFactory;
 
+    /**
+     * Create a new InitializationTransfer for the given analysis.
+     *
+     * @param analysis init analysi.s
+     */
     public InitializationTransfer(InitializationAnalysis analysis) {
         super(analysis);
         this.atypeFactory = (InitializationAnnotatedTypeFactory) analysis.getTypeFactory();
