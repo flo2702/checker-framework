@@ -888,6 +888,16 @@ public class InitializationAnnotatedTypeFactory
         return false;
     }
 
+    /**
+     * Object initialization cannot be undone, i.e., an @Initialized object always
+     * stays @Initialized, an @UnderInitialization(A) object always stays @UnderInitialization(A)
+     * (though it may additionally become @Initialized), etc.
+     */
+    @Override
+    public boolean isImmutable(TypeMirror type) {
+        return true;
+    }
+
     @Override
     protected TreeAnnotator createTreeAnnotator() {
         // Don't call super.createTreeAnnotator because we want our CommitmentTreeAnnotator

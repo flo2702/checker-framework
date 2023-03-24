@@ -635,9 +635,6 @@ public class UnitsAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
         }
 
         @Override
-        // UnitsAnnotatedTypeFactory.this.BOTTOM
-        // comes from unchecked outer class, but is initialized
-        @SuppressWarnings("initialization")
         protected AnnotationMirror greatestLowerBoundWithElements(
                 AnnotationMirror a1,
                 QualifierKind qualifierKind1,
