@@ -60,7 +60,11 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
         }
     }
 
-    /** A copy constructor. */
+    /**
+     * A copy constructor.
+     *
+     * @param other the store to copy.
+     */
     public InitializationStore(InitializationStore other) {
         super(other);
         initializedFields = new HashSet<>(other.initializedFields);

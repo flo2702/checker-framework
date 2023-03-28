@@ -99,8 +99,11 @@ public class InitializationTransfer
     }
 
     /**
-     * Adds all the fields of the class {@code clazzElem} to the set of initialized fields {@code
+     * Adds all the fields of the class {@code clazzElem} to the list of initialized fields {@code
      * result}.
+     *
+     * @param result the list of initialized fields.
+     * @param clazzElem the class whose fields to add.
      */
     protected void markFieldsAsInitialized(List<VariableElement> result, TypeElement clazzElem) {
         List<VariableElement> fields = ElementFilter.fieldsIn(clazzElem.getEnclosedElements());

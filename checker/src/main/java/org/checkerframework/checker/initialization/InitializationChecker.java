@@ -53,6 +53,9 @@ import java.util.NavigableSet;
  */
 public class InitializationChecker extends BaseTypeChecker {
 
+    /** Default constructor for NullnessChecker. */
+    public InitializationChecker() {}
+
     @Override
     public NavigableSet<String> getSuppressWarningsPrefixes() {
         NavigableSet<String> result = super.getSuppressWarningsPrefixes();

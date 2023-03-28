@@ -70,6 +70,11 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
     private static final @CompilerMessageKey String COMMITMENT_INVALID_FIELD_WRITE_INITIALIZED =
             "initialization.invalid.field.write.initialized";
 
+    /**
+     * Create an InitializationVisitor.
+     *
+     * @param checker the initialization checker.
+     */
     public InitializationVisitor(BaseTypeChecker checker) {
         super(checker);
         initializedFields = new ArrayList<>();
