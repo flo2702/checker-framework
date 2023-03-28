@@ -313,7 +313,7 @@ public class TestConfigurationBuilder {
         return this;
     }
 
-    @SuppressWarnings("nullness:return.type.incompatible") // need @PolyInitialized annotation
+    @SuppressWarnings("initialization:return.type.incompatible") // need @PolyInitialized annotation
     @RequiresNonNull("this.options")
     public TestConfigurationBuilder addOptions(
             @UnknownInitialization(TestConfigurationBuilder.class) TestConfigurationBuilder this,
