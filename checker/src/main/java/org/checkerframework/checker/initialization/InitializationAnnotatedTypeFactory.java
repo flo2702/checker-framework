@@ -71,6 +71,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
@@ -717,13 +718,17 @@ public class InitializationAnnotatedTypeFactory
             return;
         }
 
-        error.uninitializedFields.removeIf(
-                f ->
-                        checker.shouldSuppressWarnings(
-                                TreeUtils.elementFromDeclaration(f), error.errorMsg));
-        error.uninitializedFields.removeIf(filter.negate());
+        List<VariableTree> uninitializedFields =
+                error.uninitializedFields.stream()
+                        .filter(filter)
+                        .filter(
+                                f ->
+                                        !checker.shouldSuppressWarnings(
+                                                TreeUtils.elementFromDeclaration(f),
+                                                error.errorMsg))
+                        .collect(Collectors.toList());
 
-        if (!error.uninitializedFields.isEmpty()) {
+        if (!uninitializedFields.isEmpty()) {
             if (error.errorAtField) {
                 // Issue each error at the relevant field
                 for (VariableTree f : error.uninitializedFields) {
