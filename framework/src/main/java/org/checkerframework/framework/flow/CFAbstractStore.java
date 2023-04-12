@@ -325,22 +325,33 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                     // add the declared type; otherwise remove all information.
                     // This is useful for checkers that use the InitializationChecker
                     // and thus allow a field's value to contradict its declared type.
-                    if (receiverType != null) {
-                        AnnotatedTypeMirror declaredType =
-                                AnnotatedTypes.asMemberOf(
-                                        atypeFactory.types,
-                                        atypeFactory,
-                                        receiverType,
-                                        fieldAccess.getField());
-                        V newOtherVal =
-                                getMonotonicValue(
-                                        otherVal, declaredType.getAnnotations(), atypeFactory);
-                        if (newOtherVal != null) {
-                            // Keep information for all hierarchies where the value matched the
-                            // declared type.
-                            newFieldValues.put(fieldAccess, newOtherVal);
-                            continue;
+                    
+                    // To get the field's declared type, we need the receiver type. 
+                    // If the store contains no value for the receiver, we use the
+                    // Top value.
+                    if (receiverType == null && !fieldAccess.isStatic()) {
+                        receiverType =
+                                AnnotatedTypeMirror.createType(
+                                        fieldAccess.getReceiver().getType(), atypeFactory, false);
+                        for (AnnotationMirror anno : atypeFactory.getQualifierHierarchy().getTopAnnotations()) {
+                            receiverType.replaceAnnotation(anno);
                         }
+                    }
+
+                    AnnotatedTypeMirror declaredType =
+                            AnnotatedTypes.asMemberOf(
+                                    atypeFactory.types,
+                                    atypeFactory,
+                                    receiverType,
+                                    fieldAccess.getField());
+                    V newOtherVal =
+                            getMonotonicValue(
+                                    otherVal, declaredType.getAnnotations(), atypeFactory);
+                    if (newOtherVal != null) {
+                        // Keep information for all hierarchies where the value matched the
+                        // declared type.
+                        newFieldValues.put(fieldAccess, newOtherVal);
+                        continue;
                     }
                 }
                 fieldValues = newFieldValues;
