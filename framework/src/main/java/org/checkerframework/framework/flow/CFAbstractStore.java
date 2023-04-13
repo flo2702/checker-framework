@@ -49,6 +49,7 @@ import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Name;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
 
@@ -262,7 +263,7 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
             }
 
             AnnotatedTypeMirror receiverType;
-            if (thisValue != null) {
+            if (thisValue != null && thisValue.getUnderlyingType().getKind() != TypeKind.ERROR) {
                 receiverType =
                         AnnotatedTypeMirror.createType(
                                 thisValue.getUnderlyingType(), atypeFactory, false);
@@ -332,11 +333,12 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                     if (receiverType == null && !fieldAccess.isStatic()) {
                         receiverType =
                                 AnnotatedTypeMirror.createType(
-                                        fieldAccess.getReceiver().getType(), atypeFactory, false);
-                        for (AnnotationMirror anno :
-                                atypeFactory.getQualifierHierarchy().getTopAnnotations()) {
-                            receiverType.replaceAnnotation(anno);
-                        }
+                                                fieldAccess.getReceiver().getType(),
+                                                atypeFactory,
+                                                false)
+                                        .getErased();
+                        receiverType.addAnnotations(
+                                atypeFactory.getQualifierHierarchy().getTopAnnotations());
                     }
 
                     AnnotatedTypeMirror declaredType =
