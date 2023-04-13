@@ -325,15 +325,16 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                     // add the declared type; otherwise remove all information.
                     // This is useful for checkers that use the InitializationChecker
                     // and thus allow a field's value to contradict its declared type.
-                    
-                    // To get the field's declared type, we need the receiver type. 
+
+                    // To get the field's declared type, we need the receiver type.
                     // If the store contains no value for the receiver, we use the
                     // Top value.
                     if (receiverType == null && !fieldAccess.isStatic()) {
                         receiverType =
                                 AnnotatedTypeMirror.createType(
                                         fieldAccess.getReceiver().getType(), atypeFactory, false);
-                        for (AnnotationMirror anno : atypeFactory.getQualifierHierarchy().getTopAnnotations()) {
+                        for (AnnotationMirror anno :
+                                atypeFactory.getQualifierHierarchy().getTopAnnotations()) {
                             receiverType.replaceAnnotation(anno);
                         }
                     }
