@@ -5795,10 +5795,7 @@ public class AnnotatedTypeFactory implements AnnotationProvider {
         if (!shouldCache) {
             return AnnotationUtils.areSameByName(am, annoClass.getCanonicalName());
         }
-        @SuppressWarnings({
-            "initialization",
-            "nullness"
-        }) // assume getCanonicalName returns non-null
+        @SuppressWarnings("nullness") // assume getCanonicalName returns non-null
         String canonicalName =
                 annotationClassNames.computeIfAbsent(annoClass, Class::getCanonicalName);
         return AnnotationUtils.areSameByName(am, canonicalName);

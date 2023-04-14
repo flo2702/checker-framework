@@ -543,7 +543,7 @@ public class Resolver {
      */
     private Symbol wrapInvocation(Object receiver, Method method, @Nullable Object... args) {
         try {
-            @SuppressWarnings({"initialization", "nullness"}) // assume arguments are OK
+            @SuppressWarnings("nullness") // assume arguments are OK
             @NonNull Symbol res = (Symbol) method.invoke(receiver, args);
             return res;
         } catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {

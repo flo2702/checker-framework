@@ -2272,7 +2272,7 @@ public final class TreeUtils {
                         (List<? extends ExpressionTree>) CASETREE_GETEXPRESSIONS.invoke(caseTree);
                 return result;
             } else {
-                @SuppressWarnings({"initialization", "nullness"})
+                @SuppressWarnings("nullness")
                 ExpressionTree expression =
                         (ExpressionTree) CASETREE_GETEXPRESSION.invoke(caseTree);
                 if (expression == null) {
@@ -2299,7 +2299,7 @@ public final class TreeUtils {
     public static @Nullable Tree caseTreeGetBody(CaseTree caseTree) {
         if (atLeastJava12) {
             try {
-                @SuppressWarnings({"initialization", "nullness"})
+                @SuppressWarnings("nullness")
                 Tree ret = (Tree) CASETREE_GETBODY.invoke(caseTree);
                 return ret;
             } catch (IllegalAccessException | InvocationTargetException e) {
@@ -2321,7 +2321,7 @@ public final class TreeUtils {
         if (atLeastJava16) {
             VariableTree variableTree;
             try {
-                @SuppressWarnings({"initialization", "nullness"})
+                @SuppressWarnings("nullness")
                 VariableTree localVT =
                         (VariableTree) BINDINGPATTERNTREE_GETVARIABLE.invoke(bindingPatternTree);
                 variableTree = localVT;
@@ -2351,7 +2351,7 @@ public final class TreeUtils {
     public static @Nullable Tree instanceOfTreeGetPattern(InstanceOfTree instanceOfTree) {
         if (atLeastJava16) {
             try {
-                @SuppressWarnings({"initialization", "nullness"})
+                @SuppressWarnings("nullness")
                 Tree ret = (Tree) INSTANCEOFTREE_GETPATTERN.invoke(instanceOfTree);
                 return ret;
             } catch (IllegalAccessException | InvocationTargetException e) {
@@ -2378,7 +2378,7 @@ public final class TreeUtils {
         if (atLeastJava12) {
             ExpressionTree expressionTree;
             try {
-                @SuppressWarnings({"initialization", "nullness"})
+                @SuppressWarnings("nullness")
                 ExpressionTree localET =
                         (ExpressionTree) SWITCHEXPRTREE_GETEXPRESSION.invoke(switchExpressionTree);
                 expressionTree = localET;
@@ -2458,7 +2458,7 @@ public final class TreeUtils {
         if (atLeastJava13) {
             ExpressionTree expressionTree;
             try {
-                @SuppressWarnings({"initialization", "nullness"})
+                @SuppressWarnings("nullness")
                 ExpressionTree localET = (ExpressionTree) YIELDTREE_GETVALUE.invoke(yieldTree);
                 expressionTree = localET;
             } catch (InvocationTargetException | IllegalAccessException e) {

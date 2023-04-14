@@ -46,14 +46,14 @@ public class DOTCFGVisualizer<
         extends AbstractCFGVisualizer<V, S, T> {
 
     /** The output directory. */
-    @SuppressWarnings("initialization:initialization.field.uninitialized") // uses init method
+    @SuppressWarnings("nullness:initialization.field.uninitialized") // uses init method
     protected String outDir;
 
     /** The (optional) checker name. Used as a part of the name of the output dot file. */
     protected @Nullable String checkerName;
 
     /** Mapping from class/method representation to generated dot file. */
-    @SuppressWarnings("initialization:initialization.field.uninitialized") // uses init method
+    @SuppressWarnings("nullness:initialization.field.uninitialized") // uses init method
     protected Map<String, String> generated;
 
     /** Terminator for lines that are left-justified. */
