@@ -54,7 +54,7 @@ public class PerFileSuite extends Suite {
      *
      * @param klass the class whose tests to run
      */
-    @SuppressWarnings({"initialization", "nullness"}) // JUnit needs to be annotated
+    @SuppressWarnings("nullness") // JUnit needs to be annotated
     public PerFileSuite(Class<?> klass) throws Throwable {
         super(klass, Collections.emptyList());
         final TestClass testClass = getTestClass();

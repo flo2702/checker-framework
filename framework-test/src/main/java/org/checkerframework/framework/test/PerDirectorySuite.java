@@ -53,7 +53,7 @@ public class PerDirectorySuite extends Suite {
      *
      * @param klass the class whose tests to run
      */
-    @SuppressWarnings({"initialization", "nullness"}) // JUnit needs to be annotated
+    @SuppressWarnings("nullness") // JUnit needs to be annotated
     public PerDirectorySuite(Class<?> klass) throws Throwable {
         super(klass, Collections.emptyList());
         final TestClass testClass = getTestClass();
@@ -66,7 +66,7 @@ public class PerDirectorySuite extends Suite {
     }
 
     /** Returns a list of one-element arrays, each containing a Java File. */
-    @SuppressWarnings({"initialization", "nullness"}) // JUnit needs to be annotated
+    @SuppressWarnings("nullness") // JUnit needs to be annotated
     private List<List<File>> getParametersList(TestClass klass) throws Throwable {
         FrameworkMethod method = getParametersMethod(klass);
 
