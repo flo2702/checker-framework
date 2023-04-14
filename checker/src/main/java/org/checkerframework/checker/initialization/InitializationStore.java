@@ -9,6 +9,8 @@ import org.checkerframework.dataflow.expression.ThisReference;
 import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
+import org.checkerframework.framework.type.AnnotatedTypeMirror;
+import org.checkerframework.framework.util.AnnotatedTypes;
 import org.plumelib.util.ToStringComparator;
 
 import java.util.HashSet;
@@ -16,8 +18,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeKind;
 
 /**
  * A store that extends {@code CFAbstractStore} and additionally tracks which fields of the 'self'
@@ -139,10 +143,53 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
     @Override
     public void updateForMethodCall(
             MethodInvocationNode n, AnnotatedTypeFactory atypeFactory, CFValue val) {
-        // Remove initialized fields to avoid performance issue reported in #1438.
+        InitializationAnnotatedTypeFactory factory =
+                (InitializationAnnotatedTypeFactory) atypeFactory;
+        // Remove initialized fields to make transfer more precise.
         Map<FieldAccess, CFValue> removedFields =
                 fieldValues.entrySet().stream()
-                        .filter(e -> initializedFields.contains(e.getKey().getField()))
+                        .filter(
+                                e -> {
+                                    // Remove fields that are declared as initialized.
+                                    // We must use AnnotatedTypes.asMemberOf instead of
+                                    // factory.getAnnotatedTypeLhs
+                                    // to soundly handle @NotOnlyInitialized.
+                                    FieldAccess fieldAccess = e.getKey();
+                                    AnnotatedTypeMirror receiverType;
+                                    if (thisValue != null
+                                            && thisValue.getUnderlyingType().getKind()
+                                                    != TypeKind.ERROR) {
+                                        receiverType =
+                                                AnnotatedTypeMirror.createType(
+                                                        thisValue.getUnderlyingType(),
+                                                        atypeFactory,
+                                                        false);
+                                        for (AnnotationMirror anno : thisValue.getAnnotations()) {
+                                            receiverType.replaceAnnotation(anno);
+                                        }
+                                    } else if (!fieldAccess.isStatic()) {
+                                        receiverType =
+                                                AnnotatedTypeMirror.createType(
+                                                                fieldAccess.getReceiver().getType(),
+                                                                atypeFactory,
+                                                                false)
+                                                        .getErased();
+                                        receiverType.addAnnotations(
+                                                atypeFactory
+                                                        .getQualifierHierarchy()
+                                                        .getTopAnnotations());
+                                    } else {
+                                        receiverType = null;
+                                    }
+
+                                    AnnotatedTypeMirror declaredType =
+                                            AnnotatedTypes.asMemberOf(
+                                                    atypeFactory.types,
+                                                    atypeFactory,
+                                                    receiverType,
+                                                    fieldAccess.getField());
+                                    return declaredType.hasAnnotation(factory.INITIALIZED);
+                                })
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         fieldValues.keySet().removeAll(removedFields.keySet());

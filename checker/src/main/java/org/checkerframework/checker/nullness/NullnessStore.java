@@ -71,7 +71,10 @@ public class NullnessStore extends CFAbstractStore<NullnessValue, NullnessStore>
         // Remove non-null fields to avoid performance issue reported in #1438.
         Map<FieldAccess, NullnessValue> removedFields =
                 fieldValues.entrySet().stream()
-                        .filter(e -> e.getValue().getAnnotations().contains(factory.NONNULL))
+                        .filter(
+                                e ->
+                                        factory.getAnnotatedTypeLhs(e.getKey().getField())
+                                                .hasAnnotation(factory.NONNULL))
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         fieldValues.keySet().removeAll(removedFields.keySet());

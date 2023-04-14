@@ -23,9 +23,7 @@ import org.checkerframework.dataflow.expression.ThisReference;
 import org.checkerframework.dataflow.qual.SideEffectFree;
 import org.checkerframework.framework.qual.MonotonicQualifier;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
-import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
-import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.BugInCF;
@@ -49,7 +47,6 @@ import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Name;
 import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
 
@@ -262,18 +259,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                 thisValue = null;
             }
 
-            AnnotatedTypeMirror receiverType;
-            if (thisValue != null && thisValue.getUnderlyingType().getKind() != TypeKind.ERROR) {
-                receiverType =
-                        AnnotatedTypeMirror.createType(
-                                thisValue.getUnderlyingType(), atypeFactory, false);
-                for (AnnotationMirror anno : thisValue.getAnnotations()) {
-                    receiverType.replaceAnnotation(anno);
-                }
-            } else {
-                receiverType = null;
-            }
-
             // update field values
             if (sideEffectsUnrefineAliases) {
                 fieldValues.entrySet().removeIf(e -> !e.getKey().isUnmodifiableByOtherCode());
@@ -319,42 +304,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                             newFieldValues.put(fieldAccess, newOtherVal);
                             continue;
                         }
-                    }
-
-                    // Case 3:
-                    // If otherVal is a subtype of the field's declared type,
-                    // add the declared type; otherwise remove all information.
-                    // This is useful for checkers that use the InitializationChecker
-                    // and thus allow a field's value to contradict its declared type.
-
-                    // To get the field's declared type, we need the receiver type.
-                    // If the store contains no value for the receiver, we use the
-                    // Top value.
-                    if (receiverType == null && !fieldAccess.isStatic()) {
-                        receiverType =
-                                AnnotatedTypeMirror.createType(
-                                                fieldAccess.getReceiver().getType(),
-                                                atypeFactory,
-                                                false)
-                                        .getErased();
-                        receiverType.addAnnotations(
-                                atypeFactory.getQualifierHierarchy().getTopAnnotations());
-                    }
-
-                    AnnotatedTypeMirror declaredType =
-                            AnnotatedTypes.asMemberOf(
-                                    atypeFactory.types,
-                                    atypeFactory,
-                                    receiverType,
-                                    fieldAccess.getField());
-                    V newOtherVal =
-                            getMonotonicValue(
-                                    otherVal, declaredType.getAnnotations(), atypeFactory);
-                    if (newOtherVal != null) {
-                        // Keep information for all hierarchies where the value matched the
-                        // declared type.
-                        newFieldValues.put(fieldAccess, newOtherVal);
-                        continue;
                     }
                 }
                 fieldValues = newFieldValues;
