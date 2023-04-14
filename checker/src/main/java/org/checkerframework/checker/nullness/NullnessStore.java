@@ -3,9 +3,15 @@ package org.checkerframework.checker.nullness;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.checker.nullness.qual.PolyNull;
+import org.checkerframework.dataflow.cfg.node.MethodInvocationNode;
 import org.checkerframework.dataflow.cfg.visualize.CFGVisualizer;
+import org.checkerframework.dataflow.expression.FieldAccess;
 import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.flow.CFAbstractStore;
+import org.checkerframework.framework.type.AnnotatedTypeFactory;
+
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * In addition to the base class behavior, tracks whether {@link PolyNull} is known to be {@link
@@ -51,6 +57,29 @@ public class NullnessStore extends CFAbstractStore<NullnessValue, NullnessStore>
         lub.isPolyNullNonNull = isPolyNullNonNull && other.isPolyNullNonNull;
         lub.isPolyNullNull = isPolyNullNull && other.isPolyNullNull;
         return lub;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Additionally, the {@link NullnessStore} keeps all field values for non-null fields.
+     */
+    @Override
+    public void updateForMethodCall(
+            MethodInvocationNode n, AnnotatedTypeFactory atypeFactory, NullnessValue val) {
+        NullnessAnnotatedTypeFactory factory = (NullnessAnnotatedTypeFactory) atypeFactory;
+        // Remove non-null fields to avoid performance issue reported in #1438.
+        Map<FieldAccess, NullnessValue> removedFields =
+                fieldValues.entrySet().stream()
+                        .filter(e -> e.getValue().getAnnotations().contains(factory.NONNULL))
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        fieldValues.keySet().removeAll(removedFields.keySet());
+
+        super.updateForMethodCall(n, atypeFactory, val);
+
+        // Add non-null fields again.
+        fieldValues.putAll(removedFields);
     }
 
     @Override

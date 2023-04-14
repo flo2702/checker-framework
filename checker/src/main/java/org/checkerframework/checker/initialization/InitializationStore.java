@@ -1,5 +1,6 @@
 package org.checkerframework.checker.initialization;
 
+import org.checkerframework.dataflow.cfg.node.MethodInvocationNode;
 import org.checkerframework.dataflow.cfg.visualize.CFGVisualizer;
 import org.checkerframework.dataflow.expression.ClassName;
 import org.checkerframework.dataflow.expression.FieldAccess;
@@ -7,10 +8,13 @@ import org.checkerframework.dataflow.expression.JavaExpression;
 import org.checkerframework.dataflow.expression.ThisReference;
 import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.flow.CFValue;
+import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.plumelib.util.ToStringComparator;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import javax.lang.model.element.Element;
 import javax.lang.model.element.VariableElement;
@@ -124,6 +128,29 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
         result.initializedFields.retainAll(initializedFields);
 
         return result;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Additionally, the {@link InitializationStore} keeps all field values for initialized
+     * fields.
+     */
+    @Override
+    public void updateForMethodCall(
+            MethodInvocationNode n, AnnotatedTypeFactory atypeFactory, CFValue val) {
+        // Remove initialized fields to avoid performance issue reported in #1438.
+        Map<FieldAccess, CFValue> removedFields =
+                fieldValues.entrySet().stream()
+                        .filter(e -> initializedFields.contains(e.getKey().getField()))
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        fieldValues.keySet().removeAll(removedFields.keySet());
+
+        super.updateForMethodCall(n, atypeFactory, val);
+
+        // Add initialized fields again.
+        fieldValues.putAll(removedFields);
     }
 
     @Override
