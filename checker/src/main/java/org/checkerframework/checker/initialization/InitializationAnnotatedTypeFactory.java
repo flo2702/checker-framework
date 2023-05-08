@@ -1216,7 +1216,7 @@ public class InitializationAnnotatedTypeFactory
         }
 
         /**
-         * Returns the least upper bound of two types.
+         * Returns the least upper bound of two Java basetypes (without annotations).
          *
          * @param a the first argument
          * @param b the second argument
