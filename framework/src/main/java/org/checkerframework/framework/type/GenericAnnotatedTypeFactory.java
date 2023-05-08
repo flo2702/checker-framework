@@ -2562,7 +2562,7 @@ public abstract class GenericAnnotatedTypeFactory<
         result.addAll(postconds);
         return result;
     }
-     */
+    */
 
     /* NO-AFU
      * Return the precondition annotations for the given AMethod. Does not modify the AMethod. This
@@ -2595,7 +2595,7 @@ public abstract class GenericAnnotatedTypeFactory<
         Collections.sort(result, Ordering.usingToString());
         return result;
     }
-     */
+    */
 
     /* NO-AFU
      * Return the postcondition annotations for the given AMethod. Does not modify the AMethod. This
@@ -2634,7 +2634,7 @@ public abstract class GenericAnnotatedTypeFactory<
         Collections.sort(result, Ordering.usingToString());
         return result;
     }
-     */
+    */
 
     /* NO-AFU
      * Return the contract annotations (that is, pre- and post-conditions) for the given
@@ -2652,7 +2652,7 @@ public abstract class GenericAnnotatedTypeFactory<
         result.addAll(postconds);
         return result;
     }
-     */
+    */
 
     /* NO-AFU
      * Return the precondition annotations for the given CallableDeclarationAnnos. Does not modify
@@ -2674,7 +2674,7 @@ public abstract class GenericAnnotatedTypeFactory<
         Collections.sort(result, Ordering.usingToString());
         return result;
     }
-     */
+    */
 
     /* NO-AFU
      * Return the postcondition annotations for the given CallableDeclarationAnnos. Does not modify
@@ -2702,7 +2702,7 @@ public abstract class GenericAnnotatedTypeFactory<
         Collections.sort(result, Ordering.usingToString());
         return result;
     }
-     */
+    */
 
     /* NO-AFU
      * Returns a list of inferred {@code @RequiresQualifier} annotations for the given expression.
@@ -2726,7 +2726,7 @@ public abstract class GenericAnnotatedTypeFactory<
         return getPreOrPostconditionAnnotations(
                 expression, inferredType, declaredType, BeforeOrAfter.BEFORE, null);
     }
-     */
+    */
 
     /* NO-AFU
      * Returns a list of inferred {@code @EnsuresQualifier} annotations for the given expression. By
@@ -2756,7 +2756,7 @@ public abstract class GenericAnnotatedTypeFactory<
         return getPreOrPostconditionAnnotations(
                 expression, inferredType, declaredType, BeforeOrAfter.AFTER, preconds);
     }
-     */
+    */
 
     /* NO-AFU
      * Creates pre- and postcondition annotations. Helper method for {@link
@@ -2813,7 +2813,7 @@ public abstract class GenericAnnotatedTypeFactory<
         }
         return result;
     }
-     */
+    */
 
     /**
      * Matches parameter expressions as they appear in {@link EnsuresQualifier} and {@link

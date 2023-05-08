@@ -1384,6 +1384,24 @@ public class BaseTypeVisitor<Factory extends GenericAnnotatedTypeFactory<?, ?, ?
     }
 
     /**
+     * Returns a string representation of an expression and type qualifier.
+     *
+     * @param expression a Java expression
+     * @param qualifier the expression's type, or null if no information is available
+     * @return a string representation of the expression and type qualifier
+     */
+    private String contractExpressionAndType(
+            String expression, @Nullable AnnotationMirror qualifier) {
+        if (qualifier == null) {
+            return "no information about " + expression;
+        } else {
+            return expression
+                    + " is "
+                    + atypeFactory.getAnnotationFormatter().formatAnnotationMirror(qualifier);
+        }
+    }
+
+    /**
      * Check that the expression's type is annotated with {@code annotation} at every regular exit
      * that returns {@code result}.
      *
@@ -1449,24 +1467,6 @@ public class BaseTypeVisitor<Factory extends GenericAnnotatedTypeFactory<?, ?, ?
                         contractExpressionAndType(expression.toString(), inferredAnno),
                         contractExpressionAndType(expression.toString(), annotation));
             }
-        }
-    }
-
-    /**
-     * Returns a string representation of an expression and type qualifier.
-     *
-     * @param expression a Java expression
-     * @param qualifier the expression's type, or null if no information is available
-     * @return a string representation of the expression and type qualifier
-     */
-    private String contractExpressionAndType(
-            String expression, @Nullable AnnotationMirror qualifier) {
-        if (qualifier == null) {
-            return "no information about " + expression;
-        } else {
-            return expression
-                    + " is "
-                    + atypeFactory.getAnnotationFormatter().formatAnnotationMirror(qualifier);
         }
     }
 
