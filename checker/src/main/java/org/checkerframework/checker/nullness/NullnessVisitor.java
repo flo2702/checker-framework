@@ -113,7 +113,7 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
     private final boolean permitClearProperty;
 
     /** The init checker's factory. */
-    private InitializationAnnotatedTypeFactory initFactory;
+    private final InitializationAnnotatedTypeFactory initFactory;
 
     /** True if -AassumeAssertionsAreEnabled was passed on the command line. */
     private final boolean assumeAssertionsAreEnabled;
