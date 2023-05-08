@@ -254,6 +254,18 @@ import io.github.classgraph.ClassGraph;
     "ignoreInvalidAnnotationLocations",
 
     ///
+    /// Compatibility options
+    ///
+
+    // Additional type and declaration annotation aliases
+    // -AaliasedTypeAnnos={aliases} or -AaliasedDeclAnnos={aliases}
+    // where `aliases` is in the format
+    // `FQN.canonical.Qualifier1:FQN.alias1.Qual1,FQN.alias2.Qual1;FQN.canonical.Qualifier2:FQN.alias1.Qual2`
+    // org.checkerframework.framework.type.AnnotatedTypeFactory
+    "aliasedTypeAnnos",
+    "aliasedDeclAnnos",
+
+    ///
     /// Partially-annotated libraries
     ///
 
@@ -2860,10 +2872,13 @@ public abstract class SourceChecker extends AbstractTypeProcessor implements Opt
     private String getCheckerVersion() {
         Properties gitProperties = getProperties(getClass(), "/git.properties", false);
         String version = gitProperties.getProperty("git.build.version");
-        if (version != null) {
-            return version;
+        if (version == null) {
+            throw new BugInCF("Could not find the version in git.properties");
         }
-        throw new BugInCF("Could not find the version in git.properties");
+        if (version.endsWith("-SNAPSHOT")) {
+            version += ", commit " + gitProperties.getProperty("git.commit.id");
+        }
+        return version;
     }
 
     /**

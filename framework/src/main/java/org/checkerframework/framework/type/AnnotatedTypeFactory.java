@@ -587,6 +587,38 @@ public class AnnotatedTypeFactory implements AnnotationProvider {
             this.typeInformationPresenter = null;
         }
 
+        // Alias provided via -AaliasedTypeAnnos command-line option.
+        // This can only be used for annotations whose attributes have the same names as in the
+        // canonical annotation, e.g. this will not be usable to declare an alias @Regex(index = 5)
+        // for @Regex(value = 5).
+        if (checker.hasOption("aliasedTypeAnnos")) {
+            String aliasesOption = checker.getOption("aliasedTypeAnnos");
+            String[] annos = aliasesOption.split(";");
+            for (String alias : annos) {
+                Pair<Class<? extends Annotation>, @FullyQualifiedName String[]> aliasPair =
+                        parseAliasesFromString(alias);
+                for (@FullyQualifiedName String a : aliasPair.second) {
+                    addAliasedTypeAnnotation(a, aliasPair.first, true);
+                }
+            }
+        }
+
+        // Alias provided via -AaliasedDeclAnnos command-line option.
+        // This can only be used for annotations without attributes,
+        // e.g. this will not be usable to declare an alias for @EnsuresNonNull(...).
+        if (checker.hasOption("aliasedDeclAnnos")) {
+            String aliasesOption = checker.getOption("aliasedDeclAnnos");
+            String[] annos = aliasesOption.split(";");
+            for (String alias : annos) {
+                Pair<Class<? extends Annotation>, @FullyQualifiedName String[]> aliasPair =
+                        parseAliasesFromString(alias);
+                AnnotationMirror anno = AnnotationBuilder.fromClass(elements, aliasPair.first);
+                for (String a : aliasPair.second) {
+                    addAliasedDeclAnnotation(a, aliasPair.first.getCanonicalName(), anno);
+                }
+            }
+        }
+
         /* NO-AFU
         if (checker.hasOption("infer")) {
           checkInvalidOptionsInferSignatures();
@@ -689,6 +721,37 @@ public class AnnotatedTypeFactory implements AnnotationProvider {
                 ElementUtils.getTypeElement(processingEnv, EnsuresQualifierIf.List.class).asType();
 
         mergeStubsWithSource = checker.hasOption("mergeStubsWithSource");
+    }
+
+    /**
+     * Parse a string in the format {@code
+     * FQN.canonical.Qualifier:FQN.alias1.Qual1,FQN.alias2.Qual2} to a pair of {@code
+     * (FQN.canonical.Qualifier.class, ["FQN.alias1.Qual1", "FQN.alias2.Qual2"])}.
+     *
+     * @param alias in the form of FQN.canonical.Qualifier:FQN.alias1.Qual1,FQN.alias2.Qual2
+     * @return a pair with the first argument being the canonical qualifier class and the second
+     *     argument being the list of aliases with fully qualified names
+     */
+    // signature is suppressed because there is no way to reason about parsed strings
+    @SuppressWarnings({"unchecked", "signature"})
+    private Pair<Class<? extends Annotation>, @FullyQualifiedName String[]> parseAliasesFromString(
+            String alias) {
+        String[] parts = alias.split(":");
+        if (parts.length != 2) {
+            throw new UserError(
+                    String.format(
+                            "Alias argument must be in the form of FQN.canonical.Qualifier:FQN.alias1.Qual1,FQN.alias2.Qual2, got %s instead.",
+                            alias));
+        }
+        Class<? extends Annotation> canonical;
+        try {
+            canonical = (Class<? extends Annotation>) Class.forName(parts[0].trim());
+        } catch (ClassNotFoundException | ClassCastException ex) {
+            throw new UserError(
+                    String.format("The name %s is an invalid annotation name.", parts[0]));
+        }
+        String[] aliases = parts[1].trim().split("\\s*,\\s*");
+        return Pair.of(canonical, aliases);
     }
 
     /**
@@ -1911,7 +1974,7 @@ public class AnnotatedTypeFactory implements AnnotationProvider {
                         fieldInvarAnno, fieldInvariantQualifierElement);
         List<AnnotationMirror> qualifiers =
                 CollectionsPlume.mapList(
-                        (Name name) ->
+                        name ->
                                 // Calling AnnotationBuilder.fromName (which ignores
                                 // elements/fields) is acceptable because @FieldInvariant
                                 // does not handle classes with elements/fields.
@@ -5883,8 +5946,8 @@ public class AnnotatedTypeFactory implements AnnotationProvider {
      * @param methodAnnos the method or constructor annotations to modify
      */
     /* NO-AFU
-    public void prepareMethodForWriting(AMethod methodAnnos) {
-        // This implementation does nothing.
+    public void wpiPrepareMethodForWriting(AMethod methodAnnos) {
+      // This implementation does nothing.
     }
     */
 
@@ -5893,11 +5956,17 @@ public class AnnotatedTypeFactory implements AnnotationProvider {
      * to an ajava file.
      *
      * @param methodAnnos the method or constructor annotations to modify
+     * @param inSupertypes the method or constructor annotations for all overridden methods; not
+     *     side-effected
+     * @param inSubtypes the method or constructor annotations for all overriding methods; not
+     *     side-effected
      */
     /* NO-AFU
-    public void prepareMethodForWriting(
-            WholeProgramInferenceJavaParserStorage.CallableDeclarationAnnos methodAnnos) {
-        // This implementation does nothing.
+    public void wpiPrepareMethodForWriting(
+        WholeProgramInferenceJavaParserStorage.CallableDeclarationAnnos methodAnnos,
+        Collection<WholeProgramInferenceJavaParserStorage.CallableDeclarationAnnos> inSupertypes,
+        Collection<WholeProgramInferenceJavaParserStorage.CallableDeclarationAnnos> inSubtypes) {
+      // This implementation does nothing.
     }
     */
 
