@@ -59,14 +59,13 @@ public class InitializationChecker extends BaseTypeChecker {
     @Override
     public NavigableSet<String> getSuppressWarningsPrefixes() {
         NavigableSet<String> result = super.getSuppressWarningsPrefixes();
-        result.add("initialization");
         // "fbc" is for backward compatibility only; you should use
         // "initialization" instead.
         result.add("fbc");
         // TODO: This is here for backward compatibility with projects that used
-        // a previous version of the nullness checker which used the init checker
-        // as a superclass instead of as a subchecker. Perhaps it should be turned
-        // into a toggleable option.
+        // a previous version of the Nullness Checker which used the
+        // Initialization Checker as a superclass instead of as a subchecker.
+        // Perhaps it should be turned into a toggleable option.
         result.addAll(getUltimateParentChecker().getSuppressWarningsPrefixes());
         return result;
     }
