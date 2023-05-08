@@ -21,8 +21,8 @@ import java.util.NavigableSet;
  * initialization, augmented by type frames.
  *
  * <p>To use this type system, it does not suffice to simply add it as a subchecker. You must ensure
- * that your parent checker hooks into the init checker at the following points. You can look at the
- * {@link NullnessChecker} for an example.
+ * that your parent checker hooks into the Initialization Checker at the following points. You can
+ * look at the {@link NullnessChecker} for an example.
  *
  * <p>First, you should add the {@link CommitmentFieldAccessTreeAnnotator} as a tree annotator. This
  * annotator gives possibly uninitialized fields the top type(s) of your hierarchy, ensuring that
@@ -53,7 +53,7 @@ import java.util.NavigableSet;
  */
 public class InitializationChecker extends BaseTypeChecker {
 
-    /** Default constructor for NullnessChecker. */
+    /** Default constructor for InitializationChecker. */
     public InitializationChecker() {}
 
     @Override
