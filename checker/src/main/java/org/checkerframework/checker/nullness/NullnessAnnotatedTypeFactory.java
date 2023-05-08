@@ -594,7 +594,7 @@ public class NullnessAnnotatedTypeFactory
         // {Tree.Kind.CONDITIONAL_EXPRESSION}));
         annotators.add(new NullnessPropagationTreeAnnotator(this));
         annotators.add(new LiteralTreeAnnotator(this));
-        if (!checker.hasOptionNoSubcheckers("assumeInit")) {
+        if (!checker.hasOptionNoSubcheckers("assumeInitialized")) {
             annotators.add(
                     new InitializationAnnotatedTypeFactory.CommitmentFieldAccessTreeAnnotator(
                             this));

@@ -37,7 +37,7 @@ import javax.annotation.processing.SupportedOptions;
 })
 @SupportedOptions({
     "assumeKeyFor",
-    "assumeInit",
+    "assumeInitialized",
     "jspecifyNullMarkedAlias",
     "conservativeArgumentNullnessAfterInvocation"
 })
@@ -87,7 +87,7 @@ public class NullnessChecker extends BaseTypeChecker {
         if (!hasOptionNoSubcheckers("assumeKeyFor")) {
             checkers.add(KeyForSubchecker.class);
         }
-        if (!hasOptionNoSubcheckers("assumeInit")) {
+        if (!hasOptionNoSubcheckers("assumeInitialized")) {
             checkers.add(InitializationChecker.class);
         }
         return checkers;

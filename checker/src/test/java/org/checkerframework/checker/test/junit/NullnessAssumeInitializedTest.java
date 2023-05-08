@@ -8,20 +8,20 @@ import java.io.File;
 import java.util.List;
 
 /** JUnit tests for the Nullness checker. */
-public class NullnessAssumeInitTest extends CheckerFrameworkPerDirectoryTest {
+public class NullnessAssumeInitializedTest extends CheckerFrameworkPerDirectoryTest {
 
     /**
-     * Create a NullnessAssumeInitTest.
+     * Create a NullnessAssumeInitializedTest.
      *
      * @param testFiles the files containing test code, which will be type-checked
      */
-    public NullnessAssumeInitTest(List<File> testFiles) {
+    public NullnessAssumeInitializedTest(List<File> testFiles) {
         super(
                 testFiles,
                 org.checkerframework.checker.nullness.NullnessChecker.class,
                 "nullness",
                 "-AcheckPurityAnnotations",
-                "-AassumeInit",
+                "-AassumeInitialized",
                 "-Xlint:deprecation",
                 "-Alint=soundArrayCreationNullness,"
                         + NullnessChecker.LINT_REDUNDANTNULLCOMPARISON);
@@ -29,6 +29,6 @@ public class NullnessAssumeInitTest extends CheckerFrameworkPerDirectoryTest {
 
     @Parameters
     public static String[] getTestDirs() {
-        return new String[] {"nullness-assumeinit"};
+        return new String[] {"nullness-assumeinitialized"};
     }
 }

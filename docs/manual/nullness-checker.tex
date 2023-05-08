@@ -131,8 +131,8 @@ command-line option.)
   \refqualclass{checker/nullness/qual}{KeyFor} and related qualifiers.
 
 \item
-  \label{nullness-assumeInit}%
-  If you supply the \code{-AassumeInit} command-line option, then the
+  \label{nullness-assumeInitialized}%
+  If you supply the \code{-AassumeInitialized} command-line option, then the
   checker will unsoundly assume that every field is initialized before
   being used. It will not do any checking of
   \refqualclass{checker/initialization/qual}{Initialized} and related qualifiers.
@@ -1420,7 +1420,7 @@ The Nullness Checker prevents this problem by warning you anytime that you
 may be accessing an uninitialized field.  This check is useful because it
 prevents errors in your code.  However, the analysis can be confusing to
 understand.  If you wish to disable the initialization checks, use
-the \code{-AassumeInit} command-line option.
+the \code{-AassumeInitialized} command-line option.
 
 An object is partially initialized from the time that its constructor starts until its constructor
 finishes.  This is relevant to the Nullness Checker because while the
@@ -2274,4 +2274,4 @@ greater than the benefit from adopting the Freedom Before Commitment system.
 % LocalWords:  NotOnlyInitialized underinitialization Commitment'' toarray
 % LocalWords:  unclassified'' trustArrayLenZero ArrayLen toArray
 % LocalWords:  ConcurrentHashMap permitClearProperty setProperties
-% LocalWords:  clearProperty AassumeKeyFor AassumeInit
+% LocalWords:  clearProperty AassumeKeyFor AassumeInitialized
