@@ -324,10 +324,10 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
     /**
      * Computes the value of a field whose declaration has a monotonic annotation.
      *
-     * @param value the field's current value.
-     * @param monotonicAnnotations the monotonic annotations on the field's declaration.
-     * @param atypeFactory the type factory to use.
-     * @return the value of the field.
+     * @param value the field's current value
+     * @param monotonicAnnotations the monotonic annotations on the field's declaration
+     * @param atypeFactory the type factory to use
+     * @return the value of the field
      */
     private V getMonotonicValue(
             V value,

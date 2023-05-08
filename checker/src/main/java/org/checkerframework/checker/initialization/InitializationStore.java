@@ -71,7 +71,7 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
     /**
      * A copy constructor.
      *
-     * @param other the store to copy.
+     * @param other the store to copy
      */
     public InitializationStore(InitializationStore other) {
         super(other);

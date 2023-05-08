@@ -1692,9 +1692,9 @@ public abstract class GenericAnnotatedTypeFactory<
      * Returns the type of a JavaExpression {@code expr} if it were evaluated before a tree {@code
      * tree}.
      *
-     * @param expr the expression to type.
-     * @param tree a tree.
-     * @return the type of {@code expr} if it were evaluated before tree {@code tree}.
+     * @param expr the expression to type
+     * @param tree a tree
+     * @return the type of {@code expr} if it were evaluated before tree {@code tree}
      */
     public AnnotatedTypeMirror getAnnotatedTypeBefore(JavaExpression expr, ExpressionTree tree) {
         CFAbstractStore<?, ?> store = getStoreBefore(tree);

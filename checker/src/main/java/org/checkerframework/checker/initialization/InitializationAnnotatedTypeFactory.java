@@ -153,14 +153,14 @@ public class InitializationAnnotatedTypeFactory
         /**
          * Creates a new InitializationError.
          *
-         * @param tree the tree at which this possible error occurs.
-         * @param uninitializedFields a list of possibly uninitialized fields.
-         * @param errorMsg the error message key.
-         * @param errorArgs additional arguments for the error report.
+         * @param tree the tree at which this possible error occurs
+         * @param uninitializedFields a list of possibly uninitialized fields
+         * @param errorMsg the error message key
+         * @param errorArgs additional arguments for the error report
          * @param storeBefore whether field initialization should be checker in the store before or
-         *     after {@link #tree}.
+         *     after {@link #tree}
          * @param errorAtField whether the error should be reported at every uninitialized field or
-         *     at {@link #tree}.
+         *     at {@link #tree}
          */
         protected InitializationError(
                 Tree tree,
@@ -570,9 +570,9 @@ public class InitializationAnnotatedTypeFactory
     /**
      * Checks if the expression is initialized in the given store.
      *
-     * @param expr the expression to check.
-     * @param store the store.
-     * @return {@code true} if the {@code expr} is initialized in {@code store}.
+     * @param expr the expression to check
+     * @param store the store
+     * @return {@code true} if the {@code expr} is initialized in {@code store}
      */
     public boolean isExpressionInitialized(JavaExpression expr, InitializationStore store) {
         if (expr instanceof FieldAccess && !expr.containsUnknown()) {
@@ -924,7 +924,7 @@ public class InitializationAnnotatedTypeFactory
         /**
          * Creates a new CommitmentTypeAnnotator.
          *
-         * @param atypeFactory this factory.
+         * @param atypeFactory this factory
          */
         public CommitmentTypeAnnotator(InitializationAnnotatedTypeFactory atypeFactory) {
             super(atypeFactory);
@@ -954,7 +954,7 @@ public class InitializationAnnotatedTypeFactory
         /**
          * Creates a new CommitmentFieldAccessTreeAnnotator.
          *
-         * @param atypeFactory the type factory belonging to the init checker's parent.
+         * @param atypeFactory the type factory belonging to the init checker's parent
          */
         public CommitmentFieldAccessTreeAnnotator(
                 GenericAnnotatedTypeFactory<?, ?, ?, ?> atypeFactory) {
@@ -982,8 +982,8 @@ public class InitializationAnnotatedTypeFactory
          * Adapts the type of a field access depending on the field's declared type and the
          * receiver's initialization type.
          *
-         * @param node the field access.
-         * @param type the field access's unadapted type.
+         * @param node the field access
+         * @param type the field access's unadapted type
          */
         private void computeFieldAccessType(ExpressionTree node, AnnotatedTypeMirror type) {
             GenericAnnotatedTypeFactory<?, ?, ?, ?> factory =
@@ -1062,7 +1062,7 @@ public class InitializationAnnotatedTypeFactory
         /**
          * Creates a new CommitmentTreeAnnotator.
          *
-         * @param atypeFactory this factory.
+         * @param atypeFactory this factory
          */
         public CommitmentTreeAnnotator(InitializationAnnotatedTypeFactory atypeFactory) {
             super(atypeFactory);

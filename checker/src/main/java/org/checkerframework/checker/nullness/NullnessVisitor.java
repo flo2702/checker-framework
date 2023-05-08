@@ -279,7 +279,7 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
     /**
      * Report initialization errors for the specified tree if the init checekr is active.
      *
-     * @param tree the tree to report init errors for.
+     * @param tree the tree to report init errors for
      * @see InitializationChecker
      * @see InitializationAnnotatedTypeFactory#reportInitializionErrors
      */

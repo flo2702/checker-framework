@@ -73,7 +73,7 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
     /**
      * Create an InitializationVisitor.
      *
-     * @param checker the initialization checker.
+     * @param checker the initialization checker
      */
     public InitializationVisitor(BaseTypeChecker checker) {
         super(checker);
