@@ -1,5 +1,7 @@
 package org.checkerframework.checker.initialization;
 
+import org.checkerframework.checker.initialization.qual.Initialized;
+import org.checkerframework.checker.initialization.qual.NotOnlyInitialized;
 import org.checkerframework.dataflow.cfg.node.MethodInvocationNode;
 import org.checkerframework.dataflow.cfg.visualize.CFGVisualizer;
 import org.checkerframework.dataflow.expression.ClassName;
@@ -135,6 +137,42 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
     }
 
     /**
+     * Determines whether the field being accessed by a FieldAccess is declared as {@link
+     * Initialized} (taking into account viewpoint adaption for {@link NotOnlyInitialized}).
+     *
+     * @param factory this checker's type factory
+     * @param fieldAccess the field access to check
+     * @return whether the field being accessed by fieldAccess is declared as initialized
+     */
+    private boolean isFieldDeclaredInitialized(
+            InitializationAnnotatedTypeFactory factory, FieldAccess fieldAccess) {
+        AnnotatedTypeMirror receiverType;
+        if (thisValue != null && thisValue.getUnderlyingType().getKind() != TypeKind.ERROR) {
+            receiverType =
+                    AnnotatedTypeMirror.createType(thisValue.getUnderlyingType(), factory, false);
+            for (AnnotationMirror anno : thisValue.getAnnotations()) {
+                receiverType.replaceAnnotation(anno);
+            }
+        } else if (!fieldAccess.isStatic()) {
+            receiverType =
+                    AnnotatedTypeMirror.createType(
+                                    fieldAccess.getReceiver().getType(), factory, false)
+                            .getErased();
+            receiverType.addAnnotations(factory.getQualifierHierarchy().getTopAnnotations());
+        } else {
+            receiverType = null;
+        }
+
+        // We must use AnnotatedTypes.asMemberOf instead of
+        // factory.getAnnotatedTypeLhs
+        // to soundly handle @NotOnlyInitialized.
+        AnnotatedTypeMirror declaredType =
+                AnnotatedTypes.asMemberOf(
+                        factory.types, factory, receiverType, fieldAccess.getField());
+        return declaredType.hasAnnotation(factory.INITIALIZED);
+    }
+
+    /**
      * {@inheritDoc}
      *
      * <p>Additionally, the {@link InitializationStore} keeps all field values for initialized
@@ -148,48 +186,7 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
         // Remove initialized fields to make transfer more precise.
         Map<FieldAccess, CFValue> removedFields =
                 fieldValues.entrySet().stream()
-                        .filter(
-                                e -> {
-                                    // Remove fields that are declared as initialized.
-                                    // We must use AnnotatedTypes.asMemberOf instead of
-                                    // factory.getAnnotatedTypeLhs
-                                    // to soundly handle @NotOnlyInitialized.
-                                    FieldAccess fieldAccess = e.getKey();
-                                    AnnotatedTypeMirror receiverType;
-                                    if (thisValue != null
-                                            && thisValue.getUnderlyingType().getKind()
-                                                    != TypeKind.ERROR) {
-                                        receiverType =
-                                                AnnotatedTypeMirror.createType(
-                                                        thisValue.getUnderlyingType(),
-                                                        atypeFactory,
-                                                        false);
-                                        for (AnnotationMirror anno : thisValue.getAnnotations()) {
-                                            receiverType.replaceAnnotation(anno);
-                                        }
-                                    } else if (!fieldAccess.isStatic()) {
-                                        receiverType =
-                                                AnnotatedTypeMirror.createType(
-                                                                fieldAccess.getReceiver().getType(),
-                                                                atypeFactory,
-                                                                false)
-                                                        .getErased();
-                                        receiverType.addAnnotations(
-                                                atypeFactory
-                                                        .getQualifierHierarchy()
-                                                        .getTopAnnotations());
-                                    } else {
-                                        receiverType = null;
-                                    }
-
-                                    AnnotatedTypeMirror declaredType =
-                                            AnnotatedTypes.asMemberOf(
-                                                    atypeFactory.types,
-                                                    atypeFactory,
-                                                    receiverType,
-                                                    fieldAccess.getField());
-                                    return declaredType.hasAnnotation(factory.INITIALIZED);
-                                })
+                        .filter(e -> isFieldDeclaredInitialized(factory, e.getKey()))
                         .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
         fieldValues.keySet().removeAll(removedFields.keySet());
