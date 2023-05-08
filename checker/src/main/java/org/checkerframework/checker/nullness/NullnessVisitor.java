@@ -174,13 +174,17 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
     @Override
     protected void checkConstructorResult(
             AnnotatedExecutableType constructorType, ExecutableElement constructorElement) {
-        // Nothing to check
+        // Constructor results are always @NonNull. Other annotations are forbidden by
+        // #visitMethod.
+        // Nothing to check.
     }
 
     @Override
     protected void checkThisOrSuperConstructorCall(
             MethodInvocationTree superCall, @CompilerMessageKey String errorKey) {
-        // Nothing to check
+        // Constructor results are always @NonNull, so the result type of a this/super call is
+        // always equal to the result type of the current constructor.
+        // Nothing to check.
     }
 
     @Override
@@ -189,6 +193,9 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
             ExpressionTree valueExp,
             @CompilerMessageKey String errorKey,
             Object... extraArgs) {
+        // Report an initialization error if the rhs of this assignment is not sufficiently
+        // initialized.
+        reportInitializationErrors(varTree);
 
         // Allow a MonotonicNonNull field to be initialized to null at its declaration, in a
         // constructor, or in an initializer block.  (The latter two are, strictly speaking, unsound
@@ -277,7 +284,7 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
     }
 
     /**
-     * Report initialization errors for the specified tree if the init checekr is active.
+     * Report initialization errors for the specified tree if the Initialization Checker is active.
      *
      * @param tree the tree to report init errors for
      * @see InitializationChecker
@@ -299,7 +306,6 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
 
     @Override
     public Void scan(@Nullable Tree tree, Void p) {
-        reportInitializationErrors(tree);
         return super.scan(tree, p);
     }
 
@@ -571,10 +577,14 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
     @Override
     public Void visitMethod(MethodTree tree, Void p) {
         if (TreeUtils.isConstructor(tree)) {
+            // Constructor results are always @NonNull. Any annotations are forbidden.
             List<? extends AnnotationTree> annoTrees = tree.getModifiers().getAnnotations();
             if (atypeFactory.containsNullnessAnnotation(annoTrees)) {
                 checker.reportError(tree, "nullness.on.constructor");
             }
+
+            // Report errors about fields not initialized by this constructor.
+            reportInitializationErrors(tree);
         }
 
         VariableTree receiver = tree.getReceiverParameter();
@@ -591,6 +601,9 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
 
     @Override
     public Void visitMethodInvocation(MethodInvocationTree tree, Void p) {
+        // Report an initialization error if the receiver of this invocation
+        // is not sufficiently initialized.
+        reportInitializationErrors(tree);
         if (!permitClearProperty) {
             ProcessingEnvironment env = checker.getProcessingEnvironment();
             if (TreeUtils.isMethodInvocation(tree, systemClearProperty, env)) {
@@ -626,6 +639,7 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
 
     @Override
     public void processClassTree(ClassTree classTree) {
+        // Report errors about fields not initialized by the default constructor.
         reportInitializationErrors(classTree);
         Tree extendsClause = classTree.getExtendsClause();
         if (extendsClause != null) {
