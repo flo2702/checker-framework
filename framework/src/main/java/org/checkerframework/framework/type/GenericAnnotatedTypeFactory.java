@@ -20,6 +20,7 @@ import org.checkerframework.checker.formatter.qual.FormatMethod;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.common.basetype.BaseTypeChecker;
+import org.checkerframework.common.basetype.BaseTypeVisitor;
 import org.checkerframework.dataflow.analysis.Analysis;
 import org.checkerframework.dataflow.analysis.Analysis.BeforeOrAfter;
 import org.checkerframework.dataflow.analysis.AnalysisResult;
@@ -1691,6 +1692,9 @@ public abstract class GenericAnnotatedTypeFactory<
     /**
      * Returns the type of a JavaExpression {@code expr} if it were evaluated before a tree {@code
      * tree}.
+     *
+     * <p>This is used by {@link BaseTypeVisitor#visitMethodInvocation(MethodInvocationTree, Void)}
+     * to check the preconditions of method calls.
      *
      * @param expr the expression to type
      * @param tree a tree

@@ -1,7 +1,5 @@
 package org.checkerframework.framework.flow;
 
-import com.sun.source.tree.Tree;
-
 import org.checkerframework.checker.nullness.qual.EnsuresNonNullIf;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.analysis.Store;
@@ -239,7 +237,7 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
         GenericAnnotatedTypeFactory<?, ?, ?, ?> atypeFactory =
                 ((GenericAnnotatedTypeFactory<?, ?, ?, ?>) factory);
 
-        // remove information if necessary
+        // Case 1: The method is side-effect-free.
         if (!(assumeSideEffectFree || atypeFactory.isSideEffectFree(method))) {
 
             boolean sideEffectsUnrefineAliases =
@@ -269,14 +267,14 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                     FieldAccess fieldAccess = e.getKey();
                     V otherVal = e.getValue();
 
-                    // Case 1: The field is unassignable
+                    // Case 2: The field is unassignable
                     if (fieldAccess.isUnassignableByOtherCode()) {
                         // Keep information.
                         newFieldValues.put(fieldAccess, otherVal);
                         continue;
                     }
 
-                    // Case 2: The field has a monotonic annotation.
+                    // Case 3: The field has a monotonic annotation.
                     if (!atypeFactory.getSupportedMonotonicTypeQualifiers().isEmpty()) {
                         Set<AnnotationMirror> fieldAnnotations =
                                 atypeFactory
@@ -749,41 +747,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
         } else { // thisValue ...
             // No other types of expressions are stored.
         }
-    }
-
-    /**
-     * Returns the abstract value for {@link Tree} {@code t}, or {@code null} if no information is
-     * available.
-     *
-     * @param tree a tree
-     * @return the abstract value for {@link Tree} {@code t}, or {@code null} if no information is
-     *     available
-     */
-    public @Nullable V getValue(Tree tree) {
-        Set<Node> nodes = analysis.getNodesForTree(tree);
-
-        if (nodes == null) {
-            return null;
-        }
-        V merged = null;
-        for (Node aNode : nodes) {
-            V a = null;
-
-            if (aNode instanceof FieldAccessNode) {
-                a = getValue((FieldAccessNode) aNode);
-            } else if (aNode instanceof MethodInvocationNode) {
-                a = getValue((MethodInvocationNode) aNode);
-            } else if (aNode instanceof ArrayAccessNode) {
-                a = getValue((ArrayAccessNode) aNode);
-            }
-
-            if (merged == null) {
-                merged = a;
-            } else if (a != null) {
-                merged = merged.leastUpperBound(a);
-            }
-        }
-        return merged;
     }
 
     /**
