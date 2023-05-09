@@ -28,6 +28,7 @@ import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
+import org.checkerframework.framework.util.AnnotationFormatter;
 import org.checkerframework.javacutil.AnnotationMirrorSet;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.ElementUtils;
@@ -183,11 +184,12 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
         }
 
         if (!isSubtype) {
+            AnnotationFormatter annotationFormatter = atypeFactory.getAnnotationFormatter();
             checker.reportError(
                     tree,
                     COMMITMENT_INVALID_CAST,
-                    atypeFactory.getAnnotationFormatter().formatAnnotationMirror(exprAnno),
-                    atypeFactory.getAnnotationFormatter().formatAnnotationMirror(castAnno));
+                    annotationFormatter.formatAnnotationMirror(exprAnno),
+                    annotationFormatter.formatAnnotationMirror(castAnno));
             return p; // suppress cast.unsafe warning
         }
 

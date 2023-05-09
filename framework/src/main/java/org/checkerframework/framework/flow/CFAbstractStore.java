@@ -239,7 +239,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
 
         // Case 1: The method is side-effect-free.
         if (!(assumeSideEffectFree || atypeFactory.isSideEffectFree(method))) {
-
             boolean sideEffectsUnrefineAliases =
                     ((GenericAnnotatedTypeFactory) atypeFactory).sideEffectsUnrefineAliases;
 
@@ -261,50 +260,8 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
             if (sideEffectsUnrefineAliases) {
                 fieldValues.entrySet().removeIf(e -> !e.getKey().isUnmodifiableByOtherCode());
             } else {
-                Map<FieldAccess, V> newFieldValues =
-                        new HashMap<>(CollectionsPlume.mapCapacity(fieldValues));
-                for (Map.Entry<FieldAccess, V> e : fieldValues.entrySet()) {
-                    FieldAccess fieldAccess = e.getKey();
-                    V otherVal = e.getValue();
-
-                    // Case 2: The field is unassignable
-                    if (fieldAccess.isUnassignableByOtherCode()) {
-                        // Keep information.
-                        newFieldValues.put(fieldAccess, otherVal);
-                        continue;
-                    }
-
-                    // Case 3: The field has a monotonic annotation.
-                    if (!atypeFactory.getSupportedMonotonicTypeQualifiers().isEmpty()) {
-                        Set<AnnotationMirror> fieldAnnotations =
-                                atypeFactory
-                                        .getAnnotationWithMetaAnnotation(
-                                                fieldAccess.getField(), MonotonicQualifier.class)
-                                        .stream()
-                                        .map(p -> p.second)
-                                        .map(
-                                                anno -> {
-                                                    @SuppressWarnings(
-                                                            "deprecation") // permitted for use in
-                                                    // the framework
-                                                    Name name =
-                                                            AnnotationUtils
-                                                                    .getElementValueClassName(
-                                                                            anno, "value", false);
-                                                    return AnnotationBuilder.fromName(
-                                                            atypeFactory.getElementUtils(), name);
-                                                })
-                                        .collect(Collectors.toSet());
-                        V newOtherVal = getMonotonicValue(otherVal, fieldAnnotations, atypeFactory);
-                        if (newOtherVal != null) {
-                            // Keep information for all hierarchies where we had a
-                            // monotonic annotation.
-                            newFieldValues.put(fieldAccess, newOtherVal);
-                            continue;
-                        }
-                    }
-                }
-                fieldValues = newFieldValues;
+                // Case 2 (unassignable fields) and case 3 (monotonic fields)
+                updateFieldValuesForMethodCall(atypeFactory);
             }
 
             // update array values
@@ -317,6 +274,62 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
         // store information about method call if possible
         JavaExpression methodCall = JavaExpression.fromNode(methodInvocationNode);
         replaceValue(methodCall, val);
+    }
+
+    /**
+     * Helper for {@link #updateForMethodCall(MethodInvocationNode, AnnotatedTypeFactory,
+     * CFAbstractValue)}. Remove any information about field values that might not be valid any more
+     * after a method call, and add information guaranteed by the method.
+     *
+     * <p>More specifically, it removes all information about fields except for unassignable fields
+     * and fields that have a monotonic annotation.
+     *
+     * @param atypeFactory type factory of the associated checker
+     */
+    private void updateFieldValuesForMethodCall(
+            GenericAnnotatedTypeFactory<?, ?, ?, ?> atypeFactory) {
+        Map<FieldAccess, V> newFieldValues =
+                new HashMap<>(CollectionsPlume.mapCapacity(fieldValues));
+        for (Map.Entry<FieldAccess, V> e : fieldValues.entrySet()) {
+            FieldAccess fieldAccess = e.getKey();
+            V otherVal = e.getValue();
+
+            // The field is unassignable.
+            if (fieldAccess.isUnassignableByOtherCode()) {
+                // Keep information.
+                newFieldValues.put(fieldAccess, otherVal);
+                continue;
+            }
+
+            // The field has a monotonic annotation.
+            if (!atypeFactory.getSupportedMonotonicTypeQualifiers().isEmpty()) {
+                Set<AnnotationMirror> fieldAnnotations =
+                        atypeFactory
+                                .getAnnotationWithMetaAnnotation(
+                                        fieldAccess.getField(), MonotonicQualifier.class)
+                                .stream()
+                                .map(p -> p.second)
+                                .map(
+                                        anno -> {
+                                            @SuppressWarnings("deprecation") // permitted for use in
+                                            // the framework
+                                            Name name =
+                                                    AnnotationUtils.getElementValueClassName(
+                                                            anno, "value", false);
+                                            return AnnotationBuilder.fromName(
+                                                    atypeFactory.getElementUtils(), name);
+                                        })
+                                .collect(Collectors.toSet());
+                V newOtherVal = getMonotonicValue(otherVal, fieldAnnotations, atypeFactory);
+                if (newOtherVal != null) {
+                    // Keep information for all hierarchies where we had a
+                    // monotonic annotation.
+                    newFieldValues.put(fieldAccess, newOtherVal);
+                    continue;
+                }
+            }
+        }
+        fieldValues = newFieldValues;
     }
 
     /**
