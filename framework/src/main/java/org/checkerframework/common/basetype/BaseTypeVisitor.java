@@ -3105,7 +3105,8 @@ public class BaseTypeVisitor<Factory extends GenericAnnotatedTypeFactory<?, ?, ?
         commonAssignmentCheckEndDiagnostic(success, null, varType, valueType, valueExpTree);
 
         if (!success) {
-            reportCommonAssignmentError(varType, widenedValueType, valueExpTree, errorKey, extraArgs);
+            reportCommonAssignmentError(
+                    varType, widenedValueType, valueExpTree, errorKey, extraArgs);
         }
     }
 
