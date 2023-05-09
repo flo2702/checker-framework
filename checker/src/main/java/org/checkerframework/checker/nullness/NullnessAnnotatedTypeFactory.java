@@ -48,9 +48,6 @@ import org.checkerframework.framework.type.treeannotator.LiteralTreeAnnotator;
 import org.checkerframework.framework.type.treeannotator.PropagationTreeAnnotator;
 import org.checkerframework.framework.type.treeannotator.TreeAnnotator;
 import org.checkerframework.framework.type.typeannotator.DefaultForTypeAnnotator;
-import org.checkerframework.framework.type.typeannotator.ListTypeAnnotator;
-import org.checkerframework.framework.type.typeannotator.PropagationTypeAnnotator;
-import org.checkerframework.framework.type.typeannotator.TypeAnnotator;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.TreeUtils;
@@ -578,11 +575,6 @@ public class NullnessAnnotatedTypeFactory
         } else {
             super.addAnnotationsFromDefaultForType(element, type);
         }
-    }
-
-    @Override
-    protected TypeAnnotator createTypeAnnotator() {
-        return new ListTypeAnnotator(new PropagationTypeAnnotator(this));
     }
 
     @Override
