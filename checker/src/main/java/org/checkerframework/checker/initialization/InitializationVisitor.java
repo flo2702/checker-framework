@@ -249,8 +249,7 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
             Collection<? extends AnnotationMirror> returnTypeAnnotations =
                     AnnotationUtils.getExplicitAnnotationsOnConstructorResult(tree);
             // check for invalid constructor return type
-            for (Class<? extends Annotation> c :
-                    atypeFactory.getInvalidConstructorReturnTypeAnnotations()) {
+            for (Class<? extends Annotation> c : atypeFactory.getSupportedTypeQualifiers()) {
                 for (AnnotationMirror a : returnTypeAnnotations) {
                     if (atypeFactory.areSameByClass(a, c)) {
                         checker.reportError(tree, COMMITMENT_INVALID_CONSTRUCTOR_RETURN_TYPE, tree);

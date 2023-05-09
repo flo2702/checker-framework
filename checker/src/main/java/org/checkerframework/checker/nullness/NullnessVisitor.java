@@ -296,7 +296,7 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
             return;
         }
 
-        initFactory.reportInitializionErrors(
+        initFactory.reportInitializationErrors(
                 tree,
                 atypeFactory,
                 classTree,
