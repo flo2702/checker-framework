@@ -41,4 +41,9 @@ public class InitializationAnalysis
             AnnotationMirrorSet annotations, TypeMirror underlyingType) {
         return defaultCreateAbstractValue(this, annotations, underlyingType);
     }
+
+    @Override
+    public InitializationAnnotatedTypeFactory getTypeFactory() {
+        return (InitializationAnnotatedTypeFactory) super.getTypeFactory();
+    }
 }

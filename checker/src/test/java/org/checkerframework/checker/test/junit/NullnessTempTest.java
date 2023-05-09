@@ -23,6 +23,8 @@ public class NullnessTempTest extends CheckerFrameworkPerDirectoryTest {
                 testFiles,
                 org.checkerframework.checker.nullness.NullnessChecker.class,
                 "nullness",
+                "-AassumeKeyFor",
+                //                "-AassumeInitialized",
                 "-Alint=soundArrayCreationNullness,"
                         + NullnessChecker.LINT_REDUNDANTNULLCOMPARISON);
     }

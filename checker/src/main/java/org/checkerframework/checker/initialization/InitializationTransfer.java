@@ -55,7 +55,7 @@ public class InitializationTransfer
      */
     public InitializationTransfer(InitializationAnalysis analysis) {
         super(analysis);
-        this.atypeFactory = (InitializationAnnotatedTypeFactory) analysis.getTypeFactory();
+        this.atypeFactory = analysis.getTypeFactory();
     }
 
     /**

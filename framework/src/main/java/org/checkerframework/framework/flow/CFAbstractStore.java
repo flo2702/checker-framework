@@ -31,6 +31,7 @@ import org.plumelib.util.ToStringComparator;
 import org.plumelib.util.UniqueId;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -69,6 +70,8 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
     /** The analysis class this store belongs to. */
     protected final CFAbstractAnalysis<V, S, ?> analysis;
 
+    protected final GenericAnnotatedTypeFactory<V, S, ?, ?> atypeFactory;
+
     /** Information collected about local variables (including method parameters). */
     protected final Map<LocalVariable, V> localVariableValues;
 
@@ -79,6 +82,21 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      * Information collected about fields, using the internal representation {@link FieldAccess}.
      */
     protected Map<FieldAccess, V> fieldValues;
+
+    /**
+     * Fields in this set are never changed or removed by {@link
+     * #updateForMethodCall(MethodInvocationNode, CFAbstractValue)}.
+     *
+     * <p>E.g., this is useful for checkers that use an initialization type system and don't want
+     * monotonically initialized fields to become uninitialized by method calls.
+     *
+     * <p>Subcheckers should override {@link #isPersistent(FieldAccess)} instead of modifying this
+     * field directly.
+     *
+     * <p>We use this field as a cache instead of calling {@link #isPersistent(FieldAccess)} every
+     * time to avoid the performance issue in Issue1438.
+     */
+    protected final Set<FieldAccess> persistentFields;
 
     /**
      * Returns information about fields. Clients should not side-effect the returned value, which is
@@ -127,6 +145,10 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
         return uid;
     }
 
+    public GenericAnnotatedTypeFactory<V, S, ?, ?> getTypeFactory() {
+        return atypeFactory;
+    }
+
     /* --------------------------------------------------------- */
     /* Initialization */
     /* --------------------------------------------------------- */
@@ -139,9 +161,11 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      */
     protected CFAbstractStore(CFAbstractAnalysis<V, S, ?> analysis, boolean sequentialSemantics) {
         this.analysis = analysis;
+        this.atypeFactory = analysis.getTypeFactory();
         localVariableValues = new HashMap<>();
         thisValue = null;
         fieldValues = new HashMap<>();
+        persistentFields = new HashSet<>();
         methodValues = new HashMap<>();
         arrayValues = new HashMap<>();
         classValues = new HashMap<>();
@@ -158,9 +182,11 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      */
     protected CFAbstractStore(CFAbstractStore<V, S> other) {
         this.analysis = other.analysis;
+        this.atypeFactory = other.atypeFactory;
         localVariableValues = new HashMap<>(other.localVariableValues);
         thisValue = other.thisValue;
         fieldValues = new HashMap<>(other.fieldValues);
+        persistentFields = new HashSet<>(other.persistentFields);
         methodValues = new HashMap<>(other.methodValues);
         arrayValues = new HashMap<>(other.arrayValues);
         classValues = new HashMap<>(other.classValues);
@@ -220,7 +246,8 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      *       org.checkerframework.dataflow.qual.Pure}), then no information needs to be removed.
      *   <li>Otherwise, all information about field accesses {@code a.f} needs to be removed, except
      *       if the method {@code n} cannot modify {@code a.f} (e.g., if {@code a} is a local
-     *       variable or {@code this}, and {@code f} is final).
+     *       variable or {@code this}, and {@code f} is final) or {@code a.f} is persistent ({@link
+     *       #isPersistent(FieldAccess)}).
      *   <li>Furthermore, if the field has a monotonic annotation, then its information can also be
      *       kept.
      * </ol>
@@ -228,19 +255,14 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      * Furthermore, if the method is deterministic, we store its result {@code val} in the store.
      *
      * @param methodInvocationNode method whose information is being updated
-     * @param factory AnnotatedTypeFactory of the associated checker
      * @param val abstract value of the method call
      */
-    public void updateForMethodCall(
-            MethodInvocationNode methodInvocationNode, AnnotatedTypeFactory factory, V val) {
+    public void updateForMethodCall(MethodInvocationNode methodInvocationNode, V val) {
         ExecutableElement method = methodInvocationNode.getTarget().getMethod();
-        GenericAnnotatedTypeFactory<?, ?, ?, ?> atypeFactory =
-                ((GenericAnnotatedTypeFactory<?, ?, ?, ?>) factory);
 
         // Case 1: The method is side-effect-free.
         if (!(assumeSideEffectFree || atypeFactory.isSideEffectFree(method))) {
-            boolean sideEffectsUnrefineAliases =
-                    ((GenericAnnotatedTypeFactory) atypeFactory).sideEffectsUnrefineAliases;
+            boolean sideEffectsUnrefineAliases = atypeFactory.sideEffectsUnrefineAliases;
 
             // update local variables
             // TODO: Also remove if any element/argument to the annotation is not
@@ -260,8 +282,8 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
             if (sideEffectsUnrefineAliases) {
                 fieldValues.entrySet().removeIf(e -> !e.getKey().isUnmodifiableByOtherCode());
             } else {
-                // Case 2 (unassignable fields) and case 3 (monotonic fields)
-                updateFieldValuesForMethodCall(atypeFactory);
+                // Case 2 (unassignable and persistent fields) and case 3 (monotonic fields)
+                updateFieldValuesForMethodCall();
             }
 
             // update array values
@@ -277,25 +299,23 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
     }
 
     /**
-     * Helper for {@link #updateForMethodCall(MethodInvocationNode, AnnotatedTypeFactory,
-     * CFAbstractValue)}. Remove any information about field values that might not be valid any more
-     * after a method call, and add information guaranteed by the method.
+     * Helper for {@link #updateForMethodCall(MethodInvocationNode, CFAbstractValue)}. Remove any
+     * information about field values that might not be valid any more after a method call, and add
+     * information guaranteed by the method.
      *
-     * <p>More specifically, it removes all information about fields except for unassignable fields
-     * and fields that have a monotonic annotation.
-     *
-     * @param atypeFactory type factory of the associated checker
+     * <p>More specifically, remove all information about fields except for unassignable fields,
+     * persistent ({@link #isPersistent(FieldAccess)}) fields, and fields that have a monotonic
+     * annotation.
      */
-    private void updateFieldValuesForMethodCall(
-            GenericAnnotatedTypeFactory<?, ?, ?, ?> atypeFactory) {
+    private void updateFieldValuesForMethodCall() {
         Map<FieldAccess, V> newFieldValues =
                 new HashMap<>(CollectionsPlume.mapCapacity(fieldValues));
         for (Map.Entry<FieldAccess, V> e : fieldValues.entrySet()) {
             FieldAccess fieldAccess = e.getKey();
             V otherVal = e.getValue();
 
-            // The field is unassignable.
-            if (fieldAccess.isUnassignableByOtherCode()) {
+            // The field is unassignable or persistent.
+            if (fieldAccess.isUnassignableByOtherCode() || persistentFields.contains(fieldAccess)) {
                 // Keep information.
                 newFieldValues.put(fieldAccess, otherVal);
                 continue;
@@ -337,24 +357,19 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      *
      * @param value the field's current value
      * @param monotonicAnnotations the monotonic annotations on the field's declaration
-     * @param atypeFactory the type factory to use
+     * @param factory the type factory to use
      * @return the value of the field
      */
     private V getMonotonicValue(
-            V value,
-            Set<AnnotationMirror> monotonicAnnotations,
-            AnnotatedTypeFactory atypeFactory) {
+            V value, Set<AnnotationMirror> monotonicAnnotations, AnnotatedTypeFactory factory) {
         V result = null;
         for (AnnotationMirror monotonicAnnotation : monotonicAnnotations) {
             // Make sure the target annotation is present.
             AnnotationMirror actual =
-                    atypeFactory
-                            .getQualifierHierarchy()
+                    factory.getQualifierHierarchy()
                             .findAnnotationInHierarchy(value.getAnnotations(), monotonicAnnotation);
             if (actual != null
-                    && atypeFactory
-                            .getQualifierHierarchy()
-                            .isSubtype(actual, monotonicAnnotation)) {
+                    && factory.getQualifierHierarchy().isSubtype(actual, monotonicAnnotation)) {
                 result =
                         analysis.createSingleAnnotationValue(
                                         monotonicAnnotation, value.getUnderlyingType())
@@ -362,6 +377,20 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
             }
         }
         return result;
+    }
+
+    /**
+     * Whether or not the specified field access is persistent, i.e., should not be changed or
+     * removed by {@link #updateForMethodCall(MethodInvocationNode, CFAbstractValue)}.
+     *
+     * <p>E.g., this is useful for checkers that use an initialization type system and don't want
+     * monotonically initialized fields to become uninitialized by method calls.
+     *
+     * @param fieldAccess the field access to check
+     * @return whether {@code fieldAccess} is persistent
+     */
+    protected boolean isPersistent(FieldAccess fieldAccess) {
+        return false;
     }
 
     /**
@@ -623,6 +652,9 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                 if (newValue != null) {
                     fieldValues.put(fieldAcc, newValue);
                 }
+            }
+            if (isPersistent(fieldAcc)) {
+                persistentFields.add(fieldAcc);
             }
         } else if (expr instanceof MethodCall) {
             MethodCall method = (MethodCall) expr;
@@ -893,6 +925,9 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                     || isMonotonicUpdate(fieldAccess, val)
                     || fieldAccess.isUnassignableByOtherCode()) {
                 fieldValues.put(fieldAccess, val);
+                if (isPersistent(fieldAccess)) {
+                    persistentFields.add(fieldAccess);
+                }
             }
         }
     }
@@ -1197,6 +1232,9 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                 V mergedVal = upperBoundOfValues(otherVal, thisVal, shouldWiden);
                 if (mergedVal != null) {
                     newStore.fieldValues.put(el, mergedVal);
+                    if (newStore.isPersistent(el)) {
+                        newStore.persistentFields.add(el);
+                    }
                 }
             }
         }

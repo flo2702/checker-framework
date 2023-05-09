@@ -2,7 +2,6 @@ package org.checkerframework.checker.initialization;
 
 import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.initialization.qual.NotOnlyInitialized;
-import org.checkerframework.dataflow.cfg.node.MethodInvocationNode;
 import org.checkerframework.dataflow.cfg.visualize.CFGVisualizer;
 import org.checkerframework.dataflow.expression.ClassName;
 import org.checkerframework.dataflow.expression.FieldAccess;
@@ -10,15 +9,12 @@ import org.checkerframework.dataflow.expression.JavaExpression;
 import org.checkerframework.dataflow.expression.ThisReference;
 import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.flow.CFValue;
-import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.util.AnnotatedTypes;
 import org.plumelib.util.ToStringComparator;
 
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
@@ -137,28 +133,27 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
     }
 
     /**
-     * Determines whether the field being accessed by a FieldAccess is declared as {@link
-     * Initialized} (taking into account viewpoint adaption for {@link NotOnlyInitialized}).
+     * {@inheritDoc}
      *
-     * @param factory this checker's type factory
-     * @param fieldAccess the field access to check
-     * @return whether the field being accessed by fieldAccess is declared as initialized
+     * <p>Fields declared as {@link Initialized} (taking into account viewpoint adaption for {@link
+     * NotOnlyInitialized}) are persistent.
      */
-    private boolean isFieldDeclaredInitialized(
-            InitializationAnnotatedTypeFactory factory, FieldAccess fieldAccess) {
+    @Override
+    protected boolean isPersistent(FieldAccess fieldAccess) {
         AnnotatedTypeMirror receiverType;
         if (thisValue != null && thisValue.getUnderlyingType().getKind() != TypeKind.ERROR) {
             receiverType =
-                    AnnotatedTypeMirror.createType(thisValue.getUnderlyingType(), factory, false);
+                    AnnotatedTypeMirror.createType(
+                            thisValue.getUnderlyingType(), atypeFactory, false);
             for (AnnotationMirror anno : thisValue.getAnnotations()) {
                 receiverType.replaceAnnotation(anno);
             }
         } else if (!fieldAccess.isStatic()) {
             receiverType =
                     AnnotatedTypeMirror.createType(
-                                    fieldAccess.getReceiver().getType(), factory, false)
+                                    fieldAccess.getReceiver().getType(), atypeFactory, false)
                             .getErased();
-            receiverType.addAnnotations(factory.getQualifierHierarchy().getTopAnnotations());
+            receiverType.addAnnotations(atypeFactory.getQualifierHierarchy().getTopAnnotations());
         } else {
             receiverType = null;
         }
@@ -168,33 +163,9 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
         // to soundly handle @NotOnlyInitialized.
         AnnotatedTypeMirror declaredType =
                 AnnotatedTypes.asMemberOf(
-                        factory.types, factory, receiverType, fieldAccess.getField());
-        return declaredType.hasAnnotation(factory.INITIALIZED);
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Additionally, the {@link InitializationStore} keeps all field values for initialized
-     * fields.
-     */
-    @Override
-    public void updateForMethodCall(
-            MethodInvocationNode n, AnnotatedTypeFactory atypeFactory, CFValue val) {
-        InitializationAnnotatedTypeFactory factory =
-                (InitializationAnnotatedTypeFactory) atypeFactory;
-        // Remove initialized fields to make transfer more precise.
-        Map<FieldAccess, CFValue> removedFields =
-                fieldValues.entrySet().stream()
-                        .filter(e -> isFieldDeclaredInitialized(factory, e.getKey()))
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-        fieldValues.keySet().removeAll(removedFields.keySet());
-
-        super.updateForMethodCall(n, atypeFactory, val);
-
-        // Add initialized fields again.
-        fieldValues.putAll(removedFields);
+                        atypeFactory.types, atypeFactory, receiverType, fieldAccess.getField());
+        return declaredType.hasAnnotation(
+                ((InitializationAnnotatedTypeFactory) atypeFactory).INITIALIZED);
     }
 
     @Override
