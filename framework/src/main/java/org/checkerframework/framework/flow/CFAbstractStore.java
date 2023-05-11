@@ -386,6 +386,8 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      * <p>E.g., this is useful for checkers that use an initialization type system and don't want
      * monotonically initialized fields to become uninitialized by method calls.
      *
+     * <p>The result should only depend on {@code fieldAccess}.
+     *
      * @param fieldAccess the field access to check
      * @return whether {@code fieldAccess} is persistent
      */
@@ -1232,7 +1234,10 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                 V mergedVal = upperBoundOfValues(otherVal, thisVal, shouldWiden);
                 if (mergedVal != null) {
                     newStore.fieldValues.put(el, mergedVal);
-                    if (newStore.isPersistent(el)) {
+                    // Since persistency should only depend on the fieldAccess itself,
+                    // not on the store, we don't need a potentially expensive call
+                    // to isPersistent here; we can just look in the cache.
+                    if (other.persistentFields.contains(el)) {
                         newStore.persistentFields.add(el);
                     }
                 }
