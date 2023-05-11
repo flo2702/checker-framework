@@ -34,7 +34,7 @@ import java.util.NavigableSet;
  * contract annotations like {@link EnsuresNonNull}. Therefore, it does not report most type errors
  * when it runs, instead saving them for the parent checker to either discharge or report. The
  * parent checker's visitor should call {@link
- * InitializationAnnotatedTypeFactory#reportInitializionErrors} for every node. This method goes
+ * InitializationAnnotatedTypeFactory#reportInitializationErrors} for every node. This method goes
  * through the list of fields that are possibly uninitialized at the node's location and uses the
  * parent checker's type factory to filter out the above cases. If no uninitialized fields remain
  * after the filtering, the error is discharged. If some fields are still uninitialized, the error

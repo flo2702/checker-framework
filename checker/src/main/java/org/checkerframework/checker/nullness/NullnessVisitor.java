@@ -288,7 +288,7 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
      *
      * @param tree the tree to report init errors for
      * @see InitializationChecker
-     * @see InitializationAnnotatedTypeFactory#reportInitializionErrors
+     * @see InitializationAnnotatedTypeFactory#reportInitializationErrors
      */
     protected void reportInitializationErrors(Tree tree) {
         if (initFactory == null) {
