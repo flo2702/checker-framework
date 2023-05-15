@@ -1,5 +1,7 @@
 package org.checkerframework.checker.lock;
 
+import org.checkerframework.checker.lock.qual.LockHeld;
+import org.checkerframework.checker.lock.qual.LockPossiblyHeld;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.cfg.node.MethodInvocationNode;
 import org.checkerframework.dataflow.cfg.visualize.CFGVisualizer;
@@ -36,6 +38,13 @@ public class LockStore extends CFAbstractStore<CFValue, LockStore> {
      */
     protected boolean inConstructorOrInitializer = false;
 
+    /**
+     * Create a LockStore.
+     *
+     * @param analysis the analysis class this store belongs to
+     * @param sequentialSemantics should the analysis use sequential Java semantics (i.e., assume
+     *     that only one thread is running at all times)?
+     */
     public LockStore(LockAnalysis analysis, boolean sequentialSemantics) {
         super(analysis, sequentialSemantics);
     }
@@ -204,10 +213,22 @@ public class LockStore extends CFAbstractStore<CFValue, LockStore> {
         }
     }
 
+    /**
+     * Whether the specified value has the {@link LockHeld} annotation.
+     *
+     * @param value the value to check.
+     * @return whether the {@code value} has the {@link LockHeld} annotation
+     */
     boolean hasLockHeld(CFValue value) {
         return AnnotationUtils.containsSame(value.getAnnotations(), getTypeFactory().LOCKHELD);
     }
 
+    /**
+     * Whether the specified value has the {@link LockPossiblyHeld} annotation.
+     *
+     * @param value the value to check.
+     * @return whether the {@code value} has the {@link LockPossiblyHeld} annotation
+     */
     boolean hasLockPossiblyHeld(CFValue value) {
         return AnnotationUtils.containsSame(
                 value.getAnnotations(), getTypeFactory().LOCKPOSSIBLYHELD);

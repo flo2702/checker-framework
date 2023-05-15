@@ -70,8 +70,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
     /** The analysis class this store belongs to. */
     protected final CFAbstractAnalysis<V, S, ?> analysis;
 
-    protected final GenericAnnotatedTypeFactory<V, S, ?, ?> atypeFactory;
-
     /** Information collected about local variables (including method parameters). */
     protected final Map<LocalVariable, V> localVariableValues;
 
@@ -145,8 +143,13 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
         return uid;
     }
 
+    /**
+     * Returns the type factory used by this store's analysis.
+     *
+     * @return the type factory used by this store's analysis
+     */
     public GenericAnnotatedTypeFactory<V, S, ?, ?> getTypeFactory() {
-        return atypeFactory;
+        return analysis.getTypeFactory();
     }
 
     /* --------------------------------------------------------- */
@@ -161,7 +164,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      */
     protected CFAbstractStore(CFAbstractAnalysis<V, S, ?> analysis, boolean sequentialSemantics) {
         this.analysis = analysis;
-        this.atypeFactory = analysis.getTypeFactory();
         localVariableValues = new HashMap<>();
         thisValue = null;
         fieldValues = new HashMap<>();
