@@ -135,17 +135,22 @@ public class InitializationAnnotatedTypeFactory
 
         /** The tree at which this possible error occurs. */
         protected final Tree tree;
+
         /** A list of possibly uninitialized fields. */
         protected final List<VariableTree> uninitializedFields;
+
         /** The error message key. */
         protected final @CompilerMessageKey String errorMsg;
+
         /** Additional arguments for the error report. */
         protected final Object[] errorArgs;
+
         /**
          * Whether field initialization should be checked in the store before or after {@link
          * #tree}.
          */
         protected final boolean storeBefore;
+
         /**
          * Whether the error should be reported at every uninitialized field or at {@link #tree}. If
          * this is true, we report one error each at every uninitialized field's location. If it's
