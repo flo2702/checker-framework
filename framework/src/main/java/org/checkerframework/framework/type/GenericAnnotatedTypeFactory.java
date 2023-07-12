@@ -1670,10 +1670,12 @@ public abstract class GenericAnnotatedTypeFactory<
     }
 
     /**
-     * Controls which hierarchies' qualifiers are changed based on the receiver type and the
-     * declared annotations for a field.
+     * Whether {@link #getAnnotatedTypeLhs(Tree)} is running right now. This can be used by
+     * subclasses whenever the type of expression differs depending on whether it occurs on the
+     * left- or right-hand side of an assignment (e.g., in the presence of type refinements or for
+     * uninitialized fields in the Initialization Checker.)
      *
-     * @see #getAnnotatedTypeLhs(Tree)
+     * @see #isComputingAnnotatedTypeMirrorOfLHS()
      */
     private boolean computingAnnotatedTypeMirrorOfLHS = false;
 

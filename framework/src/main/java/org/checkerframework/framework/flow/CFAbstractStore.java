@@ -70,7 +70,7 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
     /** The analysis class this store belongs to. */
     protected final CFAbstractAnalysis<V, S, ?> analysis;
 
-    /** Returns the type factory used by this store. */
+    /** The type factory used by this store. */
     protected final GenericAnnotatedTypeFactory<V, S, ?, ?> atypeFactory;
 
     /** Information collected about local variables (including method parameters). */

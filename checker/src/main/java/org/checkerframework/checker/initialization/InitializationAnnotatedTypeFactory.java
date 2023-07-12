@@ -153,7 +153,7 @@ public class InitializationAnnotatedTypeFactory
 
         /**
          * Whether the error should be reported at every uninitialized field or at {@link #tree}. If
-         * this is true, we report one error each at every uninitialized field's location. If it's
+         * this is true, we report one error each at every uninitialized field's location. If it is
          * false, we report a single error containing each uninitialized at {@link #tree}'s
          * location. See {@link #uninitializedFields}.
          */
@@ -695,7 +695,7 @@ public class InitializationAnnotatedTypeFactory
      * @param <Transfer> the parent factory's transfer type
      * @param <Analysis> the parent factory's analysis type
      * @param <Factory> the parent factory type
-     * @param node the constructor or static initializer to check
+     * @param tree the constructor or static initializer to check
      * @param factory the parent factory
      * @param enclosingClass the enclosing class for {@code node}
      * @param invariants the invariant annotations
@@ -710,12 +710,12 @@ public class InitializationAnnotatedTypeFactory
                     Analysis extends CFAbstractAnalysis<Value, Store, Transfer>,
                     Factory extends GenericAnnotatedTypeFactory<Value, Store, Transfer, Analysis>>
             void reportInitializationErrors(
-                    Tree node,
+                    Tree tree,
                     Factory factory,
                     ClassTree enclosingClass,
                     AnnotationMirrorSet invariants,
                     Predicate<VariableTree> additionalFilter) {
-        InitializationError error = this.initializationErrors.get(node);
+        InitializationError error = this.initializationErrors.get(tree);
 
         if (error == null || error.uninitializedFields.isEmpty()) {
             return;
@@ -723,11 +723,11 @@ public class InitializationAnnotatedTypeFactory
 
         Store store =
                 error.storeBefore
-                        ? factory.getStoreBefore(node)
-                        : factory.getRegularExitStore(node);
+                        ? factory.getStoreBefore(tree)
+                        : factory.getRegularExitStore(tree);
 
         reportInitializationErrors(
-                node,
+                tree,
                 additionalFilter.and(
                         var -> isToBeInitialized(factory, store, enclosingClass, invariants, var)));
     }
@@ -735,14 +735,14 @@ public class InitializationAnnotatedTypeFactory
     /**
      * Reports an error at the specified node if there is one.
      *
-     * @param node the node to check
+     * @param tree the node to check
      * @param filter a predicate which is false if the field should not be checked for
      *     initialization
      * @see #reportInitializationErrors(Tree, GenericAnnotatedTypeFactory, ClassTree,
      *     AnnotationMirrorSet, Predicate)
      */
-    public void reportInitializationErrors(Tree node, Predicate<VariableTree> filter) {
-        InitializationError error = this.initializationErrors.get(node);
+    public void reportInitializationErrors(Tree tree, Predicate<VariableTree> filter) {
+        InitializationError error = this.initializationErrors.get(tree);
 
         if (error == null || error.uninitializedFields.isEmpty()) {
             return;
@@ -997,23 +997,23 @@ public class InitializationAnnotatedTypeFactory
         }
 
         @Override
-        public Void visitIdentifier(IdentifierTree node, AnnotatedTypeMirror p) {
-            super.visitIdentifier(node, p);
+        public Void visitIdentifier(IdentifierTree tree, AnnotatedTypeMirror p) {
+            super.visitIdentifier(tree, p);
 
             // Only call computeFieldAccessType for actual field accesses, not for direct uses
             // of this and super.
-            if (node.getName().contentEquals("this") || node.getName().contentEquals("super")) {
+            if (tree.getName().contentEquals("this") || tree.getName().contentEquals("super")) {
                 return null;
             }
 
-            computeFieldAccessType(node, p);
+            computeFieldAccessType(tree, p);
             return null;
         }
 
         @Override
-        public Void visitMemberSelect(MemberSelectTree node, AnnotatedTypeMirror p) {
-            super.visitMemberSelect(node, p);
-            computeFieldAccessType(node, p);
+        public Void visitMemberSelect(MemberSelectTree tree, AnnotatedTypeMirror p) {
+            super.visitMemberSelect(tree, p);
+            computeFieldAccessType(tree, p);
             return null;
         }
 
@@ -1021,16 +1021,16 @@ public class InitializationAnnotatedTypeFactory
          * Adapts the type of a field access depending on the field's declared type and the
          * receiver's initialization type.
          *
-         * @param node the field access
+         * @param tree the field access
          * @param type the field access's unadapted type
          */
-        private void computeFieldAccessType(ExpressionTree node, AnnotatedTypeMirror type) {
+        private void computeFieldAccessType(ExpressionTree tree, AnnotatedTypeMirror type) {
             GenericAnnotatedTypeFactory<?, ?, ?, ?> factory =
                     (GenericAnnotatedTypeFactory<?, ?, ?, ?>) atypeFactory;
             InitializationAnnotatedTypeFactory initFactory =
                     factory.getChecker().getTypeFactoryOfSubchecker(InitializationChecker.class);
-            Element element = TreeUtils.elementFromUse(node);
-            AnnotatedTypeMirror owner = initFactory.getReceiverType(node);
+            Element element = TreeUtils.elementFromUse(tree);
+            AnnotatedTypeMirror owner = initFactory.getReceiverType(tree);
 
             if (owner == null) {
                 return;
@@ -1061,7 +1061,7 @@ public class InitializationAnnotatedTypeFactory
             boolean isOwnerInitialized =
                     initFactory.isInitializedForFrame(owner, fieldDeclarationType);
 
-            Tree declaration = initFactory.declarationFromElement(TreeUtils.elementFromTree(node));
+            Tree declaration = initFactory.declarationFromElement(TreeUtils.elementFromTree(tree));
 
             // If the field has been initialized, don't clear annotations.
             // This is ok even if the field was initialized with a non-invariant
@@ -1073,18 +1073,17 @@ public class InitializationAnnotatedTypeFactory
             // error for the second assignment.
             // See the AssignmentDuringInitialization test case.
             boolean isFieldInitialized =
-                    TreeUtils.isSelfAccess(node)
+                    TreeUtils.isSelfAccess(tree)
                             && initFactory
                                     .getInitializedFields(
-                                            initFactory.getStoreBefore(node),
-                                            initFactory.getPath(node))
+                                            initFactory.getStoreBefore(tree),
+                                            initFactory.getPath(tree))
                                     .contains(declaration);
             if (!isOwnerInitialized
                     && !isFieldInitialized
                     && !factory.isComputingAnnotatedTypeMirrorOfLHS()) {
                 // The receiver is not initialized for this frame and the type being computed is
-                // not
-                // a LHS.
+                // not a LHS.
                 // Replace all annotations with the top annotation for that hierarchy.
                 type.clearAnnotations();
                 type.addAnnotations(factory.getQualifierHierarchy().getTopAnnotations());
@@ -1147,7 +1146,7 @@ public class InitializationAnnotatedTypeFactory
         }
 
         @Override
-        public Void visitNewArray(NewArrayTree node, AnnotatedTypeMirror type) {
+        public Void visitNewArray(NewArrayTree tree, AnnotatedTypeMirror type) {
             // The most precise element type for `new Object[] {null}` is @FBCBottom, but
             // the most useful element type is @Initialized (which is also accurate).
             AnnotatedArrayType arrayType = (AnnotatedArrayType) type;
@@ -1169,12 +1168,12 @@ public class InitializationAnnotatedTypeFactory
 
         /* The result of a binary or unary operator is always @Initialized. */
         @Override
-        public Void visitBinary(BinaryTree node, AnnotatedTypeMirror type) {
+        public Void visitBinary(BinaryTree tree, AnnotatedTypeMirror type) {
             return null;
         }
 
         @Override
-        public Void visitUnary(UnaryTree node, AnnotatedTypeMirror type) {
+        public Void visitUnary(UnaryTree tree, AnnotatedTypeMirror type) {
             return null;
         }
     }

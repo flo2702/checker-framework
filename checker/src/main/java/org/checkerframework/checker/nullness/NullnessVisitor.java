@@ -312,11 +312,6 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
                 var -> !atypeFactory.getAnnotatedType(var).getKind().isPrimitive());
     }
 
-    @Override
-    public Void scan(@Nullable Tree tree, Void p) {
-        return super.scan(tree, p);
-    }
-
     /** Case 1: Check for null dereferencing. */
     @Override
     public Void visitMemberSelect(MemberSelectTree tree, Void p) {

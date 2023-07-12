@@ -551,6 +551,11 @@ public class NullnessAnnotatedTypeFactory
             AnnotatedTypeMirror declared = getAnnotatedType(fa.getField());
             AnnotatedTypeMirror refined = super.getAnnotatedTypeBefore(expr, tree);
             AnnotatedTypeMirror res = AnnotatedTypeMirror.createType(fa.getType(), this, false);
+            // If the expression is initialized, then by definition, it has at least its declared
+            // annotation.
+            // Assuming the correctness of the Nullness Checker's type refinement,
+            // it also has its refined annotation.
+            // We thus use the GLB of those two annotations.
             res.addAnnotations(
                     qualHierarchy.greatestLowerBounds(
                             declared.getAnnotations(), refined.getAnnotations()));
