@@ -97,7 +97,7 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      * <p>We use this field as a cache instead of calling {@link #isPersistent(FieldAccess)} every
      * time to avoid the performance issue in Issue1438.
      */
-    protected final Set<FieldAccess> persistentFields;
+    protected Set<FieldAccess> persistentFields;
 
     /**
      * Returns information about fields. Clients should not side-effect the returned value, which is
@@ -172,7 +172,9 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
         localVariableValues = new HashMap<>();
         thisValue = null;
         fieldValues = new HashMap<>();
-        persistentFields = new HashSet<>();
+        // As this is only used by checkers that have the Initialization Checker as subchecker,
+        // We use use null instead of an empty set to avoid the unnecessary allocation.
+        persistentFields = null;
         methodValues = new HashMap<>();
         arrayValues = new HashMap<>();
         classValues = new HashMap<>();
@@ -193,7 +195,8 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
         localVariableValues = new HashMap<>(other.localVariableValues);
         thisValue = other.thisValue;
         fieldValues = new HashMap<>(other.fieldValues);
-        persistentFields = new HashSet<>(other.persistentFields);
+        persistentFields =
+                other.persistentFields == null ? null : new HashSet<>(other.persistentFields);
         methodValues = new HashMap<>(other.methodValues);
         arrayValues = new HashMap<>(other.arrayValues);
         classValues = new HashMap<>(other.classValues);
@@ -322,7 +325,8 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
             V otherVal = e.getValue();
 
             // The field is unassignable or persistent.
-            if (fieldAccess.isUnassignableByOtherCode() || persistentFields.contains(fieldAccess)) {
+            if (fieldAccess.isUnassignableByOtherCode()
+                    || (persistentFields != null && persistentFields.contains(fieldAccess))) {
                 // Keep information.
                 newFieldValues.put(fieldAccess, otherVal);
                 continue;
@@ -664,6 +668,9 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                 }
             }
             if (isPersistent(fieldAcc)) {
+                if (persistentFields == null) {
+                    persistentFields = new HashSet<>();
+                }
                 persistentFields.add(fieldAcc);
             }
         } else if (expr instanceof MethodCall) {
@@ -936,6 +943,9 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                     || fieldAccess.isUnassignableByOtherCode()) {
                 fieldValues.put(fieldAccess, val);
                 if (isPersistent(fieldAccess)) {
+                    if (persistentFields == null) {
+                        persistentFields = new HashSet<>();
+                    }
                     persistentFields.add(fieldAccess);
                 }
             }
@@ -1232,6 +1242,10 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
             }
         }
 
+        if (other.persistentFields != null) {
+            newStore.persistentFields = new HashSet<>();
+        }
+
         for (Map.Entry<FieldAccess, V> e : other.fieldValues.entrySet()) {
             // information about fields that are only part of one store, but not the other are
             // discarded, as one store implicitly contains 'top' for that field.
@@ -1245,7 +1259,7 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                     // Since persistency should only depend on the fieldAccess itself,
                     // not on the store, we don't need a potentially expensive call
                     // to isPersistent here; we can just look in the cache.
-                    if (other.persistentFields.contains(el)) {
+                    if (other.persistentFields != null && other.persistentFields.contains(el)) {
                         newStore.persistentFields.add(el);
                     }
                 }
