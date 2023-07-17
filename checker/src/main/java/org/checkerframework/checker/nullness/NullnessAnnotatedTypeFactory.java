@@ -51,6 +51,7 @@ import org.checkerframework.framework.type.typeannotator.DefaultForTypeAnnotator
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.TreeUtils;
+import org.checkerframework.javacutil.TypesUtils;
 
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
@@ -593,13 +594,15 @@ public class NullnessAnnotatedTypeFactory
         List<TreeAnnotator> annotators = new ArrayList<>(3);
         // annotators.add(new DebugListTreeAnnotator(new Tree.Kind[]
         // {Tree.Kind.CONDITIONAL_EXPRESSION}));
-        annotators.add(new NullnessPropagationTreeAnnotator(this));
-        annotators.add(new LiteralTreeAnnotator(this));
         if (!checker.hasOptionNoSubcheckers("assumeInitialized")) {
             annotators.add(
                     new InitializationAnnotatedTypeFactory.CommitmentFieldAccessTreeAnnotator(
                             this));
         }
+        // Add the NullnessPropagationTreeAnnotator after the CommitmentFieldAccessTreeAnnotator,
+        // so that primitive fields of uninitialized objects do not become @Nullable.
+        annotators.add(new NullnessPropagationTreeAnnotator(this));
+        annotators.add(new LiteralTreeAnnotator(this));
         return new ListTreeAnnotator(annotators);
     }
 
@@ -633,6 +636,13 @@ public class NullnessAnnotatedTypeFactory
         public Void visitMemberSelect(MemberSelectTree tree, AnnotatedTypeMirror type) {
             Element elt = TreeUtils.elementFromUse(tree);
             assert elt != null;
+
+            // Make primitive variable @NonNull in case the Initialization Checker
+            // considers it uninitialized.
+            if (TypesUtils.isPrimitive(type.getUnderlyingType())) {
+                type.replaceAnnotation(NONNULL);
+            }
+
             return null;
         }
 
@@ -658,6 +668,12 @@ public class NullnessAnnotatedTypeFactory
                 // TODO: It's surprising that we have to do this in both visitVariable and
                 // visitIdentifier. This should already be handled by applying the defaults anyway.
                 // case 9. exception parameter
+                type.replaceAnnotation(NONNULL);
+            }
+
+            // Make primitive variable @NonNull in case the Initialization Checker
+            // considers it uninitialized.
+            if (TypesUtils.isPrimitive(type.getUnderlyingType())) {
                 type.replaceAnnotation(NONNULL);
             }
 

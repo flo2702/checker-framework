@@ -874,7 +874,7 @@ public class InitializationAnnotatedTypeFactory
             Collection<? extends AnnotationMirror> declaredFieldAnnotations,
             AnnotatedTypeMirror receiverType,
             AnnotatedTypeMirror fieldType) {
-        // not necessary for primitive fields
+        // Primitive values have no fields and are thus always @Initialized.
         if (TypesUtils.isPrimitive(type.getUnderlyingType())) {
             return;
         }
@@ -1060,10 +1060,6 @@ public class InitializationAnnotatedTypeFactory
 
             AnnotatedTypeMirror fieldAnnotations = factory.getAnnotatedType(element);
 
-            // not necessary for primitive fields
-            if (TypesUtils.isPrimitive(type.getUnderlyingType())) {
-                return;
-            }
             // not necessary if there is an explicit UnknownInitialization
             // annotation on the field
             if (AnnotationUtils.containsSameByName(
@@ -1090,12 +1086,12 @@ public class InitializationAnnotatedTypeFactory
             // Here, we will get an error for the first assignment, but we won't get another
             // error for the second assignment.
             // See the AssignmentDuringInitialization test case.
+            InitializationStore store = initFactory.getStoreBefore(tree);
             boolean isFieldInitialized =
-                    TreeUtils.isSelfAccess(tree)
+                    store != null
+                            && TreeUtils.isSelfAccess(tree)
                             && initFactory
-                                    .getInitializedFields(
-                                            initFactory.getStoreBefore(tree),
-                                            initFactory.getPath(tree))
+                                    .getInitializedFields(store, initFactory.getPath(tree))
                                     .contains(declaration);
             if (!isOwnerInitialized
                     && !isFieldInitialized
@@ -1184,7 +1180,11 @@ public class InitializationAnnotatedTypeFactory
             return super.visitMemberSelect(tree, annotatedTypeMirror);
         }
 
-        /* The result of a binary or unary operator is always @Initialized. */
+        /* The result of a binary or unary operator is either primitive or a String.
+         * Primitives have no fields and are thus always @Initialized.
+         * Since all String constructors return @Initialized strings, Strings
+         * are also always @Initialized. */
+
         @Override
         public Void visitBinary(BinaryTree tree, AnnotatedTypeMirror type) {
             return null;
