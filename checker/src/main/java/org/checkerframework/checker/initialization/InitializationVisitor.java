@@ -12,8 +12,6 @@ import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.TypeCastTree;
 import com.sun.source.tree.VariableTree;
-import com.sun.tools.javac.code.Type;
-import com.sun.tools.javac.tree.JCTree;
 
 import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
 import org.checkerframework.checker.initialization.InitializationAnnotatedTypeFactory.PossiblyUninitializedFieldsAtTree;
@@ -386,8 +384,8 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
             return;
         }
 
-        Type classType = ((JCTree) classTree).type;
-        if (!atypeFactory.getProcessingEnv().getTypeUtils().isSubtype(frame, classType)) {
+        TypeMirror receiverType = atypeFactory.getReceiverType(node).getUnderlyingType();
+        if (!atypeFactory.getProcessingEnv().getTypeUtils().isSubtype(frame, receiverType)) {
             super.reportMethodInvocabilityError(node, found, expected);
             return;
         }

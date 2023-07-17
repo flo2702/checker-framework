@@ -574,7 +574,6 @@ public class InitializationAnnotatedTypeFactory
      * @param <Factory> the parent factory type
      * @param factory the parent checker's factory
      * @param store the store in which to check the variable's type
-     * @param enclosingClass the class enclosing the variable's declaration
      * @param invariants the invariant annotations
      * @param var the variable to check
      * @return whether the specified variable is yet to be initialized
@@ -588,10 +587,11 @@ public class InitializationAnnotatedTypeFactory
             boolean isToBeInitialized(
                     Factory factory,
                     Store store,
-                    ClassTree enclosingClass,
                     AnnotationMirrorSet invariants,
                     VariableTree var) {
         // filter out variables that have the invariant
+        ClassTree enclosingClass =
+                TreePathUtil.enclosingClass(analysis.getTypeFactory().getPath(var));
         Node receiver;
         if (ElementUtils.isStatic(TreeUtils.elementFromDeclaration(var))) {
             receiver = new ClassNameNode(enclosingClass);
@@ -630,10 +630,9 @@ public class InitializationAnnotatedTypeFactory
      * before or after (depending on {@link #storeBefore}) the tree {@link #tree}, leading to a
      * possible type error (specified by {@link #errorKey}, {@link #errorArgs}, and {@link
      * #errorAtField}). The parent checker should use the method {@link
-     * #reportInitializationErrors(Tree, GenericAnnotatedTypeFactory, ClassTree,
-     * AnnotationMirrorSet, Predicate)} to filter out those fields that are actually initialized; if
-     * any uninitialized fields remain, that method reports the appropriate {@link
-     * InitializationErrorMessage}
+     * #reportInitializationErrors(Tree, GenericAnnotatedTypeFactory, AnnotationMirrorSet,
+     * Predicate)} to filter out those fields that are actually initialized; if any uninitialized
+     * fields remain, that method reports the appropriate {@link InitializationErrorMessage}
      */
     protected static class PossiblyUninitializedFieldsAtTree {
 
@@ -711,7 +710,6 @@ public class InitializationAnnotatedTypeFactory
      * @param <Factory> the parent factory type
      * @param tree the constructor or static initializer to check
      * @param factory the parent factory
-     * @param enclosingClass the enclosing class for {@code node}
      * @param invariants the invariant annotations
      * @param additionalFilter a predicate which holds for fields that should be considered
      *     uninitialized
@@ -726,7 +724,6 @@ public class InitializationAnnotatedTypeFactory
             void reportInitializationErrors(
                     Tree tree,
                     Factory factory,
-                    ClassTree enclosingClass,
                     AnnotationMirrorSet invariants,
                     Predicate<VariableTree> additionalFilter) {
         PossiblyUninitializedFieldsAtTree uninitFields = this.possiblyUninitializedFields.get(tree);
@@ -742,8 +739,7 @@ public class InitializationAnnotatedTypeFactory
 
         reportInitializationErrors(
                 tree,
-                additionalFilter.and(
-                        var -> isToBeInitialized(factory, store, enclosingClass, invariants, var)));
+                additionalFilter.and(var -> isToBeInitialized(factory, store, invariants, var)));
     }
 
     /**

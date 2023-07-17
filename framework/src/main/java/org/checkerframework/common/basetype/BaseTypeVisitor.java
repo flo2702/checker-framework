@@ -268,9 +268,6 @@ public class BaseTypeVisitor<Factory extends GenericAnnotatedTypeFactory<?, ?, ?
     /** True if "-AwarnRedundantAnnotations" was passed on the command line */
     private final boolean warnRedundantAnnotations;
 
-    /** The tree of the enclosing class that is currently being visited. */
-    protected ClassTree classTree = null;
-
     /** True if "-AcheckEnclosingExpr" was passed on the command line */
     private final boolean checkEnclosingExpr;
 
@@ -554,12 +551,10 @@ public class BaseTypeVisitor<Factory extends GenericAnnotatedTypeFactory<?, ?, ?
 
         TreePath preTreePath = atypeFactory.getVisitorTreePath();
         MethodTree preMT = methodTree;
-        ClassTree preCT = this.classTree;
 
         // Don't use atypeFactory.getPath, because that depends on the visitor path.
         atypeFactory.setVisitorTreePath(TreePath.getPath(root, classTree));
         methodTree = null;
-        this.classTree = classTree;
 
         try {
             processClassTree(classTree);
@@ -567,7 +562,6 @@ public class BaseTypeVisitor<Factory extends GenericAnnotatedTypeFactory<?, ?, ?
         } finally {
             atypeFactory.setVisitorTreePath(preTreePath);
             methodTree = preMT;
-            this.classTree = preCT;
         }
         return null;
     }

@@ -307,9 +307,8 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
         initFactory.reportInitializationErrors(
                 tree,
                 atypeFactory,
-                classTree,
                 AnnotationMirrorSet.singleton(atypeFactory.NONNULL),
-                var -> !atypeFactory.getAnnotatedType(var).getKind().isPrimitive());
+                field -> !atypeFactory.getAnnotatedType(field).getKind().isPrimitive());
     }
 
     /** Case 1: Check for null dereferencing. */
@@ -579,6 +578,8 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
 
     @Override
     public Void visitMethod(MethodTree tree, Void p) {
+        VariableTree receiver = tree.getReceiverParameter();
+
         if (TreeUtils.isConstructor(tree)) {
             // Constructor results are always @NonNull. Any annotations are forbidden.
             List<? extends AnnotationTree> annoTrees = tree.getModifiers().getAnnotations();
@@ -590,7 +591,6 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
             reportInitializationErrors(tree);
         }
 
-        VariableTree receiver = tree.getReceiverParameter();
         if (receiver != null) {
             List<? extends AnnotationTree> annoTrees = receiver.getModifiers().getAnnotations();
             Tree type = receiver.getType();
