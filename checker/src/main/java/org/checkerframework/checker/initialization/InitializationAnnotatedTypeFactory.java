@@ -121,73 +121,13 @@ public class InitializationAnnotatedTypeFactory
     /** The UnknownInitialization.value field/element. */
     protected final ExecutableElement unknownInitializationValueElement;
 
-    /** Possible type errors. See {@link InitializationError}. */
-    protected final Map<Tree, InitializationError> initializationErrors = new HashMap<>();
-
     /**
-     * A possible type error caused by some fields of the current receiver not being initialized.
-     * The parent checker should use {@link #reportInitializationErrors(Tree,
-     * GenericAnnotatedTypeFactory, ClassTree, AnnotationMirrorSet, Predicate)} as explained in the
-     * documentation for {@link InitializationChecker} to either discharge or report every such
-     * error.
+     * Possibly uninitialized fields found by the visitor.
+     *
+     * @see PossiblyUninitializedFieldsAtTree
      */
-    protected static class InitializationError {
-
-        /** The tree at which this possible error occurs. */
-        protected final Tree tree;
-
-        /** A list of possibly uninitialized fields. */
-        protected final List<VariableTree> uninitializedFields;
-
-        /** The error message key. */
-        protected final @CompilerMessageKey String errorMsg;
-
-        /** Additional arguments for the error report. */
-        protected final Object[] errorArgs;
-
-        /**
-         * Whether field initialization should be checked in the store before or after {@link
-         * #tree}.
-         */
-        protected final boolean storeBefore;
-
-        /**
-         * Whether the error should be reported at every uninitialized field or at {@link #tree}. If
-         * this is true, we report one error each at every uninitialized field's location. If it is
-         * false, we report a single error containing each uninitialized at {@link #tree}'s
-         * location. See {@link #uninitializedFields}.
-         */
-        protected final boolean errorAtField;
-
-        /**
-         * Creates a new InitializationError.
-         *
-         * @param tree the tree at which this possible error occurs
-         * @param uninitializedFields a list of possibly uninitialized fields
-         * @param errorMsg the error message key
-         * @param errorArgs additional arguments for the error report
-         * @param storeBefore whether field initialization should be checked in the store before or
-         *     after {@link #tree}
-         * @param errorAtField whether the error should be reported at every uninitialized field or
-         *     at {@link #tree}. If this is true, we report one error each at every uninitialized
-         *     field's location. If it's false, we report a single error containing each
-         *     uninitialized at {@link #tree}'s location.
-         */
-        protected InitializationError(
-                Tree tree,
-                List<VariableTree> uninitializedFields,
-                @CompilerMessageKey String errorMsg,
-                Object[] errorArgs,
-                boolean storeBefore,
-                boolean errorAtField) {
-            this.tree = tree;
-            this.uninitializedFields = uninitializedFields;
-            this.errorMsg = errorMsg;
-            this.errorArgs = errorArgs;
-            this.storeBefore = storeBefore;
-            this.errorAtField = errorAtField;
-        }
-    }
+    protected final Map<Tree, PossiblyUninitializedFieldsAtTree> possiblyUninitializedFields =
+            new HashMap<>();
 
     /**
      * Create a new InitializationAnnotatedTypeFactory.
@@ -686,9 +626,83 @@ public class InitializationAnnotatedTypeFactory
     }
 
     /**
-     * Reports an error at the specified node if there is one. This method uses a default filter
-     * which considers every field which either has one of the invariant annotations or whose
-     * declaration has none of the invariant annotations to be initialized.
+     * A set of fields of the current receiver which are possibly uninitialized in the store either
+     * before or after (depending on {@link #storeBefore}) the tree {@link #tree}, leading to a
+     * possible type error (specified by {@link #errorKey}, {@link #errorArgs}, and {@link
+     * #errorAtField}). The parent checker should use the method {@link
+     * #reportInitializationErrors(Tree, GenericAnnotatedTypeFactory, ClassTree,
+     * AnnotationMirrorSet, Predicate)} to filter out those fields that are actually initialized; if
+     * any uninitialized fields remain, that method reports the appropriate {@link
+     * InitializationErrorMessage}
+     */
+    protected static class PossiblyUninitializedFieldsAtTree {
+
+        /** The tree at which this possible error occurs. */
+        protected final Tree tree;
+
+        /** A list of possibly uninitialized fields. */
+        protected final List<VariableTree> uninitializedFields;
+
+        /**
+         * Whether field initialization should be checked in the store before or after {@link
+         * #tree}.
+         */
+        protected final boolean storeBefore;
+
+        /** The error message key. */
+        protected final @CompilerMessageKey String errorKey;
+
+        /**
+         * Additional arguments for the error report. If this is {@code null}, a string containing
+         * the names of all uninitialized fields is passed as a default argument.
+         */
+        protected final Object[] errorArgs;
+
+        /**
+         * Whether the error should be issued at every uninitialized field or at {@link #tree}.
+         * Errors are issued at the field declarations if the fields are static or if the
+         * constructor is the default constructor. Errors are issued at the constructor declaration
+         * if the fields are non-static and the constructor is non-default.
+         */
+        protected final boolean errorAtField;
+
+        /**
+         * Creates a new PossiblyUninitializedFieldsAtTree object.
+         *
+         * @param tree the tree at which this possible error occurs
+         * @param uninitializedFields a list of possibly uninitialized fields
+         * @param storeBefore whether field initialization should be checked in the store before or
+         *     after {@link #tree}
+         * @param errorKey the error message key
+         * @param errorArgs additional arguments for the error report. If this is {@code null}, a
+         *     string containing the names of all uninitialized fields is passed as a default
+         *     argument.
+         * @param errorAtField whether the error should be reported at every uninitialized field or
+         *     at {@link #tree}. If this is true, we report one error each at every uninitialized
+         *     field's location. If it's false, we report a single error containing each
+         *     uninitialized at {@link #tree}'s location.
+         */
+        protected PossiblyUninitializedFieldsAtTree(
+                Tree tree,
+                List<VariableTree> uninitializedFields,
+                boolean storeBefore,
+                @CompilerMessageKey String errorKey,
+                Object[] errorArgs,
+                boolean errorAtField) {
+            this.tree = tree;
+            this.uninitializedFields = uninitializedFields;
+            this.errorKey = errorKey;
+            this.errorArgs = errorArgs;
+            this.storeBefore = storeBefore;
+            this.errorAtField = errorAtField;
+        }
+    }
+
+    /**
+     * Reports an appropriate initialization type error at the specified node if applicable. This
+     * method uses a default filter which considers every field which either has one of the
+     * invariant annotations or whose declaration has none of the invariant annotations to be
+     * initialized.
      *
      * @param <Value> the parent factory's value type
      * @param <Store> the parent factory's store type
@@ -699,8 +713,8 @@ public class InitializationAnnotatedTypeFactory
      * @param factory the parent factory
      * @param enclosingClass the enclosing class for {@code node}
      * @param invariants the invariant annotations
-     * @param additionalFilter a predicate which is false if the field should not be checked for
-     *     initialization
+     * @param additionalFilter a predicate which holds for fields that should be considered
+     *     uninitialized
      * @see #reportInitializationErrors(Tree, Predicate)
      */
     public <
@@ -715,14 +729,14 @@ public class InitializationAnnotatedTypeFactory
                     ClassTree enclosingClass,
                     AnnotationMirrorSet invariants,
                     Predicate<VariableTree> additionalFilter) {
-        InitializationError error = this.initializationErrors.get(tree);
+        PossiblyUninitializedFieldsAtTree uninitFields = this.possiblyUninitializedFields.get(tree);
 
-        if (error == null || error.uninitializedFields.isEmpty()) {
+        if (uninitFields == null || uninitFields.uninitializedFields.isEmpty()) {
             return;
         }
 
         Store store =
-                error.storeBefore
+                uninitFields.storeBefore
                         ? factory.getStoreBefore(tree)
                         : factory.getRegularExitStore(tree);
 
@@ -733,47 +747,51 @@ public class InitializationAnnotatedTypeFactory
     }
 
     /**
-     * Reports an error at the specified node if there is one.
+     * Reports an appropriate initialization type error at the specified node if applicable.
      *
      * @param tree the node to check
-     * @param filter a predicate which is false if the field should not be checked for
-     *     initialization
+     * @param filter a predicate which holds for fields that should be considered uninitialized
      * @see #reportInitializationErrors(Tree, GenericAnnotatedTypeFactory, ClassTree,
      *     AnnotationMirrorSet, Predicate)
      */
     public void reportInitializationErrors(Tree tree, Predicate<VariableTree> filter) {
-        InitializationError error = this.initializationErrors.get(tree);
+        PossiblyUninitializedFieldsAtTree uninitFields = this.possiblyUninitializedFields.get(tree);
 
-        if (error == null || error.uninitializedFields.isEmpty()) {
+        if (uninitFields == null || uninitFields.uninitializedFields.isEmpty()) {
             return;
         }
 
+        // Filter out fields which are initialized according to the filter parameter
+        // or if the respective error should be suppressed.
         List<VariableTree> uninitializedFields =
-                error.uninitializedFields.stream()
+                uninitFields.uninitializedFields.stream()
                         .filter(filter)
                         .filter(
                                 f ->
                                         !checker.shouldSuppressWarnings(
                                                 TreeUtils.elementFromDeclaration(f),
-                                                error.errorMsg))
+                                                uninitFields.errorKey))
                         .collect(Collectors.toList());
 
         if (!uninitializedFields.isEmpty()) {
-            if (error.errorAtField) {
+            if (uninitFields.errorAtField) {
                 // Issue each error at the relevant field
                 for (VariableTree f : uninitializedFields) {
-                    checker.reportError(f, error.errorMsg, f.getName());
+                    checker.reportError(f, uninitFields.errorKey, f.getName());
                 }
             } else {
                 // Issue all the errors at the relevant node
-                StringJoiner fieldsString = new StringJoiner(", ");
-                for (VariableTree f : uninitializedFields) {
-                    fieldsString.add(f.getName());
+                Object[] errorArgs = uninitFields.errorArgs;
+                if (errorArgs == null) {
+                    // Pass names of uninitialized fields as default argument.
+                    StringJoiner fieldsString = new StringJoiner(", ");
+                    for (VariableTree f : uninitializedFields) {
+                        fieldsString.add(f.getName());
+                    }
+
+                    errorArgs = new Object[] {fieldsString};
                 }
-                checker.reportError(
-                        error.tree,
-                        error.errorMsg,
-                        error.errorArgs == null ? new Object[] {fieldsString} : error.errorArgs);
+                checker.reportError(uninitFields.tree, uninitFields.errorKey, errorArgs);
             }
         }
     }

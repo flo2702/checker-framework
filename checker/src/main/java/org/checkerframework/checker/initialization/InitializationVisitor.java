@@ -16,7 +16,7 @@ import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
 
 import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
-import org.checkerframework.checker.initialization.InitializationAnnotatedTypeFactory.InitializationError;
+import org.checkerframework.checker.initialization.InitializationAnnotatedTypeFactory.PossiblyUninitializedFieldsAtTree;
 import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.initialization.qual.UnderInitialization;
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
@@ -331,7 +331,7 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
         InitializationStore store = atypeFactory.getStoreBefore(commonAssignmentTree);
 
         // If possible, don't report an error directly and let the parent checker call
-        // #reportInitializionErrors later.
+        // InitializationAnnotatedTypeFactory#reportInitializionErrors later.
 
         // We can't check if all necessary fields are initialized without a store.
         if (store == null) {
@@ -355,14 +355,14 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
                 atypeFactory.getUninitializedFields(
                         store, getCurrentPath(), false, Collections.emptyList());
         uninitializedFields.removeAll(initializedFields);
-        atypeFactory.initializationErrors.put(
+        atypeFactory.possiblyUninitializedFields.put(
                 commonAssignmentTree,
-                new InitializationError(
+                new PossiblyUninitializedFieldsAtTree(
                         commonAssignmentTree,
                         uninitializedFields,
+                        true,
                         errorKey,
                         ArraysPlume.concatenate(extraArgs, valueTypeString, varTypeString),
-                        true,
                         false));
     }
 
@@ -400,14 +400,14 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
                         Collections.emptyList());
         uninitializedFields.removeAll(initializedFields);
 
-        atypeFactory.initializationErrors.put(
+        atypeFactory.possiblyUninitializedFields.put(
                 node,
-                new InitializationError(
+                new PossiblyUninitializedFieldsAtTree(
                         node,
                         uninitializedFields,
+                        true,
                         "method.invocation.invalid",
                         new Object[] {found.toString(), expected.toString()},
-                        true,
                         false));
     }
 
@@ -469,9 +469,9 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
                         store, getCurrentPath(), staticFields, receiverAnnotations);
         uninitializedFields.removeAll(initializedFields);
 
-        // Errors are issued at the field declaration if the field is static or if the constructor
+        // Errors are issued at the field declaration if the fields are static or if the constructor
         // is the default constructor.
-        // Errors are issued at the constructor declaration if the field is non-static and the
+        // Errors are issued at the constructor declaration if the fields are non-static and the
         // constructor is non-default.
         boolean errorAtField = staticFields || TreeUtils.isSynthetic((MethodTree) tree);
 
@@ -482,9 +482,9 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
                                 ? "initialization.field.uninitialized"
                                 : "initialization.fields.uninitialized");
 
-        atypeFactory.initializationErrors.put(
+        atypeFactory.possiblyUninitializedFields.put(
                 tree,
-                new InitializationError(
-                        tree, uninitializedFields, errorMsg, null, false, errorAtField));
+                new PossiblyUninitializedFieldsAtTree(
+                        tree, uninitializedFields, false, errorMsg, null, errorAtField));
     }
 }
