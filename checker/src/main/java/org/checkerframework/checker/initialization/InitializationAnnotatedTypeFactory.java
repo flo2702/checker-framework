@@ -747,8 +747,8 @@ public class InitializationAnnotatedTypeFactory
      *
      * @param tree the node to check
      * @param filter a predicate which holds for fields that should be considered uninitialized
-     * @see #reportInitializationErrors(Tree, GenericAnnotatedTypeFactory, ClassTree,
-     *     AnnotationMirrorSet, Predicate)
+     * @see #reportInitializationErrors(Tree, GenericAnnotatedTypeFactory, AnnotationMirrorSet,
+     *     Predicate)
      */
     public void reportInitializationErrors(Tree tree, Predicate<VariableTree> filter) {
         PossiblyUninitializedFieldsAtTree uninitFields = this.possiblyUninitializedFields.get(tree);
