@@ -632,7 +632,7 @@ public class InitializationAnnotatedTypeFactory
      * #errorAtField}). The parent checker should use the method {@link
      * #reportInitializationErrors(Tree, GenericAnnotatedTypeFactory, AnnotationMirrorSet,
      * Predicate)} to filter out those fields that are actually initialized; if any uninitialized
-     * fields remain, that method reports the appropriate {@link InitializationErrorMessage}
+     * fields remain, that method reports the appropriate error.
      */
     protected static class PossiblyUninitializedFieldsAtTree {
 
