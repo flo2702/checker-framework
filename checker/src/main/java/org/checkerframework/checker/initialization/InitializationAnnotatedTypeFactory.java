@@ -27,11 +27,6 @@ import org.checkerframework.dataflow.cfg.node.ClassNameNode;
 import org.checkerframework.dataflow.cfg.node.FieldAccessNode;
 import org.checkerframework.dataflow.cfg.node.ImplicitThisNode;
 import org.checkerframework.dataflow.cfg.node.Node;
-import org.checkerframework.dataflow.expression.ClassName;
-import org.checkerframework.dataflow.expression.FieldAccess;
-import org.checkerframework.dataflow.expression.JavaExpression;
-import org.checkerframework.dataflow.expression.LocalVariable;
-import org.checkerframework.dataflow.expression.ThisReference;
 import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.flow.CFAbstractTransfer;
@@ -510,57 +505,6 @@ public class InitializationAnnotatedTypeFactory
     }
 
     /**
-     * Checks if the expression is initialized in the given store.
-     *
-     * @param expr the expression to check
-     * @param store the store
-     * @return {@code true} if the {@code expr} is initialized in {@code store}
-     */
-    public boolean isExpressionInitialized(JavaExpression expr, InitializationStore store) {
-        if (!(expr instanceof FieldAccess) || expr.containsUnknown()) {
-            return false;
-        }
-
-        FieldAccess fa = (FieldAccess) expr;
-        if (fa.getReceiver() instanceof ThisReference || fa.getReceiver() instanceof ClassName) {
-            if (store.isFieldInitialized(fa.getField())) {
-                return true;
-            }
-        } else {
-            CFValue value = store.getValue(fa.getReceiver());
-
-            Set<AnnotationMirror> receiverAnnoSet;
-            if (value != null) {
-                receiverAnnoSet = value.getAnnotations();
-            } else if (fa.getReceiver() instanceof LocalVariable) {
-                Element elem = ((LocalVariable) fa.getReceiver()).getElement();
-                AnnotatedTypeMirror receiverType = getAnnotatedType(elem);
-                receiverAnnoSet = receiverType.getAnnotations();
-            } else {
-                // Is there anything better we could do?
-                // Ideally, we would turn the expression string into a Tree or Element
-                // instead of a JavaExpression, so we could use
-                // atypeFactory.getAnnotatedType on the whole expression,
-                // but that doesn't seem possible.
-                return false;
-            }
-
-            boolean isReceiverInitialized = false;
-            for (AnnotationMirror anno : receiverAnnoSet) {
-                if (isInitialized(anno)) {
-                    isReceiverInitialized = true;
-                }
-            }
-
-            if (isReceiverInitialized) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
      * Determines whether the specified variable is yet to be initialized.
      *
      * <p>Returns {@code false} iff the variable need not be initialized. This holds for variables
@@ -634,7 +578,7 @@ public class InitializationAnnotatedTypeFactory
      * Predicate)} to filter out those fields that are actually initialized; if any uninitialized
      * fields remain, that method reports the appropriate error.
      */
-    protected static class PossiblyUninitializedFieldsAtTree {
+    static class PossiblyUninitializedFieldsAtTree {
 
         /** The tree at which this possible error occurs. */
         protected final Tree tree;
@@ -849,8 +793,16 @@ public class InitializationAnnotatedTypeFactory
      * @return true if the type is initialized for the given frame
      */
     public boolean isInitializedForFrame(AnnotatedTypeMirror type, TypeMirror frame) {
+        if (isInitialized(type)) {
+            return true;
+        }
+
         AnnotationMirror initializationAnno =
                 type.getEffectiveAnnotationInHierarchy(UNKNOWN_INITIALIZATION);
+        if (initializationAnno == null) {
+            initializationAnno = type.getEffectiveAnnotationInHierarchy(UNDER_INITALIZATION);
+        }
+
         TypeMirror typeFrame = getTypeFrameFromAnnotation(initializationAnno);
         Types types = processingEnv.getTypeUtils();
         return types.isSubtype(typeFrame, types.erasure(frame));

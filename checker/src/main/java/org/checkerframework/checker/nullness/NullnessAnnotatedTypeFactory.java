@@ -27,6 +27,8 @@ import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.dataflow.cfg.node.Node;
 import org.checkerframework.dataflow.expression.FieldAccess;
 import org.checkerframework.dataflow.expression.JavaExpression;
+import org.checkerframework.dataflow.expression.LocalVariable;
+import org.checkerframework.dataflow.expression.ThisReference;
 import org.checkerframework.dataflow.util.NodeUtils;
 import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.qual.DefaultQualifier;
@@ -546,24 +548,44 @@ public class NullnessAnnotatedTypeFactory
             // init checker is deactivated.
             return super.getAnnotatedTypeBefore(expr, tree);
         }
-        if (expr instanceof FieldAccess
-                && initFactory.isExpressionInitialized(expr, initFactory.getStoreBefore(tree))) {
+        if (expr instanceof FieldAccess) {
             FieldAccess fa = (FieldAccess) expr;
-            AnnotatedTypeMirror declared = getAnnotatedType(fa.getField());
-            AnnotatedTypeMirror refined = super.getAnnotatedTypeBefore(expr, tree);
-            AnnotatedTypeMirror res = AnnotatedTypeMirror.createType(fa.getType(), this, false);
-            // If the expression is initialized, then by definition, it has at least its declared
-            // annotation.
-            // Assuming the correctness of the Nullness Checker's type refinement,
-            // it also has its refined annotation.
-            // We thus use the GLB of those two annotations.
-            res.addAnnotations(
-                    qualHierarchy.greatestLowerBounds(
-                            declared.getAnnotations(), refined.getAnnotations()));
-            return res;
-        } else {
-            return super.getAnnotatedTypeBefore(expr, tree);
+            JavaExpression receiver = fa.getReceiver();
+            TypeMirror declaringClass = fa.getField().getEnclosingElement().asType();
+            AnnotatedTypeMirror receiverType;
+
+            if (receiver instanceof LocalVariable) {
+                Element receiverElem = ((LocalVariable) receiver).getElement();
+                receiverType = initFactory.getAnnotatedType(receiverElem);
+            } else if (receiver instanceof ThisReference) {
+                receiverType = initFactory.getSelfType(tree);
+            } else {
+                return super.getAnnotatedTypeBefore(expr, tree);
+            }
+
+            if (initFactory.isInitializedForFrame(receiverType, declaringClass)) {
+                AnnotatedTypeMirror declared = getAnnotatedType(fa.getField());
+                AnnotatedTypeMirror refined = super.getAnnotatedTypeBefore(expr, tree);
+                AnnotatedTypeMirror res = AnnotatedTypeMirror.createType(fa.getType(), this, false);
+                // If the expression is initialized, then by definition, it has at least its
+                // declared
+                // annotation.
+                // Assuming the correctness of the Nullness Checker's type refinement,
+                // it also has its refined annotation.
+                // We thus use the GLB of those two annotations.
+                res.addAnnotations(
+                        qualHierarchy.greatestLowerBounds(
+                                declared.getAnnotations(), refined.getAnnotations()));
+                return res;
+            }
         }
+
+        // Is there anything better we could do?
+        // Ideally, we would turn the expression string into a Tree or Element
+        // instead of a JavaExpression, so we could use
+        // atypeFactory.getAnnotatedType on the whole expression,
+        // but that doesn't seem possible.
+        return super.getAnnotatedTypeBefore(expr, tree);
     }
 
     @Override
