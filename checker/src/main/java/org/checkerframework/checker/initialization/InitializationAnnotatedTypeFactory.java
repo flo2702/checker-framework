@@ -49,20 +49,19 @@ import org.checkerframework.framework.type.typeannotator.TypeAnnotator;
 import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.framework.util.QualifierKind;
 import org.checkerframework.javacutil.AnnotationBuilder;
-import org.checkerframework.javacutil.AnnotationMirrorSet;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.TreePathUtil;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
 
+import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.StringJoiner;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -518,7 +517,6 @@ public class InitializationAnnotatedTypeFactory
      * @param <Factory> the parent factory type
      * @param factory the parent checker's factory
      * @param store the store in which to check the variable's type
-     * @param invariants the invariant annotations
      * @param var the variable to check
      * @return whether the specified variable is yet to be initialized
      */
@@ -528,12 +526,7 @@ public class InitializationAnnotatedTypeFactory
                     Transfer extends CFAbstractTransfer<Value, Store, Transfer>,
                     Analysis extends CFAbstractAnalysis<Value, Store, Transfer>,
                     Factory extends GenericAnnotatedTypeFactory<Value, Store, Transfer, Analysis>>
-            boolean isToBeInitialized(
-                    Factory factory,
-                    Store store,
-                    AnnotationMirrorSet invariants,
-                    VariableTree var) {
-        // filter out variables that have the invariant
+            boolean isToBeInitialized(Factory factory, Store store, VariableTree var) {
         ClassTree enclosingClass =
                 TreePathUtil.enclosingClass(analysis.getTypeFactory().getPath(var));
         Node receiver;
@@ -543,27 +536,27 @@ public class InitializationAnnotatedTypeFactory
             receiver =
                     new ImplicitThisNode(TreeUtils.elementFromDeclaration(enclosingClass).asType());
         }
-        Value value =
-                store.getValue(
-                        new FieldAccessNode(var, TreeUtils.elementFromDeclaration(var), receiver));
-        if (value != null) {
-            Set<AnnotationMirror> annotations = value.getAnnotations();
-            for (AnnotationMirror invariant : invariants) {
-                for (AnnotationMirror annotation : annotations) {
-                    if (factory.getQualifierHierarchy().isSubtype(annotation, invariant)) {
-                        return false;
-                    }
-                }
-            }
-        }
-
-        // filter out variables whose declaration doesn't have the invariant
+        FieldAccessNode fa =
+                new FieldAccessNode(var, TreeUtils.elementFromDeclaration(var), receiver);
+        Value value = store.getValue(fa);
         AnnotatedTypeMirror declType = factory.getAnnotatedTypeLhs(var);
-        Set<AnnotationMirror> annotations =
-                AnnotatedTypes.findEffectiveLowerBoundAnnotations(
-                        factory.getQualifierHierarchy(), declType);
-        if (Collections.disjoint(annotations, invariants)) {
-            return false;
+
+        for (Class<? extends Annotation> invariant :
+                factory.getSupportedInvariantTypeQualifiers()) {
+            // filter out variables that have the invariant
+            if (value != null
+                    && value.getAnnotations().stream()
+                            .anyMatch(
+                                    annotation -> factory.areSameByClass(annotation, invariant))) {
+                return false;
+            }
+            // filter out variables whose declaration doesn't have an invariant
+            if (!AnnotatedTypes.findEffectiveLowerBoundAnnotations(
+                            factory.getQualifierHierarchy(), declType)
+                    .stream()
+                    .anyMatch(annotation -> factory.areSameByClass(annotation, invariant))) {
+                return false;
+            }
         }
 
         return true;
@@ -573,10 +566,9 @@ public class InitializationAnnotatedTypeFactory
      * A set of fields of the current receiver which are possibly uninitialized in the store either
      * before or after (depending on {@link #storeBefore}) the tree {@link #tree}, leading to a
      * possible type error (specified by {@link #errorKey}, {@link #errorArgs}, and {@link
-     * #errorAtField}). The parent checker should use the method {@link
-     * #reportInitializationErrors(Tree, GenericAnnotatedTypeFactory, AnnotationMirrorSet,
-     * Predicate)} to filter out those fields that are actually initialized; if any uninitialized
-     * fields remain, that method reports the appropriate error.
+     * #errorAtField}). The parent checker should use the method {@link #reportInitializationErrors}
+     * to filter out those fields that are actually initialized; if any uninitialized fields remain,
+     * that method reports the appropriate error.
      */
     static class PossiblyUninitializedFieldsAtTree {
 
@@ -643,9 +635,8 @@ public class InitializationAnnotatedTypeFactory
 
     /**
      * Reports an appropriate initialization type error at the specified node if applicable. This
-     * method uses a default filter which considers every field which either has one of the
-     * invariant annotations or whose declaration has none of the invariant annotations to be
-     * initialized.
+     * method considers every field which either has one of the invariant annotations or whose
+     * declaration has none of the invariant annotations to be initialized.
      *
      * @param <Value> the parent factory's value type
      * @param <Store> the parent factory's store type
@@ -654,10 +645,8 @@ public class InitializationAnnotatedTypeFactory
      * @param <Factory> the parent factory type
      * @param tree the constructor or static initializer to check
      * @param factory the parent factory
-     * @param invariants the invariant annotations
      * @param additionalFilter a predicate which holds for fields that should be considered
      *     uninitialized
-     * @see #reportInitializationErrors(Tree, Predicate)
      */
     public <
                     Value extends CFAbstractValue<Value>,
@@ -666,10 +655,7 @@ public class InitializationAnnotatedTypeFactory
                     Analysis extends CFAbstractAnalysis<Value, Store, Transfer>,
                     Factory extends GenericAnnotatedTypeFactory<Value, Store, Transfer, Analysis>>
             void reportInitializationErrors(
-                    Tree tree,
-                    Factory factory,
-                    AnnotationMirrorSet invariants,
-                    Predicate<VariableTree> additionalFilter) {
+                    Tree tree, Factory factory, Predicate<VariableTree> additionalFilter) {
         PossiblyUninitializedFieldsAtTree uninitFields = this.possiblyUninitializedFields.get(tree);
 
         if (uninitFields == null || uninitFields.uninitializedFields.isEmpty()) {
@@ -681,31 +667,12 @@ public class InitializationAnnotatedTypeFactory
                         ? factory.getStoreBefore(tree)
                         : factory.getRegularExitStore(tree);
 
-        reportInitializationErrors(
-                tree,
-                additionalFilter.and(var -> isToBeInitialized(factory, store, invariants, var)));
-    }
-
-    /**
-     * Reports an appropriate initialization type error at the specified node if applicable.
-     *
-     * @param tree the node to check
-     * @param filter a predicate which holds for fields that should be considered uninitialized
-     * @see #reportInitializationErrors(Tree, GenericAnnotatedTypeFactory, AnnotationMirrorSet,
-     *     Predicate)
-     */
-    public void reportInitializationErrors(Tree tree, Predicate<VariableTree> filter) {
-        PossiblyUninitializedFieldsAtTree uninitFields = this.possiblyUninitializedFields.get(tree);
-
-        if (uninitFields == null || uninitFields.uninitializedFields.isEmpty()) {
-            return;
-        }
-
-        // Filter out fields which are initialized according to the filter parameter
-        // or if the respective error should be suppressed.
+        // Filter out fields which are initialized, which do not pass the additionalFilter
+        // or whose respective error should be suppressed.
         List<VariableTree> uninitializedFields =
                 uninitFields.uninitializedFields.stream()
-                        .filter(filter)
+                        .filter(var -> isToBeInitialized(factory, store, var))
+                        .filter(additionalFilter)
                         .filter(
                                 f ->
                                         !checker.shouldSuppressWarnings(

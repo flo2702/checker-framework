@@ -4,7 +4,6 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.checker.nullness.qual.PolyNull;
 import org.checkerframework.dataflow.cfg.visualize.CFGVisualizer;
-import org.checkerframework.dataflow.expression.FieldAccess;
 import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.flow.CFAbstractStore;
 
@@ -52,18 +51,6 @@ public class NullnessStore extends CFAbstractStore<NullnessValue, NullnessStore>
         lub.isPolyNullNonNull = isPolyNullNonNull && other.isPolyNullNonNull;
         lub.isPolyNullNull = isPolyNullNull && other.isPolyNullNull;
         return lub;
-    }
-
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Fields declared as {@link NonNull} are persistent.
-     */
-    @Override
-    protected boolean isPersistent(FieldAccess fieldAccess) {
-        return atypeFactory
-                .getAnnotatedTypeLhs(fieldAccess.getField())
-                .hasAnnotation(((NullnessAnnotatedTypeFactory) atypeFactory).NONNULL);
     }
 
     @Override

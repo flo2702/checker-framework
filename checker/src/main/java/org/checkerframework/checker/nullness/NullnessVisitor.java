@@ -307,7 +307,6 @@ public class NullnessVisitor extends BaseTypeVisitor<NullnessAnnotatedTypeFactor
         initFactory.reportInitializationErrors(
                 tree,
                 atypeFactory,
-                AnnotationMirrorSet.singleton(atypeFactory.NONNULL),
                 field -> !atypeFactory.getAnnotatedType(field).getKind().isPrimitive());
     }
 

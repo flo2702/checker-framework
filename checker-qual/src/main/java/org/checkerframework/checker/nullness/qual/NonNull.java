@@ -2,6 +2,7 @@ package org.checkerframework.checker.nullness.qual;
 
 import org.checkerframework.framework.qual.DefaultFor;
 import org.checkerframework.framework.qual.DefaultQualifierInHierarchy;
+import org.checkerframework.framework.qual.InvariantQualifier;
 import org.checkerframework.framework.qual.LiteralKind;
 import org.checkerframework.framework.qual.QualifierForLiterals;
 import org.checkerframework.framework.qual.SubtypeOf;
@@ -54,4 +55,5 @@ import java.lang.annotation.Target;
             TypeKind.SHORT,
             TypeKind.BYTE
         })
+@InvariantQualifier
 public @interface NonNull {}

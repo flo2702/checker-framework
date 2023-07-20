@@ -19,6 +19,7 @@ import org.checkerframework.dataflow.expression.LocalVariable;
 import org.checkerframework.dataflow.expression.MethodCall;
 import org.checkerframework.dataflow.expression.ThisReference;
 import org.checkerframework.dataflow.qual.SideEffectFree;
+import org.checkerframework.framework.qual.InvariantQualifier;
 import org.checkerframework.framework.qual.MonotonicQualifier;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
@@ -31,7 +32,6 @@ import org.plumelib.util.ToStringComparator;
 import org.plumelib.util.UniqueId;
 
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -83,21 +83,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      * Information collected about fields, using the internal representation {@link FieldAccess}.
      */
     protected Map<FieldAccess, V> fieldValues;
-
-    /**
-     * Fields in this set are never changed or removed by {@link
-     * #updateForMethodCall(MethodInvocationNode, CFAbstractValue)}.
-     *
-     * <p>E.g., this is useful for checkers that use an initialization type system and don't want
-     * monotonically initialized fields to become uninitialized by method calls.
-     *
-     * <p>Subcheckers should override {@link #isPersistent(FieldAccess)} instead of modifying this
-     * field directly.
-     *
-     * <p>We use this field as a cache instead of calling {@link #isPersistent(FieldAccess)} every
-     * time to avoid the performance issue in Issue1438.
-     */
-    protected Set<FieldAccess> persistentFields;
 
     /**
      * Returns information about fields. Clients should not side-effect the returned value, which is
@@ -172,9 +157,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
         localVariableValues = new HashMap<>();
         thisValue = null;
         fieldValues = new HashMap<>();
-        // As this is only used by checkers that have the Initialization Checker as subchecker,
-        // We use use null instead of an empty set to avoid the unnecessary allocation.
-        persistentFields = null;
         methodValues = new HashMap<>();
         arrayValues = new HashMap<>();
         classValues = new HashMap<>();
@@ -195,8 +177,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
         localVariableValues = new HashMap<>(other.localVariableValues);
         thisValue = other.thisValue;
         fieldValues = new HashMap<>(other.fieldValues);
-        persistentFields =
-                other.persistentFields == null ? null : new HashSet<>(other.persistentFields);
         methodValues = new HashMap<>(other.methodValues);
         arrayValues = new HashMap<>(other.arrayValues);
         classValues = new HashMap<>(other.classValues);
@@ -324,12 +304,29 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
             FieldAccess fieldAccess = e.getKey();
             V otherVal = e.getValue();
 
-            // The field is unassignable or persistent.
-            if (fieldAccess.isUnassignableByOtherCode()
-                    || (persistentFields != null && persistentFields.contains(fieldAccess))) {
+            // The field is unassignable.
+            if (fieldAccess.isUnassignableByOtherCode()) {
                 // Keep information.
                 newFieldValues.put(fieldAccess, otherVal);
                 continue;
+            }
+
+            // The field has an invariant annotation.
+            if (!atypeFactory.getSupportedInvariantTypeQualifiers().isEmpty()) {
+                Set<AnnotationMirror> fieldAnnotations =
+                        atypeFactory
+                                .getAnnotationWithMetaAnnotation(
+                                        fieldAccess.getField(), InvariantQualifier.class)
+                                .stream()
+                                .map(p -> p.first)
+                                .collect(Collectors.toSet());
+                V newOtherVal = getPersistentValue(otherVal, fieldAnnotations, atypeFactory);
+                if (newOtherVal != null) {
+                    // Keep information for all hierarchies where we had an
+                    // invariant annotation.
+                    newFieldValues.put(fieldAccess, newOtherVal);
+                    continue;
+                }
             }
 
             // The field has a monotonic annotation.
@@ -351,7 +348,7 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                                                     atypeFactory.getElementUtils(), name);
                                         })
                                 .collect(Collectors.toSet());
-                V newOtherVal = getMonotonicValue(otherVal, fieldAnnotations, atypeFactory);
+                V newOtherVal = getPersistentValue(otherVal, fieldAnnotations, atypeFactory);
                 if (newOtherVal != null) {
                     // Keep information for all hierarchies where we had a
                     // monotonic annotation.
@@ -364,26 +361,28 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
     }
 
     /**
-     * Computes the value of a field whose declaration has a monotonic annotation.
+     * Computes the value of a field whose declaration has a monotonic or invariant annotation.
      *
      * @param value the field's current value
-     * @param monotonicAnnotations the monotonic annotations on the field's declaration
+     * @param persistentAnnotations the monotonic or invariant annotations on the field's
+     *     declaration
      * @param factory the type factory to use
      * @return the value of the field
      */
-    private V getMonotonicValue(
-            V value, Set<AnnotationMirror> monotonicAnnotations, AnnotatedTypeFactory factory) {
+    private V getPersistentValue(
+            V value, Set<AnnotationMirror> persistentAnnotations, AnnotatedTypeFactory factory) {
         V result = null;
-        for (AnnotationMirror monotonicAnnotation : monotonicAnnotations) {
+        for (AnnotationMirror persistentAnnotation : persistentAnnotations) {
             // Make sure the target annotation is present.
             AnnotationMirror actual =
                     factory.getQualifierHierarchy()
-                            .findAnnotationInHierarchy(value.getAnnotations(), monotonicAnnotation);
+                            .findAnnotationInHierarchy(
+                                    value.getAnnotations(), persistentAnnotation);
             if (actual != null
-                    && factory.getQualifierHierarchy().isSubtype(actual, monotonicAnnotation)) {
+                    && factory.getQualifierHierarchy().isSubtype(actual, persistentAnnotation)) {
                 result =
                         analysis.createSingleAnnotationValue(
-                                        monotonicAnnotation, value.getUnderlyingType())
+                                        persistentAnnotation, value.getUnderlyingType())
                                 .mostSpecific(result, null);
             }
         }
@@ -667,12 +666,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                     fieldValues.put(fieldAcc, newValue);
                 }
             }
-            if (isPersistent(fieldAcc)) {
-                if (persistentFields == null) {
-                    persistentFields = new HashSet<>();
-                }
-                persistentFields.add(fieldAcc);
-            }
         } else if (expr instanceof MethodCall) {
             MethodCall method = (MethodCall) expr;
             // Don't store any information if concurrent semantics are enabled.
@@ -942,12 +935,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                     || isMonotonicUpdate(fieldAccess, val)
                     || fieldAccess.isUnassignableByOtherCode()) {
                 fieldValues.put(fieldAccess, val);
-                if (isPersistent(fieldAccess)) {
-                    if (persistentFields == null) {
-                        persistentFields = new HashSet<>();
-                    }
-                    persistentFields.add(fieldAccess);
-                }
             }
         }
     }
@@ -1242,10 +1229,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
             }
         }
 
-        if (other.persistentFields != null) {
-            newStore.persistentFields = new HashSet<>();
-        }
-
         for (Map.Entry<FieldAccess, V> e : other.fieldValues.entrySet()) {
             // information about fields that are only part of one store, but not the other are
             // discarded, as one store implicitly contains 'top' for that field.
@@ -1256,12 +1239,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                 V mergedVal = upperBoundOfValues(otherVal, thisVal, shouldWiden);
                 if (mergedVal != null) {
                     newStore.fieldValues.put(el, mergedVal);
-                    // Since persistency should only depend on the fieldAccess itself,
-                    // not on the store, we don't need a potentially expensive call
-                    // to isPersistent here; we can just look in the cache.
-                    if (other.persistentFields != null && other.persistentFields.contains(el)) {
-                        newStore.persistentFields.add(el);
-                    }
                 }
             }
         }
