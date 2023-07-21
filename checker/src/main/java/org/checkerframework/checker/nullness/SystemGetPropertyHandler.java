@@ -32,7 +32,7 @@ public class SystemGetPropertyHandler {
     private final ProcessingEnvironment env;
 
     /** The factory for constructing and looking up types. */
-    private final NullnessAnnotatedTypeFactory factory;
+    private final NonNullAnnotatedTypeFactory factory;
 
     /** The System.getProperty(String) method. */
     private final ExecutableElement systemGetProperty;
@@ -97,7 +97,7 @@ public class SystemGetPropertyHandler {
      */
     public SystemGetPropertyHandler(
             ProcessingEnvironment env,
-            NullnessAnnotatedTypeFactory factory,
+            NonNullAnnotatedTypeFactory factory,
             boolean permitClearProperty) {
         this.env = env;
         this.factory = factory;
@@ -119,7 +119,7 @@ public class SystemGetPropertyHandler {
         }
         if (TreeUtils.isMethodInvocation(tree, systemGetProperty, env)
                 || TreeUtils.isMethodInvocation(tree, systemSetProperty, env)) {
-            String literal = NullnessVisitor.literalFirstArgument(tree);
+            String literal = NonNullVisitor.literalFirstArgument(tree);
             if (literal != null && predefinedSystemProperties.contains(literal)) {
                 AnnotatedTypeMirror type = method.getReturnType();
                 type.replaceAnnotation(factory.NONNULL);

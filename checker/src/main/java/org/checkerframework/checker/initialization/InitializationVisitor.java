@@ -14,22 +14,30 @@ import com.sun.source.tree.TypeCastTree;
 import com.sun.source.tree.VariableTree;
 
 import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
-import org.checkerframework.checker.initialization.InitializationAnnotatedTypeFactory.PossiblyUninitializedFieldsAtTree;
 import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.initialization.qual.UnderInitialization;
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
 import org.checkerframework.checker.nullness.NullnessChecker;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
+import org.checkerframework.dataflow.cfg.node.ClassNameNode;
+import org.checkerframework.dataflow.cfg.node.FieldAccessNode;
+import org.checkerframework.dataflow.cfg.node.ImplicitThisNode;
+import org.checkerframework.dataflow.cfg.node.Node;
 import org.checkerframework.framework.flow.CFAbstractAnalysis.FieldInitialValue;
+import org.checkerframework.framework.flow.CFAbstractStore;
+import org.checkerframework.framework.flow.CFAbstractValue;
 import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
+import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
+import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.framework.util.AnnotationFormatter;
 import org.checkerframework.javacutil.AnnotationMirrorSet;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.ElementUtils;
+import org.checkerframework.javacutil.TreePathUtil;
 import org.checkerframework.javacutil.TreeUtils;
 import org.plumelib.util.ArraysPlume;
 
@@ -39,6 +47,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.StringJoiner;
 
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ExecutableElement;
@@ -353,15 +362,18 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
                 atypeFactory.getUninitializedFields(
                         store, getCurrentPath(), false, Collections.emptyList());
         uninitializedFields.removeAll(initializedFields);
-        atypeFactory.possiblyUninitializedFields.put(
-                commonAssignmentTree,
-                new PossiblyUninitializedFieldsAtTree(
-                        commonAssignmentTree,
-                        uninitializedFields,
-                        true,
-                        errorKey,
-                        ArraysPlume.concatenate(extraArgs, valueTypeString, varTypeString),
-                        false));
+        filterInitializedFields(commonAssignmentTree, uninitializedFields, true);
+
+        if (!uninitializedFields.isEmpty()) {
+            StringJoiner fieldsString = new StringJoiner(", ");
+            for (VariableTree f : uninitializedFields) {
+                fieldsString.add(f.getName());
+            }
+            checker.reportError(
+                    commonAssignmentTree,
+                    errorKey,
+                    ArraysPlume.concatenate(extraArgs, valueTypeString, varTypeString));
+        }
     }
 
     @Override
@@ -398,15 +410,18 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
                         Collections.emptyList());
         uninitializedFields.removeAll(initializedFields);
 
-        atypeFactory.possiblyUninitializedFields.put(
-                node,
-                new PossiblyUninitializedFieldsAtTree(
-                        node,
-                        uninitializedFields,
-                        true,
-                        "method.invocation.invalid",
-                        new Object[] {found.toString(), expected.toString()},
-                        false));
+        filterInitializedFields(node, uninitializedFields, true);
+
+        if (!uninitializedFields.isEmpty()) {
+            StringJoiner fieldsString = new StringJoiner(", ");
+            for (VariableTree f : uninitializedFields) {
+                fieldsString.add(f.getName());
+            }
+            checker.reportError(
+                    node,
+                    "method.invocation.invalid",
+                    new Object[] {found.toString(), expected.toString()});
+        }
     }
 
     /**
@@ -480,9 +495,100 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
                                 ? "initialization.field.uninitialized"
                                 : "initialization.fields.uninitialized");
 
-        atypeFactory.possiblyUninitializedFields.put(
-                tree,
-                new PossiblyUninitializedFieldsAtTree(
-                        tree, uninitializedFields, false, errorMsg, null, errorAtField));
+        // Remove fields which are initialized according to subchecker
+        filterInitializedFields(tree, uninitializedFields, false);
+
+        // Remove fields with a relevant @SuppressWarnings annotation
+        uninitializedFields.removeIf(
+                f -> checker.shouldSuppressWarnings(TreeUtils.elementFromDeclaration(f), errorMsg));
+
+        if (!uninitializedFields.isEmpty()) {
+            if (errorAtField) {
+                // Issue each error at the relevant field
+                for (VariableTree f : uninitializedFields) {
+                    checker.reportError(f, errorMsg, f.getName());
+                }
+            } else {
+                // Issue all the errors at the relevant constructor
+                StringJoiner fieldsString = new StringJoiner(", ");
+                for (VariableTree f : uninitializedFields) {
+                    fieldsString.add(f.getName());
+                }
+                checker.reportError(tree, errorMsg, fieldsString);
+            }
+        }
+    }
+
+    protected void filterInitializedFields(
+            Tree tree, List<VariableTree> uninitializedFields, boolean storeBefore) {
+        if (uninitializedFields == null || uninitializedFields.isEmpty()) {
+            return;
+        }
+
+        GenericAnnotatedTypeFactory<?, ?, ?, ?> factory =
+                checker.getTypeFactoryOfSubchecker(InitializationChecker.SUBCHECKER_CLASS);
+
+        CFAbstractStore<?, ?> store =
+                storeBefore ? factory.getStoreBefore(tree) : factory.getRegularExitStore(tree);
+
+        // Remove primitives
+        if (!InitializationChecker.CHECK_PRIMITIVES) {
+            uninitializedFields.removeIf(
+                    var -> atypeFactory.getAnnotatedType(var).getKind().isPrimitive());
+        }
+
+        // Filter out fields which are initialized according to subchecker
+        uninitializedFields.removeIf(var -> !isToBeInitialized(factory, store, var));
+    }
+
+    /**
+     * Determines whether the specified variable is yet to be initialized.
+     *
+     * <p>Returns {@code false} iff the variable need not be initialized. This holds for variables
+     * which are already initialized, i.e. have an invariant annotation, in the given store as well
+     * as variables whose declaration has no invariant annotation.
+     *
+     * @param factory the parent checker's factory
+     * @param store the store in which to check the variable's type
+     * @param var the variable to check
+     * @return whether the specified variable is yet to be initialized
+     */
+    private boolean isToBeInitialized(
+            GenericAnnotatedTypeFactory<?, ?, ?, ?> factory,
+            CFAbstractStore<?, ?> store,
+            VariableTree var) {
+        ClassTree enclosingClass = TreePathUtil.enclosingClass(atypeFactory.getPath(var));
+        Node receiver;
+        if (ElementUtils.isStatic(TreeUtils.elementFromDeclaration(var))) {
+            receiver = new ClassNameNode(enclosingClass);
+        } else {
+            receiver =
+                    new ImplicitThisNode(TreeUtils.elementFromDeclaration(enclosingClass).asType());
+        }
+        FieldAccessNode fa =
+                new FieldAccessNode(var, TreeUtils.elementFromDeclaration(var), receiver);
+        CFAbstractValue<?> value = store.getValue(fa);
+        AnnotatedTypeMirror declType = factory.getAnnotatedTypeLhs(var);
+
+        boolean result = true;
+
+        for (Class<? extends Annotation> invariant :
+                factory.getSupportedInvariantTypeQualifiers()) {
+            boolean hasInvariantInStore =
+                    value != null
+                            && value.getAnnotations().stream()
+                                    .anyMatch(
+                                            annotation ->
+                                                    factory.areSameByClass(annotation, invariant));
+            boolean hasInvariantAtDeclaration =
+                    AnnotatedTypes.findEffectiveLowerBoundAnnotations(
+                                    factory.getQualifierHierarchy(), declType)
+                            .stream()
+                            .anyMatch(annotation -> factory.areSameByClass(annotation, invariant));
+
+            result &= !hasInvariantInStore && hasInvariantAtDeclaration;
+        }
+
+        return result;
     }
 }

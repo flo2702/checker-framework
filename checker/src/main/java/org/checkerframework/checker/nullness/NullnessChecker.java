@@ -3,11 +3,9 @@ package org.checkerframework.checker.nullness;
 import org.checkerframework.checker.initialization.InitializationChecker;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.common.basetype.BaseTypeChecker;
-import org.checkerframework.common.basetype.BaseTypeVisitor;
 import org.checkerframework.framework.qual.StubFiles;
 import org.checkerframework.framework.source.SupportedLintOptions;
 
-import java.util.NavigableSet;
 import java.util.Set;
 
 import javax.annotation.processing.SupportedOptions;
@@ -88,24 +86,9 @@ public class NullnessChecker extends BaseTypeChecker {
         }
         if (!hasOptionNoSubcheckers("assumeInitialized")) {
             checkers.add(InitializationChecker.class);
+        } else {
+            checkers.add(NonNullSubchecker.class);
         }
         return checkers;
-    }
-
-    @Override
-    public NullnessAnnotatedTypeFactory getTypeFactory() {
-        return (NullnessAnnotatedTypeFactory) super.getTypeFactory();
-    }
-
-    @Override
-    public NavigableSet<String> getSuppressWarningsPrefixes() {
-        NavigableSet<String> result = super.getSuppressWarningsPrefixes();
-        result.add("nullness");
-        return result;
-    }
-
-    @Override
-    protected BaseTypeVisitor<?> createSourceVisitor() {
-        return new NullnessVisitor(this);
     }
 }

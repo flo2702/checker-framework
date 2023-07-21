@@ -60,8 +60,8 @@ import javax.lang.model.util.Elements;
  *       known to be either).
  * </ol>
  */
-public class NullnessTransfer
-        extends CFAbstractTransfer<NullnessValue, NullnessStore, NullnessTransfer> {
+public class NonNullTransfer
+        extends CFAbstractTransfer<NonNullValue, NonNullStore, NonNullTransfer> {
 
     /** The @{@link NonNull} annotation. */
     protected final AnnotationMirror NONNULL;
@@ -81,7 +81,7 @@ public class NullnessTransfer
     protected final AnnotatedDeclaredType MAP_TYPE;
 
     /** The type factory for the nullness analysis that was passed to the constructor. */
-    protected final NullnessAnnotatedTypeFactory nullnessTypeFactory;
+    protected final NonNullAnnotatedTypeFactory nullnessTypeFactory;
 
     /**
      * The type factory for the map key analysis, or null if the Map Key Checker should not be run.
@@ -103,9 +103,9 @@ public class NullnessTransfer
      *
      * @param analysis nullness analysis
      */
-    public NullnessTransfer(NullnessAnalysis analysis) {
+    public NonNullTransfer(NonNullAnalysis analysis) {
         super(analysis);
-        this.nullnessTypeFactory = (NullnessAnnotatedTypeFactory) analysis.getTypeFactory();
+        this.nullnessTypeFactory = (NonNullAnnotatedTypeFactory) analysis.getTypeFactory();
         Elements elements = nullnessTypeFactory.getElementUtils();
         BaseTypeChecker checker = nullnessTypeFactory.getChecker();
         assumeKeyFor = checker.hasOption("assumeKeyFor");
@@ -132,6 +132,7 @@ public class NullnessTransfer
         nonNullAssumptionAfterInvocation =
                 !analysis.getTypeFactory()
                         .getChecker()
+                        .getUltimateParentChecker()
                         .getBooleanOption("conservativeArgumentNullnessAfterInvocation", false);
     }
 
@@ -142,13 +143,13 @@ public class NullnessTransfer
      * @param store the store to update
      * @param node the node that should be non-null
      */
-    protected void makeNonNull(NullnessStore store, Node node) {
+    protected void makeNonNull(NonNullStore store, Node node) {
         JavaExpression internalRepr = JavaExpression.fromNode(node);
         store.insertValue(internalRepr, NONNULL);
     }
 
     /** Sets a given {@link Node} {@code node} to non-null in the given {@link TransferResult}. */
-    protected void makeNonNull(TransferResult<NullnessValue, NullnessStore> result, Node node) {
+    protected void makeNonNull(TransferResult<NonNullValue, NonNullStore> result, Node node) {
         if (result.containsTwoStores()) {
             makeNonNull(result.getThenStore(), node);
             makeNonNull(result.getElseStore(), node);
@@ -158,17 +159,16 @@ public class NullnessTransfer
     }
 
     /** Refine the given result to @NonNull. */
-    protected void refineToNonNull(TransferResult<NullnessValue, NullnessStore> result) {
-        NullnessValue oldResultValue = result.getResultValue();
-        NullnessValue refinedResultValue =
+    protected void refineToNonNull(TransferResult<NonNullValue, NonNullStore> result) {
+        NonNullValue oldResultValue = result.getResultValue();
+        NonNullValue refinedResultValue =
                 analysis.createSingleAnnotationValue(NONNULL, oldResultValue.getUnderlyingType());
-        NullnessValue newResultValue = refinedResultValue.mostSpecific(oldResultValue, null);
+        NonNullValue newResultValue = refinedResultValue.mostSpecific(oldResultValue, null);
         result.setResultValue(newResultValue);
     }
 
     @Override
-    protected @Nullable NullnessValue finishValue(
-            @Nullable NullnessValue value, NullnessStore store) {
+    protected @Nullable NonNullValue finishValue(@Nullable NonNullValue value, NonNullStore store) {
         value = super.finishValue(value, store);
         if (value != null) {
             value.isPolyNullNonNull = store.isPolyNullNonNull();
@@ -178,8 +178,8 @@ public class NullnessTransfer
     }
 
     @Override
-    protected @Nullable NullnessValue finishValue(
-            @Nullable NullnessValue value, NullnessStore thenStore, NullnessStore elseStore) {
+    protected @Nullable NonNullValue finishValue(
+            @Nullable NonNullValue value, NonNullStore thenStore, NonNullStore elseStore) {
         value = super.finishValue(value, thenStore, elseStore);
         if (value != null) {
             value.isPolyNullNonNull =
@@ -197,19 +197,19 @@ public class NullnessTransfer
      * description).
      */
     @Override
-    protected TransferResult<NullnessValue, NullnessStore> strengthenAnnotationOfEqualTo(
-            TransferResult<NullnessValue, NullnessStore> res,
+    protected TransferResult<NonNullValue, NonNullStore> strengthenAnnotationOfEqualTo(
+            TransferResult<NonNullValue, NonNullStore> res,
             Node firstNode,
             Node secondNode,
-            NullnessValue firstValue,
-            NullnessValue secondValue,
+            NonNullValue firstValue,
+            NonNullValue secondValue,
             boolean notEqualTo) {
         res =
                 super.strengthenAnnotationOfEqualTo(
                         res, firstNode, secondNode, firstValue, secondValue, notEqualTo);
         if (firstNode instanceof NullLiteralNode) {
-            NullnessStore thenStore = res.getThenStore();
-            NullnessStore elseStore = res.getElseStore();
+            NonNullStore thenStore = res.getThenStore();
+            NonNullStore elseStore = res.getElseStore();
 
             List<Node> secondParts = splitAssignments(secondNode);
             for (Node secondPart : secondParts) {
@@ -262,7 +262,7 @@ public class NullnessTransfer
      * @param s a store
      * @return true if every formal parameter declared as @PolyNull is non-null
      */
-    private boolean polyNullIsNonNull(ExecutableElement method, NullnessStore s) {
+    private boolean polyNullIsNonNull(ExecutableElement method, NonNullStore s) {
         // No need to check the receiver, which is always non-null.
         for (VariableElement var : method.getParameters()) {
             AnnotatedTypeMirror varType = nullnessTypeFactory.fromElement(var);
@@ -272,7 +272,7 @@ public class NullnessTransfer
             }
 
             if (varType.hasAnnotation(POLYNULL)) {
-                NullnessValue v = s.getValue(new LocalVariable(var));
+                NonNullValue v = s.getValue(new LocalVariable(var));
                 if (!AnnotationUtils.containsSameByName(v.getAnnotations(), NONNULL)) {
                     return false;
                 }
@@ -321,27 +321,27 @@ public class NullnessTransfer
     }
 
     @Override
-    public TransferResult<NullnessValue, NullnessStore> visitArrayAccess(
-            ArrayAccessNode n, TransferInput<NullnessValue, NullnessStore> p) {
-        TransferResult<NullnessValue, NullnessStore> result = super.visitArrayAccess(n, p);
+    public TransferResult<NonNullValue, NonNullStore> visitArrayAccess(
+            ArrayAccessNode n, TransferInput<NonNullValue, NonNullStore> p) {
+        TransferResult<NonNullValue, NonNullStore> result = super.visitArrayAccess(n, p);
         makeNonNull(result, n.getArray());
         return result;
     }
 
     @Override
-    public TransferResult<NullnessValue, NullnessStore> visitInstanceOf(
-            InstanceOfNode n, TransferInput<NullnessValue, NullnessStore> p) {
-        TransferResult<NullnessValue, NullnessStore> result = super.visitInstanceOf(n, p);
-        NullnessStore thenStore = result.getThenStore();
-        NullnessStore elseStore = result.getElseStore();
+    public TransferResult<NonNullValue, NonNullStore> visitInstanceOf(
+            InstanceOfNode n, TransferInput<NonNullValue, NonNullStore> p) {
+        TransferResult<NonNullValue, NonNullStore> result = super.visitInstanceOf(n, p);
+        NonNullStore thenStore = result.getThenStore();
+        NonNullStore elseStore = result.getElseStore();
         makeNonNull(thenStore, n.getOperand());
         return new ConditionalTransferResult<>(result.getResultValue(), thenStore, elseStore);
     }
 
     @Override
-    public TransferResult<NullnessValue, NullnessStore> visitMethodAccess(
-            MethodAccessNode n, TransferInput<NullnessValue, NullnessStore> p) {
-        TransferResult<NullnessValue, NullnessStore> result = super.visitMethodAccess(n, p);
+    public TransferResult<NonNullValue, NonNullStore> visitMethodAccess(
+            MethodAccessNode n, TransferInput<NonNullValue, NonNullStore> p) {
+        TransferResult<NonNullValue, NonNullStore> result = super.visitMethodAccess(n, p);
         // In contrast to the conditional makeNonNull in visitMethodInvocation, this
         // makeNonNull is unconditional, as the receiver is definitely non-null after the access.
         makeNonNull(result, n.getReceiver());
@@ -349,17 +349,17 @@ public class NullnessTransfer
     }
 
     @Override
-    public TransferResult<NullnessValue, NullnessStore> visitFieldAccess(
-            FieldAccessNode n, TransferInput<NullnessValue, NullnessStore> p) {
-        TransferResult<NullnessValue, NullnessStore> result = super.visitFieldAccess(n, p);
+    public TransferResult<NonNullValue, NonNullStore> visitFieldAccess(
+            FieldAccessNode n, TransferInput<NonNullValue, NonNullStore> p) {
+        TransferResult<NonNullValue, NonNullStore> result = super.visitFieldAccess(n, p);
         makeNonNull(result, n.getReceiver());
         return result;
     }
 
     @Override
-    public TransferResult<NullnessValue, NullnessStore> visitThrow(
-            ThrowNode n, TransferInput<NullnessValue, NullnessStore> p) {
-        TransferResult<NullnessValue, NullnessStore> result = super.visitThrow(n, p);
+    public TransferResult<NonNullValue, NonNullStore> visitThrow(
+            ThrowNode n, TransferInput<NonNullValue, NonNullStore> p) {
+        TransferResult<NonNullValue, NonNullStore> result = super.visitThrow(n, p);
         makeNonNull(result, n.getExpression());
         return result;
     }
@@ -383,9 +383,9 @@ public class NullnessTransfer
      * </ul>
      */
     @Override
-    public TransferResult<NullnessValue, NullnessStore> visitMethodInvocation(
-            MethodInvocationNode n, TransferInput<NullnessValue, NullnessStore> in) {
-        TransferResult<NullnessValue, NullnessStore> result = super.visitMethodInvocation(n, in);
+    public TransferResult<NonNullValue, NonNullStore> visitMethodInvocation(
+            MethodInvocationNode n, TransferInput<NonNullValue, NonNullStore> in) {
+        TransferResult<NonNullValue, NonNullStore> result = super.visitMethodInvocation(n, in);
 
         MethodInvocationTree tree = n.getTree();
         ExecutableElement method = TreeUtils.elementFromUse(tree);
@@ -457,9 +457,9 @@ public class NullnessTransfer
     }
 
     @Override
-    public TransferResult<NullnessValue, NullnessStore> visitReturn(
-            ReturnNode n, TransferInput<NullnessValue, NullnessStore> in) {
-        TransferResult<NullnessValue, NullnessStore> result = super.visitReturn(n, in);
+    public TransferResult<NonNullValue, NonNullStore> visitReturn(
+            ReturnNode n, TransferInput<NonNullValue, NonNullStore> in) {
+        TransferResult<NonNullValue, NonNullStore> result = super.visitReturn(n, in);
 
         if (result.getResultValue() == null) {
             // Make sure there is a value for return statements, to record (at this return
@@ -475,10 +475,10 @@ public class NullnessTransfer
      *
      * @return a dummy abstract value
      */
-    private NullnessValue createDummyValue() {
+    private NonNullValue createDummyValue() {
         TypeMirror dummy = analysis.getEnv().getTypeUtils().getPrimitiveType(TypeKind.BOOLEAN);
         AnnotationMirrorSet annos = new AnnotationMirrorSet();
         annos.addAll(nullnessTypeFactory.getQualifierHierarchy().getBottomAnnotations());
-        return new NullnessValue(analysis, annos, dummy);
+        return new NonNullValue(analysis, annos, dummy);
     }
 }

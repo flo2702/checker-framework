@@ -3,7 +3,6 @@ package org.checkerframework.checker.initialization;
 import com.sun.source.tree.BinaryTree;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.ExpressionTree;
-import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.LiteralTree;
 import com.sun.source.tree.MemberSelectTree;
 import com.sun.source.tree.MethodTree;
@@ -16,68 +15,37 @@ import com.sun.source.util.TreePath;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
 
-import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
-import org.checkerframework.checker.initialization.qual.FBCBottom;
-import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.initialization.qual.NotOnlyInitialized;
-import org.checkerframework.checker.initialization.qual.UnderInitialization;
-import org.checkerframework.checker.initialization.qual.UnknownInitialization;
 import org.checkerframework.common.basetype.BaseTypeChecker;
-import org.checkerframework.dataflow.cfg.node.ClassNameNode;
-import org.checkerframework.dataflow.cfg.node.FieldAccessNode;
-import org.checkerframework.dataflow.cfg.node.ImplicitThisNode;
-import org.checkerframework.dataflow.cfg.node.Node;
 import org.checkerframework.framework.flow.CFAbstractAnalysis;
-import org.checkerframework.framework.flow.CFAbstractStore;
-import org.checkerframework.framework.flow.CFAbstractTransfer;
-import org.checkerframework.framework.flow.CFAbstractValue;
 import org.checkerframework.framework.flow.CFValue;
-import org.checkerframework.framework.qual.Unused;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedArrayType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
-import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
-import org.checkerframework.framework.type.MostlyNoElementQualifierHierarchy;
-import org.checkerframework.framework.type.QualifierHierarchy;
 import org.checkerframework.framework.type.treeannotator.ListTreeAnnotator;
 import org.checkerframework.framework.type.treeannotator.LiteralTreeAnnotator;
 import org.checkerframework.framework.type.treeannotator.PropagationTreeAnnotator;
 import org.checkerframework.framework.type.treeannotator.TreeAnnotator;
 import org.checkerframework.framework.type.typeannotator.ListTypeAnnotator;
 import org.checkerframework.framework.type.typeannotator.TypeAnnotator;
-import org.checkerframework.framework.util.AnnotatedTypes;
-import org.checkerframework.framework.util.QualifierKind;
-import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.TreePathUtil;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
 
-import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.StringJoiner;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
-import javax.lang.model.element.Name;
-import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.Types;
 
 /**
  * The annotated type factory for the freedom-before-commitment type system. When using the
@@ -85,43 +53,8 @@ import javax.lang.model.util.Types;
  * hooks into it properly. See {@link InitializationChecker} for further information.
  */
 public class InitializationAnnotatedTypeFactory
-        extends GenericAnnotatedTypeFactory<
+        extends InitializationParentAnnotatedTypeFactory<
                 CFValue, InitializationStore, InitializationTransfer, InitializationAnalysis> {
-
-    /** {@link UnknownInitialization}. */
-    protected final AnnotationMirror UNKNOWN_INITIALIZATION;
-
-    /** {@link Initialized}. */
-    protected final AnnotationMirror INITIALIZED;
-
-    /** {@link UnderInitialization} or null. */
-    protected final AnnotationMirror UNDER_INITALIZATION;
-
-    /** {@link NotOnlyInitialized} or null. */
-    protected final AnnotationMirror NOT_ONLY_INITIALIZED;
-
-    /** {@link FBCBottom}. */
-    protected final AnnotationMirror FBCBOTTOM;
-
-    /** The java.lang.Object type. */
-    protected final TypeMirror objectTypeMirror;
-
-    /** The Unused.when field/element. */
-    protected final ExecutableElement unusedWhenElement;
-
-    /** The UnderInitialization.value field/element. */
-    protected final ExecutableElement underInitializationValueElement;
-
-    /** The UnknownInitialization.value field/element. */
-    protected final ExecutableElement unknownInitializationValueElement;
-
-    /**
-     * Possibly uninitialized fields found by the visitor.
-     *
-     * @see PossiblyUninitializedFieldsAtTree
-     */
-    protected final Map<Tree, PossiblyUninitializedFieldsAtTree> possiblyUninitializedFields =
-            new HashMap<>();
 
     /**
      * Create a new InitializationAnnotatedTypeFactory.
@@ -129,212 +62,13 @@ public class InitializationAnnotatedTypeFactory
      * @param checker the checker to which the new type factory belongs
      */
     public InitializationAnnotatedTypeFactory(BaseTypeChecker checker) {
-        super(checker, true);
-
-        UNKNOWN_INITIALIZATION = AnnotationBuilder.fromClass(elements, UnknownInitialization.class);
-        INITIALIZED = AnnotationBuilder.fromClass(elements, Initialized.class);
-        UNDER_INITALIZATION = AnnotationBuilder.fromClass(elements, UnderInitialization.class);
-        NOT_ONLY_INITIALIZED = AnnotationBuilder.fromClass(elements, NotOnlyInitialized.class);
-        FBCBOTTOM = AnnotationBuilder.fromClass(elements, FBCBottom.class);
-
-        objectTypeMirror =
-                processingEnv.getElementUtils().getTypeElement("java.lang.Object").asType();
-        unusedWhenElement = TreeUtils.getMethod(Unused.class, "when", 0, processingEnv);
-        underInitializationValueElement =
-                TreeUtils.getMethod(UnderInitialization.class, "value", 0, processingEnv);
-        unknownInitializationValueElement =
-                TreeUtils.getMethod(UnknownInitialization.class, "value", 0, processingEnv);
-
+        super(checker);
         postInit();
     }
 
     @Override
     public InitializationChecker getChecker() {
         return (InitializationChecker) super.getChecker();
-    }
-
-    /**
-     * Creates a {@link UnderInitialization} annotation with the given type as its type frame
-     * argument.
-     *
-     * @param typeFrame the type down to which some value has been initialized
-     * @return an {@link UnderInitialization} annotation with the given argument
-     */
-    public AnnotationMirror createUnderInitializationAnnotation(TypeMirror typeFrame) {
-        assert typeFrame != null;
-        AnnotationBuilder builder = new AnnotationBuilder(processingEnv, UnderInitialization.class);
-        builder.setValue("value", typeFrame);
-        return builder.build();
-    }
-
-    /**
-     * Creates a {@link UnderInitialization} annotation with the given type frame.
-     *
-     * @param typeFrame the type down to which some value has been initialized
-     * @return an {@link UnderInitialization} annotation with the given argument
-     */
-    public AnnotationMirror createUnderInitializationAnnotation(Class<?> typeFrame) {
-        assert typeFrame != null;
-        AnnotationBuilder builder = new AnnotationBuilder(processingEnv, UnderInitialization.class);
-        builder.setValue("value", typeFrame);
-        return builder.build();
-    }
-
-    /**
-     * Creates a {@link UnknownInitialization} annotation with a given type frame.
-     *
-     * @param typeFrame the type down to which some value has been initialized
-     * @return an {@link UnknownInitialization} annotation with the given argument
-     */
-    public AnnotationMirror createUnknownInitializationAnnotation(Class<?> typeFrame) {
-        assert typeFrame != null;
-        AnnotationBuilder builder =
-                new AnnotationBuilder(processingEnv, UnknownInitialization.class);
-        builder.setValue("value", typeFrame);
-        return builder.build();
-    }
-
-    /**
-     * Creates an {@link UnknownInitialization} annotation with a given type frame.
-     *
-     * @param typeFrame the type down to which some value has been initialized
-     * @return an {@link UnknownInitialization} annotation with the given argument
-     */
-    public AnnotationMirror createUnknownInitializationAnnotation(TypeMirror typeFrame) {
-        assert typeFrame != null;
-        AnnotationBuilder builder =
-                new AnnotationBuilder(processingEnv, UnknownInitialization.class);
-        builder.setValue("value", typeFrame);
-        return builder.build();
-    }
-
-    /**
-     * Returns the type frame (that is, the argument) of a given initialization annotation.
-     *
-     * @param annotation a {@link UnderInitialization} or {@link UnknownInitialization} annotation
-     * @return the annotation's argument
-     */
-    public TypeMirror getTypeFrameFromAnnotation(AnnotationMirror annotation) {
-        if (AnnotationUtils.areSameByName(
-                annotation,
-                "org.checkerframework.checker.initialization.qual.UnderInitialization")) {
-            return AnnotationUtils.getElementValue(
-                    annotation,
-                    underInitializationValueElement,
-                    TypeMirror.class,
-                    objectTypeMirror);
-        } else {
-            return AnnotationUtils.getElementValue(
-                    annotation,
-                    unknownInitializationValueElement,
-                    TypeMirror.class,
-                    objectTypeMirror);
-        }
-    }
-
-    /**
-     * Is {@code anno} the {@link UnderInitialization} annotation (with any type frame)?
-     *
-     * @param anno the annotation to check
-     * @return true if {@code anno} is {@link UnderInitialization}
-     */
-    public boolean isUnderInitialization(AnnotationMirror anno) {
-        return areSameByClass(anno, UnderInitialization.class);
-    }
-
-    /**
-     * Is {@code anno} the {@link UnknownInitialization} annotation (with any type frame)?
-     *
-     * @param anno the annotation to check
-     * @return true if {@code anno} is {@link UnknownInitialization}
-     */
-    public boolean isUnknownInitialization(AnnotationMirror anno) {
-        return areSameByClass(anno, UnknownInitialization.class);
-    }
-
-    /**
-     * Is {@code anno} the bottom annotation?
-     *
-     * @param anno the annotation to check
-     * @return true if {@code anno} is {@link FBCBottom}
-     */
-    public boolean isFbcBottom(AnnotationMirror anno) {
-        return AnnotationUtils.areSame(anno, FBCBOTTOM);
-    }
-
-    /**
-     * Is {@code anno} the {@link Initialized} annotation?
-     *
-     * @param anno the annotation to check
-     * @return true if {@code anno} is {@link Initialized}
-     */
-    public boolean isInitialized(AnnotationMirror anno) {
-        return AnnotationUtils.areSame(anno, INITIALIZED);
-    }
-
-    /**
-     * Does {@code anno} have the annotation {@link UnderInitialization} (with any type frame)?
-     *
-     * @param anno the annotation to check
-     * @return true if {@code anno} has {@link UnderInitialization}
-     */
-    public boolean isUnderInitialization(AnnotatedTypeMirror anno) {
-        return anno.hasEffectiveAnnotation(UnderInitialization.class);
-    }
-
-    /**
-     * Does {@code anno} have the annotation {@link UnknownInitialization} (with any type frame)?
-     *
-     * @param anno the annotation to check
-     * @return true if {@code anno} has {@link UnknownInitialization}
-     */
-    public boolean isUnknownInitialization(AnnotatedTypeMirror anno) {
-        return anno.hasEffectiveAnnotation(UnknownInitialization.class);
-    }
-
-    /**
-     * Does {@code anno} have the bottom annotation?
-     *
-     * @param anno the annotation to check
-     * @return true if {@code anno} has {@link FBCBottom}
-     */
-    public boolean isFbcBottom(AnnotatedTypeMirror anno) {
-        return anno.hasEffectiveAnnotation(FBCBottom.class);
-    }
-
-    /**
-     * Does {@code anno} have the annotation {@link Initialized}?
-     *
-     * @param anno the annotation to check
-     * @return true if {@code anno} has {@link Initialized}
-     */
-    public boolean isInitialized(AnnotatedTypeMirror anno) {
-        return anno.hasEffectiveAnnotation(Initialized.class);
-    }
-
-    /**
-     * Are all fields initialized-only?
-     *
-     * @param classTree the class to query
-     * @return true if all fields are initialized-only
-     */
-    protected boolean areAllFieldsInitializedOnly(ClassTree classTree) {
-        for (Tree member : classTree.getMembers()) {
-            if (member.getKind() != Tree.Kind.VARIABLE) {
-                continue;
-            }
-            VariableTree var = (VariableTree) member;
-            VariableElement varElt = TreeUtils.elementFromDeclaration(var);
-            // var is not initialized-only
-            if (getDeclAnnotation(varElt, NotOnlyInitialized.class) != null) {
-                // var is not static -- need a check of initializer blocks,
-                // not of constructor which is where this is used
-                if (!varElt.getModifiers().contains(Modifier.STATIC)) {
-                    return false;
-                }
-            }
-        }
-        return true;
     }
 
     @Override
@@ -349,430 +83,6 @@ public class InitializationAnnotatedTypeFactory
             computeFieldAccessInitializationType(
                     type, declaredFieldAnnotations, owner, fieldAnnotations);
         }
-    }
-
-    @Override
-    public AnnotatedDeclaredType getSelfType(Tree tree) {
-        AnnotatedDeclaredType selfType = super.getSelfType(tree);
-
-        TreePath path = getPath(tree);
-        AnnotatedDeclaredType enclosing = selfType;
-        while (path != null && enclosing != null) {
-            TreePath topLevelMemberPath = findTopLevelClassMemberForTree(path);
-            if (topLevelMemberPath != null && topLevelMemberPath.getLeaf() != null) {
-                Tree topLevelMember = topLevelMemberPath.getLeaf();
-                if (topLevelMember.getKind() != Tree.Kind.METHOD
-                        || TreeUtils.isConstructor((MethodTree) topLevelMember)) {
-                    setSelfTypeInInitializationCode(tree, enclosing, topLevelMemberPath);
-                }
-                path = topLevelMemberPath.getParentPath();
-                enclosing = enclosing.getEnclosingType();
-            } else {
-                break;
-            }
-        }
-
-        return selfType;
-    }
-
-    /**
-     * In the first enclosing class, find the path to the top-level member that contains {@code
-     * path}.
-     *
-     * @param path the path whose leaf is the target
-     * @return path to a top-level member containing the leaf of {@code path}
-     */
-    @SuppressWarnings("interning:not.interned") // AST node comparison
-    private TreePath findTopLevelClassMemberForTree(TreePath path) {
-        if (TreeUtils.isClassTree(path.getLeaf())) {
-            path = path.getParentPath();
-            if (path == null) {
-                return null;
-            }
-        }
-        ClassTree enclosingClass = TreePathUtil.enclosingClass(path);
-        if (enclosingClass != null) {
-            List<? extends Tree> classMembers = enclosingClass.getMembers();
-            TreePath searchPath = path;
-            while (searchPath.getParentPath() != null
-                    && searchPath.getParentPath().getLeaf() != enclosingClass) {
-                searchPath = searchPath.getParentPath();
-                if (classMembers.contains(searchPath.getLeaf())) {
-                    return searchPath;
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Side-effects argument {@code selfType} to make it @Initialized or @UnderInitialization,
-     * depending on whether all fields have been set.
-     *
-     * @param tree a tree
-     * @param selfType the type to side-effect
-     * @param path a path
-     */
-    protected void setSelfTypeInInitializationCode(
-            Tree tree, AnnotatedDeclaredType selfType, TreePath path) {
-        ClassTree enclosingClass = TreePathUtil.enclosingClass(path);
-        Type classType = ((JCTree) enclosingClass).type;
-        AnnotationMirror annotation = null;
-
-        // If all fields are initialized-only, and they are all initialized,
-        // then:
-        //  - if the class is final, this is @Initialized
-        //  - otherwise, this is @UnderInitialization(CurrentClass) as
-        //    there might still be subclasses that need initialization.
-        if (areAllFieldsInitializedOnly(enclosingClass)) {
-            InitializationStore store = getStoreBefore(tree);
-            if (store != null
-                    && getUninitializedFields(store, path, false, Collections.emptyList())
-                            .isEmpty()) {
-                if (classType.isFinal()) {
-                    annotation = INITIALIZED;
-                } else {
-                    annotation = createUnderInitializationAnnotation(classType);
-                }
-            }
-        }
-
-        if (annotation == null) {
-            annotation = getUnderInitializationAnnotationOfSuperType(classType);
-        }
-        selfType.replaceAnnotation(annotation);
-    }
-
-    /**
-     * Returns an {@link UnderInitialization} annotation that has the superclass of {@code type} as
-     * type frame.
-     *
-     * @param type a type
-     * @return true an {@link UnderInitialization} for the supertype of {@code type}
-     */
-    protected AnnotationMirror getUnderInitializationAnnotationOfSuperType(TypeMirror type) {
-        // Find supertype if possible.
-        AnnotationMirror annotation;
-        List<? extends TypeMirror> superTypes = types.directSupertypes(type);
-        TypeMirror superClass = null;
-        for (TypeMirror superType : superTypes) {
-            ElementKind kind = types.asElement(superType).getKind();
-            if (kind == ElementKind.CLASS) {
-                superClass = superType;
-                break;
-            }
-        }
-        // Create annotation.
-        if (superClass != null) {
-            annotation = createUnderInitializationAnnotation(superClass);
-        } else {
-            // Use Object as a valid super-class.
-            annotation = createUnderInitializationAnnotation(Object.class);
-        }
-        return annotation;
-    }
-
-    /**
-     * Returns the fields that are not yet initialized in a given store.
-     *
-     * @param store a store
-     * @param path the current path, used to determine the current class
-     * @param isStatic whether to report static fields or instance fields
-     * @param receiverAnnotations the annotations on the receiver
-     * @return the fields that are not yet initialized in a given store
-     */
-    public List<VariableTree> getUninitializedFields(
-            InitializationStore store,
-            TreePath path,
-            boolean isStatic,
-            Collection<? extends AnnotationMirror> receiverAnnotations) {
-        ClassTree currentClass = TreePathUtil.enclosingClass(path);
-        List<VariableTree> fields = InitializationChecker.getAllFields(currentClass);
-        List<VariableTree> uninit = new ArrayList<>();
-        for (VariableTree field : fields) {
-            if (isUnused(field, receiverAnnotations)) {
-                continue; // don't consider unused fields
-            }
-            VariableElement fieldElem = TreeUtils.elementFromDeclaration(field);
-            if (ElementUtils.isStatic(fieldElem) == isStatic) {
-                if (!store.isFieldInitialized(fieldElem)) {
-                    uninit.add(field);
-                }
-            }
-        }
-        return uninit;
-    }
-
-    /**
-     * Determines whether the specified variable is yet to be initialized.
-     *
-     * <p>Returns {@code false} iff the variable need not be initialized. This holds for variables
-     * which are already initialized, i.e. have an invariant annotation, in the given store as well
-     * as variables whose declaration has no invariant annotation.
-     *
-     * @param <Value> the parent factory's value type
-     * @param <Store> the parent factory's store type
-     * @param <Transfer> the parent factory's transfer type
-     * @param <Analysis> the parent factory's analysis type
-     * @param <Factory> the parent factory type
-     * @param factory the parent checker's factory
-     * @param store the store in which to check the variable's type
-     * @param var the variable to check
-     * @return whether the specified variable is yet to be initialized
-     */
-    private <
-                    Value extends CFAbstractValue<Value>,
-                    Store extends CFAbstractStore<Value, Store>,
-                    Transfer extends CFAbstractTransfer<Value, Store, Transfer>,
-                    Analysis extends CFAbstractAnalysis<Value, Store, Transfer>,
-                    Factory extends GenericAnnotatedTypeFactory<Value, Store, Transfer, Analysis>>
-            boolean isToBeInitialized(Factory factory, Store store, VariableTree var) {
-        ClassTree enclosingClass =
-                TreePathUtil.enclosingClass(analysis.getTypeFactory().getPath(var));
-        Node receiver;
-        if (ElementUtils.isStatic(TreeUtils.elementFromDeclaration(var))) {
-            receiver = new ClassNameNode(enclosingClass);
-        } else {
-            receiver =
-                    new ImplicitThisNode(TreeUtils.elementFromDeclaration(enclosingClass).asType());
-        }
-        FieldAccessNode fa =
-                new FieldAccessNode(var, TreeUtils.elementFromDeclaration(var), receiver);
-        Value value = store.getValue(fa);
-        AnnotatedTypeMirror declType = factory.getAnnotatedTypeLhs(var);
-
-        for (Class<? extends Annotation> invariant :
-                factory.getSupportedInvariantTypeQualifiers()) {
-            // filter out variables that have the invariant
-            if (value != null
-                    && value.getAnnotations().stream()
-                            .anyMatch(
-                                    annotation -> factory.areSameByClass(annotation, invariant))) {
-                return false;
-            }
-            // filter out variables whose declaration doesn't have an invariant
-            if (!AnnotatedTypes.findEffectiveLowerBoundAnnotations(
-                            factory.getQualifierHierarchy(), declType)
-                    .stream()
-                    .anyMatch(annotation -> factory.areSameByClass(annotation, invariant))) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    /**
-     * A set of fields of the current receiver which are possibly uninitialized in the store either
-     * before or after (depending on {@link #storeBefore}) the tree {@link #tree}, leading to a
-     * possible type error (specified by {@link #errorKey}, {@link #errorArgs}, and {@link
-     * #errorAtField}). The parent checker should use the method {@link #reportInitializationErrors}
-     * to filter out those fields that are actually initialized; if any uninitialized fields remain,
-     * that method reports the appropriate error.
-     */
-    static class PossiblyUninitializedFieldsAtTree {
-
-        /** The tree at which this possible error occurs. */
-        protected final Tree tree;
-
-        /** A list of possibly uninitialized fields. */
-        protected final List<VariableTree> uninitializedFields;
-
-        /**
-         * Whether field initialization should be checked in the store before or after {@link
-         * #tree}.
-         */
-        protected final boolean storeBefore;
-
-        /** The error message key. */
-        protected final @CompilerMessageKey String errorKey;
-
-        /**
-         * Additional arguments for the error report. If this is {@code null}, a string containing
-         * the names of all uninitialized fields is passed as a default argument.
-         */
-        protected final Object[] errorArgs;
-
-        /**
-         * Whether the error should be issued at every uninitialized field or at {@link #tree}.
-         * Errors are issued at the field declarations if the fields are static or if the
-         * constructor is the default constructor. Errors are issued at the constructor declaration
-         * if the fields are non-static and the constructor is non-default.
-         */
-        protected final boolean errorAtField;
-
-        /**
-         * Creates a new PossiblyUninitializedFieldsAtTree object.
-         *
-         * @param tree the tree at which this possible error occurs
-         * @param uninitializedFields a list of possibly uninitialized fields
-         * @param storeBefore whether field initialization should be checked in the store before or
-         *     after {@link #tree}
-         * @param errorKey the error message key
-         * @param errorArgs additional arguments for the error report. If this is {@code null}, a
-         *     string containing the names of all uninitialized fields is passed as a default
-         *     argument.
-         * @param errorAtField whether the error should be reported at every uninitialized field or
-         *     at {@link #tree}. If this is true, we report one error each at every uninitialized
-         *     field's location. If it's false, we report a single error containing each
-         *     uninitialized at {@link #tree}'s location.
-         */
-        protected PossiblyUninitializedFieldsAtTree(
-                Tree tree,
-                List<VariableTree> uninitializedFields,
-                boolean storeBefore,
-                @CompilerMessageKey String errorKey,
-                Object[] errorArgs,
-                boolean errorAtField) {
-            this.tree = tree;
-            this.uninitializedFields = uninitializedFields;
-            this.errorKey = errorKey;
-            this.errorArgs = errorArgs;
-            this.storeBefore = storeBefore;
-            this.errorAtField = errorAtField;
-        }
-    }
-
-    /**
-     * Reports an appropriate initialization type error at the specified node if applicable. This
-     * method considers every field which either has one of the invariant annotations or whose
-     * declaration has none of the invariant annotations to be initialized.
-     *
-     * @param <Value> the parent factory's value type
-     * @param <Store> the parent factory's store type
-     * @param <Transfer> the parent factory's transfer type
-     * @param <Analysis> the parent factory's analysis type
-     * @param <Factory> the parent factory type
-     * @param tree the constructor or static initializer to check
-     * @param factory the parent factory
-     * @param additionalFilter a predicate which holds for fields that should be considered
-     *     uninitialized
-     */
-    public <
-                    Value extends CFAbstractValue<Value>,
-                    Store extends CFAbstractStore<Value, Store>,
-                    Transfer extends CFAbstractTransfer<Value, Store, Transfer>,
-                    Analysis extends CFAbstractAnalysis<Value, Store, Transfer>,
-                    Factory extends GenericAnnotatedTypeFactory<Value, Store, Transfer, Analysis>>
-            void reportInitializationErrors(
-                    Tree tree, Factory factory, Predicate<VariableTree> additionalFilter) {
-        PossiblyUninitializedFieldsAtTree uninitFields = this.possiblyUninitializedFields.get(tree);
-
-        if (uninitFields == null || uninitFields.uninitializedFields.isEmpty()) {
-            return;
-        }
-
-        Store store =
-                uninitFields.storeBefore
-                        ? factory.getStoreBefore(tree)
-                        : factory.getRegularExitStore(tree);
-
-        // Filter out fields which are initialized, which do not pass the additionalFilter
-        // or whose respective error should be suppressed.
-        List<VariableTree> uninitializedFields =
-                uninitFields.uninitializedFields.stream()
-                        .filter(var -> isToBeInitialized(factory, store, var))
-                        .filter(additionalFilter)
-                        .filter(
-                                f ->
-                                        !checker.shouldSuppressWarnings(
-                                                TreeUtils.elementFromDeclaration(f),
-                                                uninitFields.errorKey))
-                        .collect(Collectors.toList());
-
-        if (!uninitializedFields.isEmpty()) {
-            if (uninitFields.errorAtField) {
-                // Issue each error at the relevant field
-                for (VariableTree f : uninitializedFields) {
-                    checker.reportError(f, uninitFields.errorKey, f.getName());
-                }
-            } else {
-                // Issue all the errors at the relevant node
-                Object[] errorArgs = uninitFields.errorArgs;
-                if (errorArgs == null) {
-                    // Pass names of uninitialized fields as default argument.
-                    StringJoiner fieldsString = new StringJoiner(", ");
-                    for (VariableTree f : uninitializedFields) {
-                        fieldsString.add(f.getName());
-                    }
-
-                    errorArgs = new Object[] {fieldsString};
-                }
-                checker.reportError(uninitFields.tree, uninitFields.errorKey, errorArgs);
-            }
-        }
-    }
-
-    /**
-     * Returns the fields that are initialized in the given store.
-     *
-     * @param store a store
-     * @param path the current path; used to compute the current class
-     * @return the fields that are initialized in the given store
-     */
-    public List<VariableTree> getInitializedFields(InitializationStore store, TreePath path) {
-        // TODO: Instead of passing the TreePath around, can we use
-        // getCurrentClassTree?
-        ClassTree currentClass = TreePathUtil.enclosingClass(path);
-        List<VariableTree> fields = InitializationChecker.getAllFields(currentClass);
-        List<VariableTree> initializedFields = new ArrayList<>();
-        for (VariableTree field : fields) {
-            VariableElement fieldElem = TreeUtils.elementFromDeclaration(field);
-            if (!ElementUtils.isStatic(fieldElem)) {
-                if (store.isFieldInitialized(fieldElem)) {
-                    initializedFields.add(field);
-                }
-            }
-        }
-        return initializedFields;
-    }
-
-    /** Returns whether the field {@code f} is unused, given the annotations on the receiver. */
-    private boolean isUnused(
-            VariableTree field, Collection<? extends AnnotationMirror> receiverAnnos) {
-        if (receiverAnnos.isEmpty()) {
-            return false;
-        }
-
-        AnnotationMirror unused =
-                getDeclAnnotation(TreeUtils.elementFromDeclaration(field), Unused.class);
-        if (unused == null) {
-            return false;
-        }
-
-        Name when = AnnotationUtils.getElementValueClassName(unused, unusedWhenElement);
-        for (AnnotationMirror anno : receiverAnnos) {
-            Name annoName = ((TypeElement) anno.getAnnotationType().asElement()).getQualifiedName();
-            if (annoName.contentEquals(when)) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Return true if the type is initialized with respect to the given frame -- that is, all of the
-     * fields of the frame are initialized.
-     *
-     * @param type the type whose initialization type qualifiers to check
-     * @param frame a class in {@code type}'s class hierarchy
-     * @return true if the type is initialized for the given frame
-     */
-    public boolean isInitializedForFrame(AnnotatedTypeMirror type, TypeMirror frame) {
-        if (isInitialized(type)) {
-            return true;
-        }
-
-        AnnotationMirror initializationAnno =
-                type.getEffectiveAnnotationInHierarchy(UNKNOWN_INITIALIZATION);
-        if (initializationAnno == null) {
-            initializationAnno = type.getEffectiveAnnotationInHierarchy(UNDER_INITALIZATION);
-        }
-
-        TypeMirror typeFrame = getTypeFrameFromAnnotation(initializationAnno);
-        Types types = processingEnv.getTypeUtils();
-        return types.isSubtype(typeFrame, types.erasure(frame));
     }
 
     /**
@@ -814,6 +124,125 @@ public class InitializationAnnotatedTypeFactory
         }
     }
 
+    /**
+     * Side-effects argument {@code selfType} to make it @Initialized or @UnderInitialization,
+     * depending on whether all fields have been set.
+     *
+     * @param tree a tree
+     * @param selfType the type to side-effect
+     * @param path a path
+     */
+    @Override
+    protected void setSelfTypeInInitializationCode(
+            Tree tree, AnnotatedDeclaredType selfType, TreePath path) {
+        ClassTree enclosingClass = TreePathUtil.enclosingClass(path);
+        Type classType = ((JCTree) enclosingClass).type;
+        AnnotationMirror annotation = null;
+
+        // If all fields are initialized-only, and they are all initialized,
+        // then:
+        //  - if the class is final, this is @Initialized
+        //  - otherwise, this is @UnderInitialization(CurrentClass) as
+        //    there might still be subclasses that need initialization.
+        if (areAllFieldsInitializedOnly(enclosingClass)) {
+            InitializationStore store = getStoreBefore(tree);
+            if (store != null
+                    && getUninitializedFields(store, path, false, Collections.emptyList())
+                            .isEmpty()) {
+                if (classType.isFinal()) {
+                    annotation = INITIALIZED;
+                } else {
+                    annotation = createUnderInitializationAnnotation(classType);
+                }
+            }
+        }
+
+        if (annotation == null) {
+            annotation = getUnderInitializationAnnotationOfSuperType(classType);
+        }
+        selfType.replaceAnnotation(annotation);
+    }
+
+    /**
+     * Are all fields initialized-only?
+     *
+     * @param classTree the class to query
+     * @return true if all fields are initialized-only
+     */
+    protected boolean areAllFieldsInitializedOnly(ClassTree classTree) {
+        for (Tree member : classTree.getMembers()) {
+            if (member.getKind() != Tree.Kind.VARIABLE) {
+                continue;
+            }
+            VariableTree var = (VariableTree) member;
+            VariableElement varElt = TreeUtils.elementFromDeclaration(var);
+            // var is not initialized-only
+            if (getDeclAnnotation(varElt, NotOnlyInitialized.class) != null) {
+                // var is not static -- need a check of initializer blocks,
+                // not of constructor which is where this is used
+                if (!varElt.getModifiers().contains(Modifier.STATIC)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Returns the fields that are not yet initialized in a given store.
+     *
+     * @param store a store
+     * @param path the current path, used to determine the current class
+     * @param isStatic whether to report static fields or instance fields
+     * @param receiverAnnotations the annotations on the receiver
+     * @return the fields that are not yet initialized in a given store
+     */
+    public List<VariableTree> getUninitializedFields(
+            InitializationStore store,
+            TreePath path,
+            boolean isStatic,
+            Collection<? extends AnnotationMirror> receiverAnnotations) {
+        ClassTree currentClass = TreePathUtil.enclosingClass(path);
+        List<VariableTree> fields = InitializationChecker.getAllFields(currentClass);
+        List<VariableTree> uninit = new ArrayList<>();
+        for (VariableTree field : fields) {
+            if (isUnused(field, receiverAnnotations)) {
+                continue; // don't consider unused fields
+            }
+            VariableElement fieldElem = TreeUtils.elementFromDeclaration(field);
+            if (ElementUtils.isStatic(fieldElem) == isStatic) {
+                if (!store.isFieldInitialized(fieldElem)) {
+                    uninit.add(field);
+                }
+            }
+        }
+        return uninit;
+    }
+
+    /**
+     * Returns the fields that are initialized in the given store.
+     *
+     * @param store a store
+     * @param path the current path; used to compute the current class
+     * @return the fields that are initialized in the given store
+     */
+    public List<VariableTree> getInitializedFields(InitializationStore store, TreePath path) {
+        // TODO: Instead of passing the TreePath around, can we use
+        // getCurrentClassTree?
+        ClassTree currentClass = TreePathUtil.enclosingClass(path);
+        List<VariableTree> fields = InitializationChecker.getAllFields(currentClass);
+        List<VariableTree> initializedFields = new ArrayList<>();
+        for (VariableTree field : fields) {
+            VariableElement fieldElem = TreeUtils.elementFromDeclaration(field);
+            if (!ElementUtils.isStatic(fieldElem)) {
+                if (store.isFieldInitialized(fieldElem)) {
+                    initializedFields.add(field);
+                }
+            }
+        }
+        return initializedFields;
+    }
+
     @Override
     public boolean isNotFullyInitializedReceiver(MethodTree methodTree) {
         if (super.isNotFullyInitializedReceiver(methodTree)) {
@@ -841,11 +270,6 @@ public class InitializationAnnotatedTypeFactory
     }
 
     @Override
-    protected QualifierHierarchy createQualifierHierarchy() {
-        return new InitializationQualifierHierarchy();
-    }
-
-    @Override
     protected TypeAnnotator createTypeAnnotator() {
         return new ListTypeAnnotator(
                 super.createTypeAnnotator(), new CommitmentTypeAnnotator(this));
@@ -859,16 +283,6 @@ public class InitializationAnnotatedTypeFactory
     @Override
     public boolean shouldWarnIfStubRedundantWithBytecode() {
         return false;
-    }
-
-    /**
-     * Returns {@code true}. Initialization cannot be undone, i.e., an @Initialized object always
-     * stays @Initialized, an @UnderInitialization(A) object always stays @UnderInitialization(A)
-     * (though it may additionally become @Initialized), etc.
-     */
-    @Override
-    public boolean isImmutable(TypeMirror type) {
-        return true;
     }
 
     @Override
@@ -909,114 +323,6 @@ public class InitializationAnnotatedTypeFactory
                         getUnderInitializationAnnotationOfSuperType(underlyingType));
             }
             return result;
-        }
-    }
-
-    /**
-     * This annotator should be added to {@link GenericAnnotatedTypeFactory#createTreeAnnotator} for
-     * this initialization checker's parent checker. It ensures that the fields of an uninitialized
-     * receiver have the top type in the parent checker's hierarchy.
-     */
-    public static class CommitmentFieldAccessTreeAnnotator extends TreeAnnotator {
-
-        /**
-         * Creates a new CommitmentFieldAccessTreeAnnotator.
-         *
-         * @param atypeFactory the type factory belonging to the init checker's parent
-         */
-        public CommitmentFieldAccessTreeAnnotator(
-                GenericAnnotatedTypeFactory<?, ?, ?, ?> atypeFactory) {
-            super(atypeFactory);
-        }
-
-        @Override
-        public Void visitIdentifier(IdentifierTree tree, AnnotatedTypeMirror p) {
-            super.visitIdentifier(tree, p);
-
-            // Only call computeFieldAccessType for actual field accesses, not for direct uses
-            // of this and super.
-            if (tree.getName().contentEquals("this") || tree.getName().contentEquals("super")) {
-                return null;
-            }
-
-            computeFieldAccessType(tree, p);
-            return null;
-        }
-
-        @Override
-        public Void visitMemberSelect(MemberSelectTree tree, AnnotatedTypeMirror p) {
-            super.visitMemberSelect(tree, p);
-            computeFieldAccessType(tree, p);
-            return null;
-        }
-
-        /**
-         * Adapts the type of a field access depending on the field's declared type and the
-         * receiver's initialization type.
-         *
-         * @param tree the field access
-         * @param type the field access's unadapted type
-         */
-        private void computeFieldAccessType(ExpressionTree tree, AnnotatedTypeMirror type) {
-            GenericAnnotatedTypeFactory<?, ?, ?, ?> factory =
-                    (GenericAnnotatedTypeFactory<?, ?, ?, ?>) atypeFactory;
-            InitializationAnnotatedTypeFactory initFactory =
-                    factory.getChecker().getTypeFactoryOfSubchecker(InitializationChecker.class);
-            Element element = TreeUtils.elementFromUse(tree);
-            AnnotatedTypeMirror owner = initFactory.getReceiverType(tree);
-
-            if (owner == null) {
-                return;
-            }
-
-            if (type instanceof AnnotatedExecutableType) {
-                return;
-            }
-
-            AnnotatedTypeMirror fieldAnnotations = factory.getAnnotatedType(element);
-
-            // not necessary if there is an explicit UnknownInitialization
-            // annotation on the field
-            if (AnnotationUtils.containsSameByName(
-                    fieldAnnotations.getAnnotations(), initFactory.UNKNOWN_INITIALIZATION)) {
-                return;
-            }
-            if (!initFactory.isUnknownInitialization(owner)
-                    && !initFactory.isUnderInitialization(owner)) {
-                return;
-            }
-
-            TypeMirror fieldDeclarationType = element.getEnclosingElement().asType();
-            boolean isOwnerInitialized =
-                    initFactory.isInitializedForFrame(owner, fieldDeclarationType);
-
-            Tree declaration = initFactory.declarationFromElement(TreeUtils.elementFromTree(tree));
-
-            // If the field has been initialized, don't clear annotations.
-            // This is ok even if the field was initialized with a non-invariant
-            // value because in that case, there must have been an error before.
-            // E.g.:
-            //     { f1 = f2;
-            //       f2 = f1; }
-            // Here, we will get an error for the first assignment, but we won't get another
-            // error for the second assignment.
-            // See the AssignmentDuringInitialization test case.
-            InitializationStore store = initFactory.getStoreBefore(tree);
-            boolean isFieldInitialized =
-                    store != null
-                            && TreeUtils.isSelfAccess(tree)
-                            && initFactory
-                                    .getInitializedFields(store, initFactory.getPath(tree))
-                                    .contains(declaration);
-            if (!isOwnerInitialized
-                    && !isFieldInitialized
-                    && !factory.isComputingAnnotatedTypeMirrorOfLHS()) {
-                // The receiver is not initialized for this frame and the type being computed is
-                // not a LHS.
-                // Replace all annotations with the top annotation for that hierarchy.
-                type.clearAnnotations();
-                type.addAnnotations(factory.getQualifierHierarchy().getTopAnnotations());
-            }
         }
     }
 
@@ -1108,145 +414,6 @@ public class InitializationAnnotatedTypeFactory
         @Override
         public Void visitUnary(UnaryTree tree, AnnotatedTypeMirror type) {
             return null;
-        }
-    }
-
-    /** The {@link QualifierHierarchy} for the initialization type system. */
-    protected class InitializationQualifierHierarchy extends MostlyNoElementQualifierHierarchy {
-
-        /** Qualifier kind for the @{@link UnknownInitialization} annotation. */
-        private final QualifierKind UNKNOWN_INIT;
-
-        /** Qualifier kind for the @{@link UnderInitialization} annotation. */
-        private final QualifierKind UNDER_INIT;
-
-        /** Create an InitializationQualifierHierarchy. */
-        protected InitializationQualifierHierarchy() {
-            super(InitializationAnnotatedTypeFactory.this.getSupportedTypeQualifiers(), elements);
-            UNKNOWN_INIT = getQualifierKind(UNKNOWN_INITIALIZATION);
-            UNDER_INIT = getQualifierKind(UNDER_INITALIZATION);
-        }
-
-        @Override
-        public boolean isSubtypeWithElements(
-                AnnotationMirror subAnno,
-                QualifierKind subKind,
-                AnnotationMirror superAnno,
-                QualifierKind superKind) {
-            if (!subKind.isSubtypeOf(superKind)) {
-                return false;
-            } else if ((subKind == UNDER_INIT && superKind == UNDER_INIT)
-                    || (subKind == UNDER_INIT && superKind == UNKNOWN_INIT)
-                    || (subKind == UNKNOWN_INIT && superKind == UNKNOWN_INIT)) {
-                // Thus, we only need to look at the type frame.
-                TypeMirror frame1 = getTypeFrameFromAnnotation(subAnno);
-                TypeMirror frame2 = getTypeFrameFromAnnotation(superAnno);
-                return types.isSubtype(frame1, frame2);
-            } else {
-                return true;
-            }
-        }
-
-        @Override
-        protected AnnotationMirror leastUpperBoundWithElements(
-                AnnotationMirror anno1,
-                QualifierKind qual1,
-                AnnotationMirror anno2,
-                QualifierKind qual2,
-                QualifierKind lubKind) {
-            // Handle the case where one is a subtype of the other.
-            if (isSubtypeWithElements(anno1, qual1, anno2, qual2)) {
-                return anno2;
-            } else if (isSubtypeWithElements(anno2, qual2, anno1, qual1)) {
-                return anno1;
-            }
-            boolean unknowninit1 = isUnknownInitialization(anno1);
-            boolean unknowninit2 = isUnknownInitialization(anno2);
-            boolean underinit1 = isUnderInitialization(anno1);
-            boolean underinit2 = isUnderInitialization(anno2);
-
-            // Handle @Initialized.
-            if (isInitialized(anno1)) {
-                assert underinit2;
-                return createUnknownInitializationAnnotation(getTypeFrameFromAnnotation(anno2));
-            } else if (isInitialized(anno2)) {
-                assert underinit1;
-                return createUnknownInitializationAnnotation(getTypeFrameFromAnnotation(anno1));
-            }
-
-            if (underinit1 && underinit2) {
-                return createUnderInitializationAnnotation(
-                        lubTypeFrame(
-                                getTypeFrameFromAnnotation(anno1),
-                                getTypeFrameFromAnnotation(anno2)));
-            }
-
-            assert (unknowninit1 || underinit1) && (unknowninit2 || underinit2);
-            return createUnknownInitializationAnnotation(
-                    lubTypeFrame(
-                            getTypeFrameFromAnnotation(anno1), getTypeFrameFromAnnotation(anno2)));
-        }
-
-        /**
-         * Returns the least upper bound of two Java basetypes (without annotations).
-         *
-         * @param a the first argument
-         * @param b the second argument
-         * @return the lub of the two arguments
-         */
-        protected TypeMirror lubTypeFrame(TypeMirror a, TypeMirror b) {
-            if (types.isSubtype(a, b)) {
-                return b;
-            } else if (types.isSubtype(b, a)) {
-                return a;
-            }
-
-            return TypesUtils.leastUpperBound(a, b, processingEnv);
-        }
-
-        @Override
-        protected AnnotationMirror greatestLowerBoundWithElements(
-                AnnotationMirror anno1,
-                QualifierKind qual1,
-                AnnotationMirror anno2,
-                QualifierKind qual2,
-                QualifierKind glbKind) {
-            // Handle the case where one is a subtype of the other.
-            if (isSubtypeWithElements(anno1, qual1, anno2, qual2)) {
-                return anno1;
-            } else if (isSubtypeWithElements(anno2, qual2, anno1, qual1)) {
-                return anno2;
-            }
-            boolean unknowninit1 = isUnknownInitialization(anno1);
-            boolean unknowninit2 = isUnknownInitialization(anno2);
-            boolean underinit1 = isUnderInitialization(anno1);
-            boolean underinit2 = isUnderInitialization(anno2);
-
-            // Handle @Initialized.
-            if (isInitialized(anno1)) {
-                assert underinit2;
-                return FBCBOTTOM;
-            } else if (isInitialized(anno2)) {
-                assert underinit1;
-                return FBCBOTTOM;
-            }
-
-            TypeMirror typeFrame =
-                    TypesUtils.greatestLowerBound(
-                            getTypeFrameFromAnnotation(anno1),
-                            getTypeFrameFromAnnotation(anno2),
-                            processingEnv);
-            if (typeFrame.getKind() == TypeKind.ERROR
-                    || typeFrame.getKind() == TypeKind.INTERSECTION) {
-                return FBCBOTTOM;
-            }
-
-            if (underinit1 && underinit2) {
-                return createUnderInitializationAnnotation(typeFrame);
-            }
-
-            assert (unknowninit1 || underinit1) && (unknowninit2 || underinit2);
-            return createUnderInitializationAnnotation(typeFrame);
         }
     }
 }
