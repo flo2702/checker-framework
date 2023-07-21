@@ -15,6 +15,14 @@ import javax.annotation.processing.SupportedOptions;
  * safe initialization. It uses freedom-before-commitment, augmented by type frames (which are
  * crucial to obtain acceptable precision), as its initialization type system.
  *
+ * <p>This checker actually does nothing itself. All work is done in the following subcheckers.
+ *
+ * <ol>
+ *   <li>the {@link KeyForSubchecker}
+ *   <li>the {@link InitializationChecker}
+ *   <li>the {@link NonNullSubchecker}
+ * </ol>
+ *
  * @checker_framework.manual #nullness-checker Nullness Checker
  */
 @SupportedLintOptions({

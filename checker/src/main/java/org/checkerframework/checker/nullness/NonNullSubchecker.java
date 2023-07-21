@@ -1,6 +1,7 @@
 package org.checkerframework.checker.nullness;
 
 import org.checkerframework.checker.initialization.InitializationFieldAccessChecker;
+import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
 
@@ -9,6 +10,10 @@ import java.util.Set;
 
 import javax.annotation.processing.SupportedOptions;
 
+/**
+ * The subchecker of the {@link NullnessChecker} which actually checks {@link NonNull} and related
+ * qualifiers.
+ */
 @SupportedOptions({"assumeInitialized"})
 public class NonNullSubchecker extends BaseTypeChecker {
 

@@ -7,10 +7,8 @@ import com.sun.source.tree.VariableTree;
 import org.checkerframework.checker.initialization.InitializationFieldAccessAnnotatedTypeFactory.CommitmentFieldAccessTreeAnnotator;
 import org.checkerframework.checker.nullness.NonNullAnnotatedTypeFactory;
 import org.checkerframework.checker.nullness.NonNullSubchecker;
-import org.checkerframework.checker.nullness.NullnessChecker;
-import org.checkerframework.checker.nullness.qual.EnsuresNonNull;
 import org.checkerframework.common.basetype.BaseTypeChecker;
-import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
+import org.checkerframework.framework.qual.InvariantQualifier;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -21,35 +19,29 @@ import java.util.Set;
 import javax.annotation.processing.SupportedOptions;
 
 /**
- * //TODO: update this Tracks whether a value is initialized (all its fields are set), and checks
- * that values are initialized before being used. Implements the freedom-before-commitment scheme
- * for initialization, augmented by type frames.
+ * Tracks whether a value is initialized (all its fields are set), and checks that values are
+ * initialized before being used. Implements the freedom-before-commitment scheme for
+ * initialization, augmented by type frames.
  *
- * <p>To use this type system, it does not suffice to simply add it as a subchecker. You must ensure
- * that your parent checker hooks into the Initialization Checker at the following points. You can
- * look at the {@link NullnessChecker} for an example.
- *
- * <p>First, you should add the {@link CommitmentFieldAccessTreeAnnotator} as a tree annotator. This
- * annotator gives possibly uninitialized fields the top type(s) of your hierarchy, ensuring that
- * all fields are initialized before being used.
- *
- * <p>Second, the checker uses a simple definite-assignment analysis to check whether a constructor
- * initializes every field. However, this is prone to false positives as it neither considers that
- * some fields (e.g., nullable fields) don't have to be initialized, nor can it take into account
- * contract annotations like {@link EnsuresNonNull}. Therefore, it does not report most type errors
- * when it runs, instead saving them for the parent checker to either discharge or report. The
- * parent checker's visitor should call ... for every node. This method goes through the list of
- * fields that are possibly uninitialized at the node's location and uses the parent checker's type
- * factory to filter out the above cases. If no uninitialized fields remain after the filtering, the
- * error is discharged. If some fields are still uninitialized, the error is reported.
- *
- * <p>Third, you should override the following methods in the parent checker's type factory to take
- * the initialization type information into account. You can look at {@link
- * NonNullAnnotatedTypeFactory} for examples.
+ * <p>Because there is a cyclic dependency between this type system and the target type system,
+ * using this type system is more complex than others. To use this type system, the target checker
+ * must:
  *
  * <ol>
- *   <li>{@link GenericAnnotatedTypeFactory#isNotFullyInitializedReceiver}
- *   <li>{@link GenericAnnotatedTypeFactory#getAnnotatedTypeBefore}
+ *   <li>Use this checker as its parent checker via {@link #SUBCHECKER_CLASS}. This is necessary
+ *       because this checker is dependent on the target checker to know which fields should be
+ *       checked for initialization, and when such a field is initialized: A field is checked for
+ *       initialization if its declared type has an {@link InvariantQualifier}. Such a field becomes
+ *       initialized when its refined type has that same invariant qualifier.
+ *   <li>Use the {@link InitializationFieldAccessChecker} as a subchecker and add its {@link
+ *       CommitmentFieldAccessTreeAnnotator} as a tree annotator. This is necessary to give possibly
+ *       uninitialized fields the top type of the target hierarchy, ensuring that all fields are
+ *       initialized before being used. This needs to be a separate checker because the target
+ *       checker cannot access any type information from its parent checker, as the parent checker
+ *       is only initialized after its children have finished.
+ *   <li>Override all necessary methods in the target checker's type factory to take the type
+ *       information from the InitializationFieldAccessChecker into account. You can look at {@link
+ *       NonNullAnnotatedTypeFactory} for examples.
  * </ol>
  *
  * @checker_framework.manual #initialization-checker Initialization Checker
