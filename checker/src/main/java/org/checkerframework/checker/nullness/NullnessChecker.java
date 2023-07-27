@@ -6,6 +6,8 @@ import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.framework.qual.StubFiles;
 import org.checkerframework.framework.source.SupportedLintOptions;
 
+import java.util.Collection;
+import java.util.NavigableSet;
 import java.util.Set;
 
 import javax.annotation.processing.SupportedOptions;
@@ -15,12 +17,13 @@ import javax.annotation.processing.SupportedOptions;
  * safe initialization. It uses freedom-before-commitment, augmented by type frames (which are
  * crucial to obtain acceptable precision), as its initialization type system.
  *
- * <p>This checker actually does nothing itself. All work is done in the following subcheckers.
+ * <p>This checker uses the {@link NullnessNoInitSubchecker} to check for nullness and extends the
+ * {@link InitializationChecker} to also check that all non-null fields are properly initialized.
  *
  * <ol>
  *   <li>the {@link KeyForSubchecker}
  *   <li>the {@link InitializationChecker}
- *   <li>the {@link NonNullSubchecker}
+ *   <li>the {@link NullnessNoInitSubchecker}
  * </ol>
  *
  * @checker_framework.manual #nullness-checker Nullness Checker
@@ -43,12 +46,11 @@ import javax.annotation.processing.SupportedOptions;
 })
 @SupportedOptions({
     "assumeKeyFor",
-    "assumeInitialized",
     "jspecifyNullMarkedAlias",
     "conservativeArgumentNullnessAfterInvocation"
 })
 @StubFiles({"junit-assertions.astub"})
-public class NullnessChecker extends BaseTypeChecker {
+public class NullnessChecker extends InitializationChecker {
 
     /** Should we be strict about initialization of {@link MonotonicNonNull} variables? */
     public static final String LINT_NOINITFORMONOTONICNONNULL = "noInitForMonotonicNonNull";
@@ -87,16 +89,35 @@ public class NullnessChecker extends BaseTypeChecker {
     public NullnessChecker() {}
 
     @Override
+    public NavigableSet<String> getSuppressWarningsPrefixes() {
+        NavigableSet<String> result = super.getSuppressWarningsPrefixes();
+        // "fbc" is for backward compatibility only; you should use
+        // "initialization" instead.
+        result.add("fbc");
+        return result;
+    }
+
+    @Override
+    public Collection<String> getSuppressWarningsPrefixesOfSubcheckers() {
+        return getSuppressWarningsPrefixes();
+    }
+
+    @Override
     protected Set<Class<? extends BaseTypeChecker>> getImmediateSubcheckerClasses() {
         Set<Class<? extends BaseTypeChecker>> checkers = super.getImmediateSubcheckerClasses();
         if (!hasOptionNoSubcheckers("assumeKeyFor")) {
             checkers.add(KeyForSubchecker.class);
         }
-        if (!hasOptionNoSubcheckers("assumeInitialized")) {
-            checkers.add(InitializationChecker.class);
-        } else {
-            checkers.add(NonNullSubchecker.class);
-        }
         return checkers;
+    }
+
+    @Override
+    public boolean checkPrimitives() {
+        return false;
+    }
+
+    @Override
+    public Class<? extends BaseTypeChecker> getTargetCheckerClass() {
+        return NullnessNoInitSubchecker.class;
     }
 }

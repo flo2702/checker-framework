@@ -10,8 +10,8 @@ import org.checkerframework.framework.util.DefaultAnnotationFormatter;
 import java.util.Set;
 
 /** A DefaultAnnotatedTypeFormatter that prints null literals without their annotations. */
-public class NonNullAnnotatedTypeFormatter extends DefaultAnnotatedTypeFormatter {
-    public NonNullAnnotatedTypeFormatter(
+public class NullnessNoInitAnnotatedTypeFormatter extends DefaultAnnotatedTypeFormatter {
+    public NullnessNoInitAnnotatedTypeFormatter(
             boolean printVerboseGenerics, boolean printInvisibleQualifiers) {
         super(
                 new NullnessFormattingVisitor(

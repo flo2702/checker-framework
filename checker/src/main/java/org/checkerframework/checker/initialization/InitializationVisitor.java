@@ -12,6 +12,7 @@ import com.sun.source.tree.NewClassTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.TypeCastTree;
 import com.sun.source.tree.VariableTree;
+import com.sun.source.util.TreePath;
 
 import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
 import org.checkerframework.checker.initialization.qual.Initialized;
@@ -86,6 +87,19 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
     public InitializationVisitor(BaseTypeChecker checker) {
         super(checker);
         initializedFields = new ArrayList<>();
+    }
+
+    @Override
+    protected InitializationAnnotatedTypeFactory createTypeFactory() {
+        return new InitializationAnnotatedTypeFactory(checker);
+    }
+
+    @Override
+    public void visit(TreePath path) {
+        // This visitor does nothing if init checking is turned off.
+        if (!checker.hasOption("assumeInitialized")) {
+            super.visit(path);
+        }
     }
 
     @Override
@@ -526,13 +540,14 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
         }
 
         GenericAnnotatedTypeFactory<?, ?, ?, ?> factory =
-                checker.getTypeFactoryOfSubchecker(InitializationChecker.SUBCHECKER_CLASS);
+                checker.getTypeFactoryOfSubchecker(
+                        ((InitializationChecker) checker).getTargetCheckerClass());
 
         CFAbstractStore<?, ?> store =
                 storeBefore ? factory.getStoreBefore(tree) : factory.getRegularExitStore(tree);
 
         // Remove primitives
-        if (!InitializationChecker.CHECK_PRIMITIVES) {
+        if (!((InitializationChecker) checker).checkPrimitives()) {
             uninitializedFields.removeIf(
                     var -> atypeFactory.getAnnotatedType(var).getKind().isPrimitive());
         }

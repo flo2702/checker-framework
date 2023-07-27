@@ -11,8 +11,9 @@ import javax.lang.model.type.TypeMirror;
  * The analysis class for the non-null type system (serves as factory for the transfer function,
  * stores and abstract values.
  */
-public class NonNullAnalysis
-        extends CFAbstractAnalysis<NonNullValue, NonNullStore, NonNullTransfer> {
+public class NullnessNoInitAnalysis
+        extends CFAbstractAnalysis<
+                NullnessNoInitValue, NullnessNoInitStore, NullnessNoInitTransfer> {
 
     /**
      * Creates a new {@code NullnessAnalysis}.
@@ -20,26 +21,27 @@ public class NonNullAnalysis
      * @param checker the checker
      * @param factory the factory
      */
-    public NonNullAnalysis(BaseTypeChecker checker, NonNullAnnotatedTypeFactory factory) {
+    public NullnessNoInitAnalysis(
+            BaseTypeChecker checker, NullnessNoInitAnnotatedTypeFactory factory) {
         super(checker, factory);
     }
 
     @Override
-    public NonNullStore createEmptyStore(boolean sequentialSemantics) {
-        return new NonNullStore(this, sequentialSemantics);
+    public NullnessNoInitStore createEmptyStore(boolean sequentialSemantics) {
+        return new NullnessNoInitStore(this, sequentialSemantics);
     }
 
     @Override
-    public NonNullStore createCopiedStore(NonNullStore s) {
-        return new NonNullStore(s);
+    public NullnessNoInitStore createCopiedStore(NullnessNoInitStore s) {
+        return new NullnessNoInitStore(s);
     }
 
     @Override
-    public NonNullValue createAbstractValue(
+    public NullnessNoInitValue createAbstractValue(
             AnnotationMirrorSet annotations, TypeMirror underlyingType) {
         if (!CFAbstractValue.validateSet(annotations, underlyingType, qualifierHierarchy)) {
             return null;
         }
-        return new NonNullValue(this, annotations, underlyingType);
+        return new NullnessNoInitValue(this, annotations, underlyingType);
     }
 }

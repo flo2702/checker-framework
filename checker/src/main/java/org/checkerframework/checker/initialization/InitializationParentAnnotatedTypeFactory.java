@@ -31,8 +31,10 @@ import org.checkerframework.javacutil.TreePathUtil;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
 
+import java.lang.annotation.Annotation;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ElementKind;
@@ -44,9 +46,13 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
 
 /**
- * The annotated type factory for the freedom-before-commitment type system. When using the
- * freedom-before-commitment type system as a subchecker, you must ensure that the parent checker
- * hooks into it properly. See {@link InitializationChecker} for further information.
+ * Superclass for {@link InitializationDeclarationAnnotatedTypeFactory} and {@link
+ * InitializationAnnotatedTypeFactory} to contain common functionality.
+ *
+ * @param <Value> the value type for this type factory
+ * @param <Store> the store type for this type factory
+ * @param <Transfer> the transfer function type for this type factory
+ * @param <Analysis> the analysis type for this type factory
  */
 public abstract class InitializationParentAnnotatedTypeFactory<
                 Value extends CFAbstractValue<Value>,
@@ -98,6 +104,15 @@ public abstract class InitializationParentAnnotatedTypeFactory<
                 TreeUtils.getMethod(UnderInitialization.class, "value", 0, processingEnv);
         unknownInitializationValueElement =
                 TreeUtils.getMethod(UnknownInitialization.class, "value", 0, processingEnv);
+    }
+
+    @Override
+    protected Set<Class<? extends Annotation>> createSupportedTypeQualifiers() {
+        return Set.of(
+                UnknownInitialization.class,
+                UnderInitialization.class,
+                Initialized.class,
+                FBCBottom.class);
     }
 
     /**

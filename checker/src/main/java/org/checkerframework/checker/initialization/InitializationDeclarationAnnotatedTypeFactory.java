@@ -4,10 +4,6 @@ import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.MemberSelectTree;
 
-import org.checkerframework.checker.initialization.qual.FBCBottom;
-import org.checkerframework.checker.initialization.qual.Initialized;
-import org.checkerframework.checker.initialization.qual.UnderInitialization;
-import org.checkerframework.checker.initialization.qual.UnknownInitialization;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.framework.flow.CFAnalysis;
 import org.checkerframework.framework.flow.CFStore;
@@ -20,40 +16,24 @@ import org.checkerframework.framework.type.treeannotator.TreeAnnotator;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.TreeUtils;
 
-import java.lang.annotation.Annotation;
-import java.util.Set;
-
 import javax.lang.model.element.Element;
 import javax.lang.model.type.TypeMirror;
 
-/**
- * The annotated type factory for the freedom-before-commitment type system. When using the
- * freedom-before-commitment type system as a subchecker, you must ensure that the parent checker
- * hooks into it properly. See {@link InitializationChecker} for further information.
- */
-public class InitializationFieldAccessAnnotatedTypeFactory
+/** The type factory for the {@link InitializationDeclarationChecker}. */
+public class InitializationDeclarationAnnotatedTypeFactory
         extends InitializationParentAnnotatedTypeFactory<CFValue, CFStore, CFTransfer, CFAnalysis> {
 
-    public InitializationFieldAccessAnnotatedTypeFactory(BaseTypeChecker checker) {
+    public InitializationDeclarationAnnotatedTypeFactory(BaseTypeChecker checker) {
         super(checker);
         postInit();
     }
 
-    @Override
-    protected Set<Class<? extends Annotation>> createSupportedTypeQualifiers() {
-        return Set.of(
-                UnknownInitialization.class,
-                UnderInitialization.class,
-                Initialized.class,
-                FBCBottom.class);
-    }
-
     /**
      * This annotator should be added to {@link GenericAnnotatedTypeFactory#createTreeAnnotator} for
-     * this Initialization Checker's subchecker. It ensures that the fields of an uninitialized
-     * receiver have the top type in the parent checker's hierarchy.
+     * the target checker. It ensures that the fields of an uninitialized receiver have the top type
+     * in the parent checker's hierarchy.
      *
-     * @see InitializationChecker#SUBCHECKER_CLASS
+     * @see InitializationChecker#getTargetCheckerClass()
      */
     public static class CommitmentFieldAccessTreeAnnotator extends TreeAnnotator {
 
@@ -98,9 +78,9 @@ public class InitializationFieldAccessAnnotatedTypeFactory
         private void computeFieldAccessType(ExpressionTree tree, AnnotatedTypeMirror type) {
             GenericAnnotatedTypeFactory<?, ?, ?, ?> factory =
                     (GenericAnnotatedTypeFactory<?, ?, ?, ?>) atypeFactory;
-            InitializationFieldAccessAnnotatedTypeFactory initFactory =
+            InitializationDeclarationAnnotatedTypeFactory initFactory =
                     factory.getChecker()
-                            .getTypeFactoryOfSubchecker(InitializationFieldAccessChecker.class);
+                            .getTypeFactoryOfSubchecker(InitializationDeclarationChecker.class);
             Element element = TreeUtils.elementFromUse(tree);
             AnnotatedTypeMirror owner = initFactory.getReceiverType(tree);
 

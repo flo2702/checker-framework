@@ -16,8 +16,8 @@ import com.sun.source.tree.TypeCastTree;
 import com.sun.source.tree.UnaryTree;
 import com.sun.source.tree.VariableTree;
 
-import org.checkerframework.checker.initialization.InitializationFieldAccessAnnotatedTypeFactory;
-import org.checkerframework.checker.initialization.InitializationFieldAccessChecker;
+import org.checkerframework.checker.initialization.InitializationDeclarationAnnotatedTypeFactory;
+import org.checkerframework.checker.initialization.InitializationDeclarationChecker;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -70,9 +70,12 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.type.TypeMirror;
 
 /** The annotated type factory for the nullness type-system. */
-public class NonNullAnnotatedTypeFactory
+public class NullnessNoInitAnnotatedTypeFactory
         extends GenericAnnotatedTypeFactory<
-                NonNullValue, NonNullStore, NonNullTransfer, NonNullAnalysis> {
+                NullnessNoInitValue,
+                NullnessNoInitStore,
+                NullnessNoInitTransfer,
+                NullnessNoInitAnalysis> {
 
     /** The @{@link NonNull} annotation. */
     protected final AnnotationMirror NONNULL = AnnotationBuilder.fromClass(elements, NonNull.class);
@@ -352,9 +355,9 @@ public class NonNullAnnotatedTypeFactory
     /**
      * Creates a NullnessAnnotatedTypeFactory.
      *
-     * @param checker the associated {@link NonNullSubchecker}
+     * @param checker the associated {@link NullnessNoInitSubchecker}
      */
-    public NonNullAnnotatedTypeFactory(BaseTypeChecker checker) {
+    public NullnessNoInitAnnotatedTypeFactory(BaseTypeChecker checker) {
         super(checker);
 
         Set<Class<? extends Annotation>> tempNullnessAnnos = new LinkedHashSet<>(4);
@@ -423,8 +426,8 @@ public class NonNullAnnotatedTypeFactory
     }
 
     @Override
-    public NonNullSubchecker getChecker() {
-        return (NonNullSubchecker) checker;
+    public NullnessNoInitSubchecker getChecker() {
+        return (NullnessNoInitSubchecker) checker;
     }
 
     @Override
@@ -454,7 +457,7 @@ public class NonNullAnnotatedTypeFactory
      */
     protected void replacePolyQualifier(AnnotatedTypeMirror lhsType, Tree context) {
         if (lhsType.hasAnnotation(PolyNull.class)) {
-            NonNullValue inferred = getInferredValueFor(context);
+            NullnessNoInitValue inferred = getInferredValueFor(context);
             if (inferred != null) {
                 if (inferred.isPolyNullNonNull) {
                     lhsType.replaceAnnotation(NONNULL);
@@ -466,14 +469,15 @@ public class NonNullAnnotatedTypeFactory
     }
 
     @Override
-    protected NonNullAnalysis createFlowAnalysis() {
-        return new NonNullAnalysis(checker, this);
+    protected NullnessNoInitAnalysis createFlowAnalysis() {
+        return new NullnessNoInitAnalysis(checker, this);
     }
 
     @Override
-    public NonNullTransfer createFlowTransferFunction(
-            CFAbstractAnalysis<NonNullValue, NonNullStore, NonNullTransfer> analysis) {
-        return new NonNullTransfer((NonNullAnalysis) analysis);
+    public NullnessNoInitTransfer createFlowTransferFunction(
+            CFAbstractAnalysis<NullnessNoInitValue, NullnessNoInitStore, NullnessNoInitTransfer>
+                    analysis) {
+        return new NullnessNoInitTransfer((NullnessNoInitAnalysis) analysis);
     }
 
     /**
@@ -484,7 +488,7 @@ public class NonNullAnnotatedTypeFactory
     @Override
     protected AnnotatedTypeFormatter createAnnotatedTypeFormatter() {
         boolean printVerboseGenerics = checker.hasOption("printVerboseGenerics");
-        return new NonNullAnnotatedTypeFormatter(
+        return new NullnessNoInitAnnotatedTypeFormatter(
                 printVerboseGenerics,
                 // -AprintVerboseGenerics implies -AprintAllQualifiers
                 printVerboseGenerics || checker.hasOption("printAllQualifiers"));
@@ -536,8 +540,8 @@ public class NonNullAnnotatedTypeFactory
 
     @Override
     public boolean isNotFullyInitializedReceiver(MethodTree methodDeclTree) {
-        InitializationFieldAccessAnnotatedTypeFactory initFactory =
-                getChecker().getTypeFactoryOfSubchecker(InitializationFieldAccessChecker.class);
+        InitializationDeclarationAnnotatedTypeFactory initFactory =
+                getChecker().getTypeFactoryOfSubchecker(InitializationDeclarationChecker.class);
         if (initFactory == null) {
             // init checker is deactivated.
             return super.isNotFullyInitializedReceiver(methodDeclTree);
@@ -547,8 +551,8 @@ public class NonNullAnnotatedTypeFactory
 
     @Override
     public AnnotatedTypeMirror getAnnotatedTypeBefore(JavaExpression expr, ExpressionTree tree) {
-        InitializationFieldAccessAnnotatedTypeFactory initFactory =
-                getChecker().getTypeFactoryOfSubchecker(InitializationFieldAccessChecker.class);
+        InitializationDeclarationAnnotatedTypeFactory initFactory =
+                getChecker().getTypeFactoryOfSubchecker(InitializationDeclarationChecker.class);
         if (initFactory == null) {
             // init checker is deactivated.
             return super.getAnnotatedTypeBefore(expr, tree);
@@ -625,7 +629,7 @@ public class NonNullAnnotatedTypeFactory
         annotators.add(new LiteralTreeAnnotator(this));
         if (!checker.hasOptionNoSubcheckers("assumeInitialized")) {
             annotators.add(
-                    new InitializationFieldAccessAnnotatedTypeFactory
+                    new InitializationDeclarationAnnotatedTypeFactory
                             .CommitmentFieldAccessTreeAnnotator(this));
         }
         return new ListTreeAnnotator(annotators);
@@ -646,7 +650,8 @@ public class NonNullAnnotatedTypeFactory
         @Override
         public Void visitTypeCast(TypeCastTree tree, AnnotatedTypeMirror type) {
             if (type.getKind().isPrimitive()) {
-                AnnotationMirror NONNULL = ((NonNullAnnotatedTypeFactory) atypeFactory).NONNULL;
+                AnnotationMirror NONNULL =
+                        ((NullnessNoInitAnnotatedTypeFactory) atypeFactory).NONNULL;
                 // If a @Nullable expression is cast to a primitive, then an unboxing.of.nullable
                 // error is issued.  Treat the cast as if it were annotated as @NonNull to avoid an
                 // "type.invalid.annotations.on.use" error.
@@ -791,7 +796,7 @@ public class NonNullAnnotatedTypeFactory
 
         /** Creates NullnessQualifierHierarchy. */
         public NullnessQualifierHierarchy() {
-            super(NonNullAnnotatedTypeFactory.this.getSupportedTypeQualifiers(), elements);
+            super(NullnessNoInitAnnotatedTypeFactory.this.getSupportedTypeQualifiers(), elements);
         }
     }
 

@@ -19,7 +19,7 @@ import javax.lang.model.type.TypeMirror;
  * Behaves just like {@link CFValue}, but additionally tracks whether at this point {@link PolyNull}
  * is known to be {@link NonNull} or {@link Nullable} (or not known to be either)
  */
-public class NonNullValue extends CFAbstractValue<NonNullValue> {
+public class NullnessNoInitValue extends CFAbstractValue<NullnessNoInitValue> {
 
     /** True if, at this point, {@link PolyNull} is known to be {@link NonNull}. */
     protected boolean isPolyNullNonNull;
@@ -34,16 +34,16 @@ public class NonNullValue extends CFAbstractValue<NonNullValue> {
      * @param annotations the annotations
      * @param underlyingType the underlying type
      */
-    public NonNullValue(
-            CFAbstractAnalysis<NonNullValue, ?, ?> analysis,
+    public NullnessNoInitValue(
+            CFAbstractAnalysis<NullnessNoInitValue, ?, ?> analysis,
             AnnotationMirrorSet annotations,
             TypeMirror underlyingType) {
         super(analysis, annotations, underlyingType);
     }
 
     @Override
-    public NonNullValue leastUpperBound(NonNullValue other) {
-        NonNullValue result = super.leastUpperBound(other);
+    public NullnessNoInitValue leastUpperBound(NullnessNoInitValue other) {
+        NullnessNoInitValue result = super.leastUpperBound(other);
 
         AnnotationMirror resultNullableAnno =
                 analysis.getTypeFactory().getAnnotationByClass(result.annotations, Nullable.class);
@@ -59,7 +59,7 @@ public class NonNullValue extends CFAbstractValue<NonNullValue> {
                             && this.containsNullableOrPolyNull())) {
                 result.annotations.remove(resultNullableAnno);
                 result.annotations.add(
-                        ((NonNullAnnotatedTypeFactory) analysis.getTypeFactory()).POLYNULL);
+                        ((NullnessNoInitAnnotatedTypeFactory) analysis.getTypeFactory()).POLYNULL);
             }
         }
         return result;

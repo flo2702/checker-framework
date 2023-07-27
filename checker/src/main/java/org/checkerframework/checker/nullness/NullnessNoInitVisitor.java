@@ -68,7 +68,7 @@ import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.type.TypeMirror;
 
 /** The visitor for the nullness type-system. */
-public class NonNullVisitor extends BaseTypeVisitor<NonNullAnnotatedTypeFactory> {
+public class NullnessNoInitVisitor extends BaseTypeVisitor<NullnessNoInitAnnotatedTypeFactory> {
     // Error message keys
     // private static final @CompilerMessageKey String ASSIGNMENT_TYPE_INCOMPATIBLE =
     // "assignment.type.incompatible";
@@ -129,7 +129,7 @@ public class NonNullVisitor extends BaseTypeVisitor<NonNullAnnotatedTypeFactory>
      *
      * @param checker the checker to which this visitor belongs
      */
-    public NonNullVisitor(BaseTypeChecker checker) {
+    public NullnessNoInitVisitor(BaseTypeChecker checker) {
         super(checker);
 
         NONNULL = atypeFactory.NONNULL;
@@ -153,8 +153,8 @@ public class NonNullVisitor extends BaseTypeVisitor<NonNullAnnotatedTypeFactory>
     }
 
     @Override
-    public NonNullAnnotatedTypeFactory createTypeFactory() {
-        return new NonNullAnnotatedTypeFactory(checker);
+    public NullnessNoInitAnnotatedTypeFactory createTypeFactory() {
+        return new NullnessNoInitAnnotatedTypeFactory(checker);
     }
 
     @Override

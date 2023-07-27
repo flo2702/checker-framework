@@ -11,7 +11,7 @@ import org.checkerframework.framework.flow.CFAbstractStore;
  * In addition to the base class behavior, tracks whether {@link PolyNull} is known to be {@link
  * NonNull} or {@link Nullable} (or not known to be either).
  */
-public class NonNullStore extends CFAbstractStore<NonNullValue, NonNullStore> {
+public class NullnessNoInitStore extends CFAbstractStore<NullnessNoInitValue, NullnessNoInitStore> {
 
     /** True if, at this point, {@link PolyNull} is known to be {@link NonNull}. */
     protected boolean isPolyNullNonNull;
@@ -26,8 +26,8 @@ public class NonNullStore extends CFAbstractStore<NonNullValue, NonNullStore> {
      * @param sequentialSemantics should the analysis use sequential Java semantics (i.e., assume
      *     that only one thread is running at all times)?
      */
-    public NonNullStore(
-            CFAbstractAnalysis<NonNullValue, NonNullStore, ?> analysis,
+    public NullnessNoInitStore(
+            CFAbstractAnalysis<NullnessNoInitValue, NullnessNoInitStore, ?> analysis,
             boolean sequentialSemantics) {
         super(analysis, sequentialSemantics);
         isPolyNullNonNull = false;
@@ -39,26 +39,26 @@ public class NonNullStore extends CFAbstractStore<NonNullValue, NonNullStore> {
      *
      * @param s a store to copy
      */
-    public NonNullStore(NonNullStore s) {
+    public NullnessNoInitStore(NullnessNoInitStore s) {
         super(s);
         isPolyNullNonNull = s.isPolyNullNonNull;
         isPolyNullNull = s.isPolyNullNull;
     }
 
     @Override
-    public NonNullStore leastUpperBound(NonNullStore other) {
-        NonNullStore lub = super.leastUpperBound(other);
+    public NullnessNoInitStore leastUpperBound(NullnessNoInitStore other) {
+        NullnessNoInitStore lub = super.leastUpperBound(other);
         lub.isPolyNullNonNull = isPolyNullNonNull && other.isPolyNullNonNull;
         lub.isPolyNullNull = isPolyNullNull && other.isPolyNullNull;
         return lub;
     }
 
     @Override
-    protected boolean supersetOf(CFAbstractStore<NonNullValue, NonNullStore> o) {
-        if (!(o instanceof NonNullStore)) {
+    protected boolean supersetOf(CFAbstractStore<NullnessNoInitValue, NullnessNoInitStore> o) {
+        if (!(o instanceof NullnessNoInitStore)) {
             return false;
         }
-        NonNullStore other = (NonNullStore) o;
+        NullnessNoInitStore other = (NullnessNoInitStore) o;
         if ((other.isPolyNullNonNull != isPolyNullNonNull)
                 || (other.isPolyNullNull != isPolyNullNull)) {
             return false;
@@ -67,7 +67,8 @@ public class NonNullStore extends CFAbstractStore<NonNullValue, NonNullStore> {
     }
 
     @Override
-    protected String internalVisualize(CFGVisualizer<NonNullValue, NonNullStore, ?> viz) {
+    protected String internalVisualize(
+            CFGVisualizer<NullnessNoInitValue, NullnessNoInitStore, ?> viz) {
         return super.internalVisualize(viz)
                 + viz.getSeparator()
                 + viz.visualizeStoreKeyVal("isPolyNullNonNull", isPolyNullNonNull)

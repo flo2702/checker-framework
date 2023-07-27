@@ -43,7 +43,7 @@ public class CollectionToArrayHeuristics {
     private final BaseTypeChecker checker;
 
     /** The type factory. */
-    private final NonNullAnnotatedTypeFactory atypeFactory;
+    private final NullnessNoInitAnnotatedTypeFactory atypeFactory;
 
     /** Whether to trust {@code @ArrayLen(0)} annotations. */
     private final boolean trustArrayLenZero;
@@ -67,7 +67,7 @@ public class CollectionToArrayHeuristics {
      * @param factory the type factory
      */
     public CollectionToArrayHeuristics(
-            BaseTypeChecker checker, NonNullAnnotatedTypeFactory factory) {
+            BaseTypeChecker checker, NullnessNoInitAnnotatedTypeFactory factory) {
         this.processingEnv = checker.getProcessingEnvironment();
         this.checker = checker;
         this.atypeFactory = factory;
