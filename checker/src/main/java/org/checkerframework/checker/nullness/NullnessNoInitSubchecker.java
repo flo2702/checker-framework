@@ -1,15 +1,13 @@
 package org.checkerframework.checker.nullness;
 
 import org.checkerframework.checker.initialization.InitializationChecker;
-import org.checkerframework.checker.initialization.InitializationDeclarationChecker;
+import org.checkerframework.checker.initialization.InitializationFieldAccessChecker;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
 
 import java.util.NavigableSet;
 import java.util.Set;
-
-import javax.annotation.processing.SupportedOptions;
 
 /**
  * The subchecker of the {@link NullnessChecker} which actually checks {@link NonNull} and related
@@ -18,7 +16,6 @@ import javax.annotation.processing.SupportedOptions;
  * <p>The {@link NullnessChecker} uses this checker as the target (see {@link
  * InitializationChecker#getTargetCheckerClass()}) for its initialization type system.
  */
-@SupportedOptions({"assumeInitialized"})
 public class NullnessNoInitSubchecker extends BaseTypeChecker {
 
     /** Default constructor for NonNullChecker. */
@@ -32,8 +29,11 @@ public class NullnessNoInitSubchecker extends BaseTypeChecker {
     @Override
     protected Set<Class<? extends BaseTypeChecker>> getImmediateSubcheckerClasses() {
         Set<Class<? extends BaseTypeChecker>> checkers = super.getImmediateSubcheckerClasses();
+        if (!hasOption("assumeKeyFor")) {
+            checkers.add(KeyForSubchecker.class);
+        }
         if (!hasOption("assumeInitialized")) {
-            checkers.add(InitializationDeclarationChecker.class);
+            checkers.add(InitializationFieldAccessChecker.class);
         }
         return checkers;
     }

@@ -7,8 +7,6 @@ import org.checkerframework.framework.qual.StubFiles;
 import org.checkerframework.framework.source.SupportedLintOptions;
 
 import java.util.Collection;
-import java.util.NavigableSet;
-import java.util.Set;
 
 import javax.annotation.processing.SupportedOptions;
 
@@ -89,26 +87,8 @@ public class NullnessChecker extends InitializationChecker {
     public NullnessChecker() {}
 
     @Override
-    public NavigableSet<String> getSuppressWarningsPrefixes() {
-        NavigableSet<String> result = super.getSuppressWarningsPrefixes();
-        // "fbc" is for backward compatibility only; you should use
-        // "initialization" instead.
-        result.add("fbc");
-        return result;
-    }
-
-    @Override
     public Collection<String> getSuppressWarningsPrefixesOfSubcheckers() {
         return getSuppressWarningsPrefixes();
-    }
-
-    @Override
-    protected Set<Class<? extends BaseTypeChecker>> getImmediateSubcheckerClasses() {
-        Set<Class<? extends BaseTypeChecker>> checkers = super.getImmediateSubcheckerClasses();
-        if (!hasOptionNoSubcheckers("assumeKeyFor")) {
-            checkers.add(KeyForSubchecker.class);
-        }
-        return checkers;
     }
 
     @Override

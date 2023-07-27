@@ -22,7 +22,7 @@ public class InitializationAnalysis
      * @param factory the factory
      */
     protected InitializationAnalysis(
-            BaseTypeChecker checker, InitializationAnnotatedTypeFactory factory) {
+            BaseTypeChecker checker, InitializationParentAnnotatedTypeFactory factory) {
         super(checker, factory);
     }
 
@@ -43,7 +43,7 @@ public class InitializationAnalysis
     }
 
     @Override
-    public InitializationAnnotatedTypeFactory getTypeFactory() {
-        return (InitializationAnnotatedTypeFactory) super.getTypeFactory();
+    public InitializationParentAnnotatedTypeFactory getTypeFactory() {
+        return (InitializationParentAnnotatedTypeFactory) super.getTypeFactory();
     }
 }

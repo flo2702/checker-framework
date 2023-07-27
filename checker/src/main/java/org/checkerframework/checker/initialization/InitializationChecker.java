@@ -4,7 +4,7 @@ import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.VariableTree;
 
-import org.checkerframework.checker.initialization.InitializationDeclarationAnnotatedTypeFactory.CommitmentFieldAccessTreeAnnotator;
+import org.checkerframework.checker.initialization.InitializationFieldAccessAnnotatedTypeFactory.CommitmentFieldAccessTreeAnnotator;
 import org.checkerframework.checker.nullness.NullnessChecker;
 import org.checkerframework.checker.nullness.NullnessNoInitAnnotatedTypeFactory;
 import org.checkerframework.checker.nullness.NullnessNoInitSubchecker;
@@ -16,6 +16,7 @@ import org.checkerframework.framework.qual.InvariantQualifier;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NavigableSet;
 import java.util.Set;
 
 import javax.annotation.processing.SupportedOptions;
@@ -38,7 +39,7 @@ import javax.annotation.processing.SupportedOptions;
  *       EnsuresNonNull}). You can look at the {@link NullnessChecker} for an example: The
  *       NullnessChecker is a subclass of this checker and uses the {@link NullnessNoInitSubchecker}
  *       as the target checker.
- *   <li>Use the {@link InitializationDeclarationChecker} as a subchecker and add its {@link
+ *   <li>Use the {@link InitializationFieldAccessChecker} as a subchecker and add its {@link
  *       CommitmentFieldAccessTreeAnnotator} as a tree annotator. This is necessary to give possibly
  *       uninitialized fields the top type of the target hierarchy (e.g., {@link Nullable}),
  *       ensuring that all fields are initialized before being used. This needs to be a separate
@@ -52,6 +53,10 @@ import javax.annotation.processing.SupportedOptions;
  * <p>If the command-line option {@code -AassumeInitialized} is given, this checker does nothing
  * except call its subcheckers. This gives users of, e.g., the NullnessChecker an easy way to turn
  * off initialization checking without having to directly call the NullnessNoInitSubchecker.
+ *
+ * <p>Note also that the flow-sensitive type refinement for this type system is performed by the
+ * {@link InitializationFieldAccessChecker}; this checker performs no refinement, instead reusing
+ * the results from that one.
  *
  * @checker_framework.manual #initialization-checker Initialization Checker
  */
@@ -74,6 +79,18 @@ public abstract class InitializationChecker extends BaseTypeChecker {
      * @return the checker for the target type system.
      */
     public abstract Class<? extends BaseTypeChecker> getTargetCheckerClass();
+
+    @Override
+    public NavigableSet<String> getSuppressWarningsPrefixes() {
+        NavigableSet<String> result = super.getSuppressWarningsPrefixes();
+        // "fbc" is for backward compatibility only; you should use
+        // "initialization" instead.
+        result.add("fbc");
+        // The default prefix "initialization" must be added manually because this checker class
+        // is abstract and its subclasses are not named "InitializationChecker".
+        result.add("initialization");
+        return result;
+    }
 
     @Override
     protected Set<Class<? extends BaseTypeChecker>> getImmediateSubcheckerClasses() {

@@ -3,11 +3,10 @@ package org.checkerframework.checker.initialization;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.MemberSelectTree;
+import com.sun.source.tree.Tree;
 
 import org.checkerframework.common.basetype.BaseTypeChecker;
-import org.checkerframework.framework.flow.CFAnalysis;
-import org.checkerframework.framework.flow.CFStore;
-import org.checkerframework.framework.flow.CFTransfer;
+import org.checkerframework.dataflow.analysis.AnalysisResult;
 import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
@@ -19,13 +18,26 @@ import org.checkerframework.javacutil.TreeUtils;
 import javax.lang.model.element.Element;
 import javax.lang.model.type.TypeMirror;
 
-/** The type factory for the {@link InitializationDeclarationChecker}. */
-public class InitializationDeclarationAnnotatedTypeFactory
-        extends InitializationParentAnnotatedTypeFactory<CFValue, CFStore, CFTransfer, CFAnalysis> {
+/** The type factory for the {@link InitializationFieldAccessChecker}. */
+public class InitializationFieldAccessAnnotatedTypeFactory
+        extends InitializationParentAnnotatedTypeFactory {
 
-    public InitializationDeclarationAnnotatedTypeFactory(BaseTypeChecker checker) {
+    public InitializationFieldAccessAnnotatedTypeFactory(BaseTypeChecker checker) {
         super(checker);
         postInit();
+    }
+
+    @Override
+    protected InitializationAnalysis createFlowAnalysis() {
+        return new InitializationAnalysis(checker, this);
+    }
+
+    InitializationAnalysis getAnalysis() {
+        return analysis;
+    }
+
+    AnalysisResult<CFValue, InitializationStore> getFlowResult() {
+        return flowResult;
     }
 
     /**
@@ -78,9 +90,9 @@ public class InitializationDeclarationAnnotatedTypeFactory
         private void computeFieldAccessType(ExpressionTree tree, AnnotatedTypeMirror type) {
             GenericAnnotatedTypeFactory<?, ?, ?, ?> factory =
                     (GenericAnnotatedTypeFactory<?, ?, ?, ?>) atypeFactory;
-            InitializationDeclarationAnnotatedTypeFactory initFactory =
+            InitializationFieldAccessAnnotatedTypeFactory initFactory =
                     factory.getChecker()
-                            .getTypeFactoryOfSubchecker(InitializationDeclarationChecker.class);
+                            .getTypeFactoryOfSubchecker(InitializationFieldAccessChecker.class);
             Element element = TreeUtils.elementFromUse(tree);
             AnnotatedTypeMirror owner = initFactory.getReceiverType(tree);
 
@@ -109,7 +121,26 @@ public class InitializationDeclarationAnnotatedTypeFactory
             boolean isOwnerInitialized =
                     initFactory.isInitializedForFrame(owner, fieldDeclarationType);
 
-            if (!isOwnerInitialized && !factory.isComputingAnnotatedTypeMirrorOfLHS()) {
+            // If the field has been initialized, don't clear annotations.
+            // This is ok even if the field was initialized with a non-invariant
+            // value because in that case, there must have been an error before.
+            // E.g.:
+            //     { f1 = f2;
+            //       f2 = f1; }
+            // Here, we will get an error for the first assignment, but we won't get another
+            // error for the second assignment.
+            // See the AssignmentDuringInitialization test case.
+            Tree declaration = initFactory.declarationFromElement(TreeUtils.elementFromTree(tree));
+            InitializationStore store = initFactory.getStoreBefore(tree);
+            boolean isFieldInitialized =
+                    store != null
+                            && TreeUtils.isSelfAccess(tree)
+                            && initFactory
+                                    .getInitializedFields(store, initFactory.getPath(tree))
+                                    .contains(declaration);
+            if (!isOwnerInitialized
+                    && !isFieldInitialized
+                    && !factory.isComputingAnnotatedTypeMirrorOfLHS()) {
                 // The receiver is not initialized for this frame and the type being computed is
                 // not a LHS.
                 // Replace all annotations with the top annotation for that hierarchy.

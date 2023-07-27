@@ -16,8 +16,8 @@ import com.sun.source.tree.TypeCastTree;
 import com.sun.source.tree.UnaryTree;
 import com.sun.source.tree.VariableTree;
 
-import org.checkerframework.checker.initialization.InitializationDeclarationAnnotatedTypeFactory;
-import org.checkerframework.checker.initialization.InitializationDeclarationChecker;
+import org.checkerframework.checker.initialization.InitializationFieldAccessAnnotatedTypeFactory;
+import org.checkerframework.checker.initialization.InitializationFieldAccessChecker;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -540,8 +540,8 @@ public class NullnessNoInitAnnotatedTypeFactory
 
     @Override
     public boolean isNotFullyInitializedReceiver(MethodTree methodDeclTree) {
-        InitializationDeclarationAnnotatedTypeFactory initFactory =
-                getChecker().getTypeFactoryOfSubchecker(InitializationDeclarationChecker.class);
+        InitializationFieldAccessAnnotatedTypeFactory initFactory =
+                getChecker().getTypeFactoryOfSubchecker(InitializationFieldAccessChecker.class);
         if (initFactory == null) {
             // init checker is deactivated.
             return super.isNotFullyInitializedReceiver(methodDeclTree);
@@ -551,8 +551,8 @@ public class NullnessNoInitAnnotatedTypeFactory
 
     @Override
     public AnnotatedTypeMirror getAnnotatedTypeBefore(JavaExpression expr, ExpressionTree tree) {
-        InitializationDeclarationAnnotatedTypeFactory initFactory =
-                getChecker().getTypeFactoryOfSubchecker(InitializationDeclarationChecker.class);
+        InitializationFieldAccessAnnotatedTypeFactory initFactory =
+                getChecker().getTypeFactoryOfSubchecker(InitializationFieldAccessChecker.class);
         if (initFactory == null) {
             // init checker is deactivated.
             return super.getAnnotatedTypeBefore(expr, tree);
@@ -625,13 +625,13 @@ public class NullnessNoInitAnnotatedTypeFactory
         List<TreeAnnotator> annotators = new ArrayList<>(3);
         // annotators.add(new DebugListTreeAnnotator(new Tree.Kind[]
         // {Tree.Kind.CONDITIONAL_EXPRESSION}));
-        annotators.add(new NullnessPropagationTreeAnnotator(this));
-        annotators.add(new LiteralTreeAnnotator(this));
         if (!checker.hasOptionNoSubcheckers("assumeInitialized")) {
             annotators.add(
-                    new InitializationDeclarationAnnotatedTypeFactory
+                    new InitializationFieldAccessAnnotatedTypeFactory
                             .CommitmentFieldAccessTreeAnnotator(this));
         }
+        annotators.add(new NullnessPropagationTreeAnnotator(this));
+        annotators.add(new LiteralTreeAnnotator(this));
         return new ListTreeAnnotator(annotators);
     }
 

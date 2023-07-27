@@ -46,7 +46,7 @@ public class InitializationTransfer
         extends CFAbstractTransfer<CFValue, InitializationStore, InitializationTransfer> {
 
     /** The initialization type factory */
-    protected final InitializationAnnotatedTypeFactory atypeFactory;
+    protected final InitializationParentAnnotatedTypeFactory atypeFactory;
 
     /**
      * Create a new InitializationTransfer for the given analysis.

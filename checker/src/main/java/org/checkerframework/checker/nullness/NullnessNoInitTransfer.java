@@ -12,6 +12,7 @@ import org.checkerframework.dataflow.analysis.ConditionalTransferResult;
 import org.checkerframework.dataflow.analysis.TransferInput;
 import org.checkerframework.dataflow.analysis.TransferResult;
 import org.checkerframework.dataflow.cfg.node.ArrayAccessNode;
+import org.checkerframework.dataflow.cfg.node.AssignmentNode;
 import org.checkerframework.dataflow.cfg.node.FieldAccessNode;
 import org.checkerframework.dataflow.cfg.node.InstanceOfNode;
 import org.checkerframework.dataflow.cfg.node.MethodAccessNode;
@@ -325,6 +326,13 @@ public class NullnessNoInitTransfer
      */
     private boolean containsPolyNullNotAtTopLevel(AnnotatedTypeMirror t) {
         return new ContainsPolyNullNotAtTopLevelScanner().visit(t);
+    }
+
+    @Override
+    public TransferResult<NullnessNoInitValue, NullnessNoInitStore> visitAssignment(
+            AssignmentNode n, TransferInput<NullnessNoInitValue, NullnessNoInitStore> in) {
+        // TODO Auto-generated method stub
+        return super.visitAssignment(n, in);
     }
 
     @Override

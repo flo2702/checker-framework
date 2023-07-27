@@ -15,9 +15,7 @@ import org.checkerframework.checker.initialization.qual.UnderInitialization;
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.framework.flow.CFAbstractAnalysis;
-import org.checkerframework.framework.flow.CFAbstractStore;
-import org.checkerframework.framework.flow.CFAbstractTransfer;
-import org.checkerframework.framework.flow.CFAbstractValue;
+import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.framework.qual.Unused;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
@@ -27,39 +25,37 @@ import org.checkerframework.framework.type.QualifierHierarchy;
 import org.checkerframework.framework.util.QualifierKind;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationUtils;
+import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.TreePathUtil;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
 
 import java.lang.annotation.Annotation;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
 import javax.lang.model.element.Name;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
 
 /**
- * Superclass for {@link InitializationDeclarationAnnotatedTypeFactory} and {@link
+ * Superclass for {@link InitializationFieldAccessAnnotatedTypeFactory} and {@link
  * InitializationAnnotatedTypeFactory} to contain common functionality.
- *
- * @param <Value> the value type for this type factory
- * @param <Store> the store type for this type factory
- * @param <Transfer> the transfer function type for this type factory
- * @param <Analysis> the analysis type for this type factory
  */
-public abstract class InitializationParentAnnotatedTypeFactory<
-                Value extends CFAbstractValue<Value>,
-                Store extends CFAbstractStore<Value, Store>,
-                Transfer extends CFAbstractTransfer<Value, Store, Transfer>,
-                Analysis extends CFAbstractAnalysis<Value, Store, Transfer>>
-        extends GenericAnnotatedTypeFactory<Value, Store, Transfer, Analysis> {
+public abstract class InitializationParentAnnotatedTypeFactory
+        extends GenericAnnotatedTypeFactory<
+                CFValue, InitializationStore, InitializationTransfer, InitializationAnalysis> {
 
     /** {@link UnknownInitialization}. */
     protected final AnnotationMirror UNKNOWN_INITIALIZATION;
@@ -107,12 +103,71 @@ public abstract class InitializationParentAnnotatedTypeFactory<
     }
 
     @Override
+    public void postAsMemberOf(
+            AnnotatedTypeMirror type, AnnotatedTypeMirror owner, Element element) {
+        super.postAsMemberOf(type, owner, element);
+
+        if (element.getKind().isField()) {
+            Collection<? extends AnnotationMirror> declaredFieldAnnotations =
+                    getDeclAnnotations(element);
+            AnnotatedTypeMirror fieldAnnotations = getAnnotatedType(element);
+            computeFieldAccessInitializationType(
+                    type, declaredFieldAnnotations, owner, fieldAnnotations);
+        }
+    }
+
+    /**
+     * Determine the initialization type of a field access (implicit or explicit) based on the
+     * receiver type and the declared annotations for the field.
+     *
+     * @param type type of the field access expression
+     * @param declaredFieldAnnotations declared annotations on the field
+     * @param receiverType inferred annotations of the receiver
+     * @param fieldType inferred annotations of the field
+     */
+    private void computeFieldAccessInitializationType(
+            AnnotatedTypeMirror type,
+            Collection<? extends AnnotationMirror> declaredFieldAnnotations,
+            AnnotatedTypeMirror receiverType,
+            AnnotatedTypeMirror fieldType) {
+        // Primitive values have no fields and are thus always @Initialized.
+        if (TypesUtils.isPrimitive(type.getUnderlyingType())) {
+            return;
+        }
+        // not necessary if there is an explicit UnknownInitialization
+        // annotation on the field
+        if (AnnotationUtils.containsSameByName(
+                fieldType.getAnnotations(), UNKNOWN_INITIALIZATION)) {
+            return;
+        }
+        if (isUnknownInitialization(receiverType) || isUnderInitialization(receiverType)) {
+            if (AnnotationUtils.containsSame(declaredFieldAnnotations, NOT_ONLY_INITIALIZED)) {
+                type.replaceAnnotation(UNKNOWN_INITIALIZATION);
+            } else {
+                type.replaceAnnotation(INITIALIZED);
+            }
+
+            if (!AnnotationUtils.containsSame(declaredFieldAnnotations, NOT_ONLY_INITIALIZED)) {
+                // add root annotation for all other hierarchies, and
+                // Initialized for the initialization hierarchy
+                type.replaceAnnotation(INITIALIZED);
+            }
+        }
+    }
+
+    @Override
     protected Set<Class<? extends Annotation>> createSupportedTypeQualifiers() {
         return Set.of(
                 UnknownInitialization.class,
                 UnderInitialization.class,
                 Initialized.class,
                 FBCBottom.class);
+    }
+
+    @Override
+    public InitializationTransfer createFlowTransferFunction(
+            CFAbstractAnalysis<CFValue, InitializationStore, InitializationTransfer> analysis) {
+        return new InitializationTransfer((InitializationAnalysis) analysis);
     }
 
     /**
@@ -207,6 +262,24 @@ public abstract class InitializationParentAnnotatedTypeFactory<
         Type classType = ((JCTree) enclosingClass).type;
         AnnotationMirror annotation = null;
 
+        // If all fields are initialized-only, and they are all initialized,
+        // then:
+        //  - if the class is final, this is @Initialized
+        //  - otherwise, this is @UnderInitialization(CurrentClass) as
+        //    there might still be subclasses that need initialization.
+        if (areAllFieldsInitializedOnly(enclosingClass)) {
+            InitializationStore store = getStoreBefore(tree);
+            if (store != null
+                    && getUninitializedFields(store, path, false, Collections.emptyList())
+                            .isEmpty()) {
+                if (classType.isFinal()) {
+                    annotation = INITIALIZED;
+                } else {
+                    annotation = createUnderInitializationAnnotation(classType);
+                }
+            }
+        }
+
         if (annotation == null) {
             annotation = getUnderInitializationAnnotationOfSuperType(classType);
         }
@@ -277,6 +350,101 @@ public abstract class InitializationParentAnnotatedTypeFactory<
         AnnotationBuilder builder = new AnnotationBuilder(processingEnv, UnderInitialization.class);
         builder.setValue("value", typeFrame);
         return builder.build();
+    }
+
+    /**
+     * Are all fields initialized-only?
+     *
+     * @param classTree the class to query
+     * @return true if all fields are initialized-only
+     */
+    protected boolean areAllFieldsInitializedOnly(ClassTree classTree) {
+        for (Tree member : classTree.getMembers()) {
+            if (member.getKind() != Tree.Kind.VARIABLE) {
+                continue;
+            }
+            VariableTree var = (VariableTree) member;
+            VariableElement varElt = TreeUtils.elementFromDeclaration(var);
+            // var is not initialized-only
+            if (getDeclAnnotation(varElt, NotOnlyInitialized.class) != null) {
+                // var is not static -- need a check of initializer blocks,
+                // not of constructor which is where this is used
+                if (!varElt.getModifiers().contains(Modifier.STATIC)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Returns the fields that are not yet initialized in a given store.
+     *
+     * @param store a store
+     * @param path the current path, used to determine the current class
+     * @param isStatic whether to report static fields or instance fields
+     * @param receiverAnnotations the annotations on the receiver
+     * @return the fields that are not yet initialized in a given store
+     */
+    public List<VariableTree> getUninitializedFields(
+            InitializationStore store,
+            TreePath path,
+            boolean isStatic,
+            Collection<? extends AnnotationMirror> receiverAnnotations) {
+        ClassTree currentClass = TreePathUtil.enclosingClass(path);
+        List<VariableTree> fields = InitializationChecker.getAllFields(currentClass);
+        List<VariableTree> uninit = new ArrayList<>();
+        for (VariableTree field : fields) {
+            if (isUnused(field, receiverAnnotations)) {
+                continue; // don't consider unused fields
+            }
+            VariableElement fieldElem = TreeUtils.elementFromDeclaration(field);
+            if (ElementUtils.isStatic(fieldElem) == isStatic) {
+                if (!store.isFieldInitialized(fieldElem)) {
+                    uninit.add(field);
+                }
+            }
+        }
+        return uninit;
+    }
+
+    /**
+     * Returns the fields that are initialized in the given store.
+     *
+     * @param store a store
+     * @param path the current path; used to compute the current class
+     * @return the fields that are initialized in the given store
+     */
+    public List<VariableTree> getInitializedFields(InitializationStore store, TreePath path) {
+        // TODO: Instead of passing the TreePath around, can we use
+        // getCurrentClassTree?
+        ClassTree currentClass = TreePathUtil.enclosingClass(path);
+        List<VariableTree> fields = InitializationChecker.getAllFields(currentClass);
+        List<VariableTree> initializedFields = new ArrayList<>();
+        for (VariableTree field : fields) {
+            VariableElement fieldElem = TreeUtils.elementFromDeclaration(field);
+            if (!ElementUtils.isStatic(fieldElem)) {
+                if (store.isFieldInitialized(fieldElem)) {
+                    initializedFields.add(field);
+                }
+            }
+        }
+        return initializedFields;
+    }
+
+    @Override
+    public boolean isNotFullyInitializedReceiver(MethodTree methodTree) {
+        if (super.isNotFullyInitializedReceiver(methodTree)) {
+            return true;
+        }
+        final AnnotatedDeclaredType receiverType =
+                analysis.getTypeFactory().getAnnotatedType(methodTree).getReceiverType();
+        if (receiverType != null) {
+            return isUnknownInitialization(receiverType) || isUnderInitialization(receiverType);
+        } else {
+            // There is no receiver e.g. in static methods.
+            return false;
+        }
     }
 
     /**
