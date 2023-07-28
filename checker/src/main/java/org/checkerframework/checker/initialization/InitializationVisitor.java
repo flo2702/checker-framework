@@ -29,6 +29,7 @@ import org.checkerframework.framework.flow.CFAbstractAnalysis.FieldInitialValue;
 import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.flow.CFAbstractValue;
 import org.checkerframework.framework.flow.CFValue;
+import org.checkerframework.framework.qual.InvariantQualifier;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
@@ -535,6 +536,18 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
         }
     }
 
+    /**
+     * Use the target checker to remove fields that are initialized or do not need to be initialized
+     * in the store before or after {@code tree} from {@code uninitializedFields}.
+     *
+     * <p>A field is initialized if it has an {@link InvariantQualifier} in the given store. A field
+     * does not need to be initialized if its declaration has no {@link InvariantQualifier}
+     *
+     * @param tree the tree at whose location to check for initialization
+     * @param uninitializedFields the possibly uninitialized fields to check
+     * @param storeBefore whether to check for initialization in the store before (or after) {@code
+     *     tree}
+     */
     protected void filterInitializedFields(
             Tree tree, List<VariableTree> uninitializedFields, boolean storeBefore) {
         if (uninitializedFields == null || uninitializedFields.isEmpty()) {

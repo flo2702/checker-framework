@@ -5,10 +5,15 @@ import com.sun.source.tree.ClassTree;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
 
-/** The visitor for the {@link InitializationFieldAccessChecker}. */
+/** The visitor for the {@link InitializationFieldAccessSubchecker}. */
 public class InitializationFieldAccessVisitor
         extends BaseTypeVisitor<InitializationFieldAccessAnnotatedTypeFactory> {
 
+    /**
+     * Create an InitializationFieldAccessVisitor.
+     *
+     * @param checker the initialization field-access checker
+     */
     public InitializationFieldAccessVisitor(BaseTypeChecker checker) {
         super(checker);
     }

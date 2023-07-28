@@ -17,7 +17,7 @@ import com.sun.source.tree.UnaryTree;
 import com.sun.source.tree.VariableTree;
 
 import org.checkerframework.checker.initialization.InitializationFieldAccessAnnotatedTypeFactory;
-import org.checkerframework.checker.initialization.InitializationFieldAccessChecker;
+import org.checkerframework.checker.initialization.InitializationFieldAccessSubchecker;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -541,7 +541,7 @@ public class NullnessNoInitAnnotatedTypeFactory
     @Override
     public boolean isNotFullyInitializedReceiver(MethodTree methodDeclTree) {
         InitializationFieldAccessAnnotatedTypeFactory initFactory =
-                getChecker().getTypeFactoryOfSubchecker(InitializationFieldAccessChecker.class);
+                getChecker().getTypeFactoryOfSubchecker(InitializationFieldAccessSubchecker.class);
         if (initFactory == null) {
             // init checker is deactivated.
             return super.isNotFullyInitializedReceiver(methodDeclTree);
@@ -552,7 +552,7 @@ public class NullnessNoInitAnnotatedTypeFactory
     @Override
     public AnnotatedTypeMirror getAnnotatedTypeBefore(JavaExpression expr, ExpressionTree tree) {
         InitializationFieldAccessAnnotatedTypeFactory initFactory =
-                getChecker().getTypeFactoryOfSubchecker(InitializationFieldAccessChecker.class);
+                getChecker().getTypeFactoryOfSubchecker(InitializationFieldAccessSubchecker.class);
         if (initFactory == null) {
             // init checker is deactivated.
             return super.getAnnotatedTypeBefore(expr, tree);

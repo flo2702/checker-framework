@@ -100,6 +100,13 @@ public abstract class InitializationParentAnnotatedTypeFactory
     /** The UnknownInitialization.value field/element. */
     protected final ExecutableElement unknownInitializationValueElement;
 
+    /**
+     * Create a new InitializationParentAnnotatedTypeFactory.
+     *
+     * <p>Don't forget to call {@link #postInit()} in the concrete subclass.
+     *
+     * @param checker the checker to which the new type factory belongs
+     */
     public InitializationParentAnnotatedTypeFactory(BaseTypeChecker checker) {
         super(checker, true);
 

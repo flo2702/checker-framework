@@ -19,10 +19,15 @@ import org.checkerframework.javacutil.TreeUtils;
 import javax.lang.model.element.Element;
 import javax.lang.model.type.TypeMirror;
 
-/** The type factory for the {@link InitializationFieldAccessChecker}. */
+/** The type factory for the {@link InitializationFieldAccessSubchecker}. */
 public class InitializationFieldAccessAnnotatedTypeFactory
         extends InitializationParentAnnotatedTypeFactory {
 
+    /**
+     * Create a new InitializationFieldAccessAnnotatedTypeFactory.
+     *
+     * @param checker the checker to which the new type factory belongs
+     */
     public InitializationFieldAccessAnnotatedTypeFactory(BaseTypeChecker checker) {
         super(checker);
         postInit();
@@ -42,10 +47,29 @@ public class InitializationFieldAccessAnnotatedTypeFactory
         }
     }
 
+    /**
+     * Returns the flow analysis.
+     *
+     * @return the flow analysis
+     * @seee {@link #getFlowResult()}
+     */
     InitializationAnalysis getAnalysis() {
         return analysis;
     }
 
+    /**
+     * Returns the result of the flow analysis. Invariant:
+     *
+     * <pre>
+     *  scannedClasses.get(c) == FINISHED for some class c &rArr; flowResult != null
+     * </pre>
+     *
+     * Note that flowResult contains analysis results for Trees from multiple classes which are
+     * produced by multiple calls to performFlowAnalysis.
+     *
+     * @return the result of the flow analysis
+     * @see #getAnalysis()
+     */
     AnalysisResult<CFValue, InitializationStore> getFlowResult() {
         return flowResult;
     }
@@ -102,7 +126,7 @@ public class InitializationFieldAccessAnnotatedTypeFactory
                     (GenericAnnotatedTypeFactory<?, ?, ?, ?>) atypeFactory;
             InitializationFieldAccessAnnotatedTypeFactory initFactory =
                     factory.getChecker()
-                            .getTypeFactoryOfSubchecker(InitializationFieldAccessChecker.class);
+                            .getTypeFactoryOfSubchecker(InitializationFieldAccessSubchecker.class);
             Element element = TreeUtils.elementFromUse(tree);
             AnnotatedTypeMirror owner = initFactory.getReceiverType(tree);
 

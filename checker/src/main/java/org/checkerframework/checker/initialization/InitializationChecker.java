@@ -5,6 +5,7 @@ import com.sun.source.tree.Tree;
 import com.sun.source.tree.VariableTree;
 
 import org.checkerframework.checker.initialization.InitializationFieldAccessAnnotatedTypeFactory.CommitmentFieldAccessTreeAnnotator;
+import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.nullness.NullnessChecker;
 import org.checkerframework.checker.nullness.NullnessNoInitAnnotatedTypeFactory;
 import org.checkerframework.checker.nullness.NullnessNoInitSubchecker;
@@ -34,11 +35,12 @@ import java.util.Set;
  *       if its declared type has an {@link InvariantQualifier} (e.g., {@link NonNull}). Such a
  *       field becomes initialized when its refined type has that same invariant qualifier (which
  *       can happen either by assigning the field or by a contract annotation like {@link
- *       EnsuresNonNull}). You can look at the {@link NullnessChecker} for an example: The
- *       NullnessChecker is a subclass of this checker and uses the {@link NullnessNoInitSubchecker}
- *       as the target checker; thus, the NullnessNoInitSubchecker actually checks NonNull and
- *       related qualifiers, while the NullnessChecker checks Initialized and related qualifers.
- *   <li>Use the {@link InitializationFieldAccessChecker} as a subchecker and add its {@link
+ *       EnsuresNonNull}). You can look at the {@link NullnessChecker} for an example: The {@link
+ *       NullnessChecker} is a subclass of this checker and uses the {@link
+ *       NullnessNoInitSubchecker} as the target checker; thus, the {@link NullnessNoInitSubchecker}
+ *       actually checks {@link NonNull} and related qualifiers, while the NullnessChecker checks
+ *       {@link Initialized} and related qualifers.
+ *   <li>Use the {@link InitializationFieldAccessSubchecker} as a subchecker and add its {@link
  *       CommitmentFieldAccessTreeAnnotator} as a tree annotator. This is necessary to give possibly
  *       uninitialized fields the top type of the target hierarchy (e.g., {@link Nullable}),
  *       ensuring that all fields are initialized before being used. This needs to be a separate
@@ -49,8 +51,9 @@ import java.util.Set;
  *       NullnessNoInitAnnotatedTypeFactory} for examples.
  *   <li>The subclass should support the command-line option {@code -AassumeInitialized} via
  *       {@code @SupportedOptions({"assumeInitialized"})}, so initialization checking can be turned
- *       off. This gives users of, e.g., the NullnessChecker an easy way to turn off initialization
- *       checking without having to directly call the NullnessNoInitSubchecker.
+ *       off. This gives users of, e.g., the {@link NullnessChecker} an easy way to turn off
+ *       initialization checking without having to directly call the {@link
+ *       NullnessNoInitSubchecker}.
  * </ol>
  *
  * <p>If you want to modify the freedom-before-commitment scheme in your subclass, note that the
@@ -58,7 +61,7 @@ import java.util.Set;
  * for {@code NameChecker} is {@code NameAnnotatedTypeFactory}. Instead every subclass of this
  * checker always uses the {@link InitializationAnnotatedTypeFactory} unless this behavior is
  * overridden. Note also that the flow-sensitive type refinement for this type system is performed
- * by the {@link InitializationFieldAccessChecker}; this checker performs no refinement, instead
+ * by the {@link InitializationFieldAccessSubchecker}; this checker performs no refinement, instead
  * reusing the results from that one.
  *
  * @checker_framework.manual #initialization-checker Initialization Checker

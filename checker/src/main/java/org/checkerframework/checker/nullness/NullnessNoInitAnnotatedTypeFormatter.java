@@ -11,6 +11,14 @@ import java.util.Set;
 
 /** A DefaultAnnotatedTypeFormatter that prints null literals without their annotations. */
 public class NullnessNoInitAnnotatedTypeFormatter extends DefaultAnnotatedTypeFormatter {
+
+    /**
+     * Create a new NullnessNoInitAnnotatedTypeFormatter
+     *
+     * @param printVerboseGenerics whether to prints type variables in a less ambiguous manner using
+     *     [] to delimit them
+     * @param printInvisibleQualifiers whether or not to printInvisibles
+     */
     public NullnessNoInitAnnotatedTypeFormatter(
             boolean printVerboseGenerics, boolean printInvisibleQualifiers) {
         super(
@@ -20,8 +28,17 @@ public class NullnessNoInitAnnotatedTypeFormatter extends DefaultAnnotatedTypeFo
                         printInvisibleQualifiers));
     }
 
+    /** The visitor used by the {@code NullnessNoInitAnnotatedTypeFormatter}. */
     protected static class NullnessFormattingVisitor extends FormattingVisitor {
 
+        /**
+         * Create a new NullnessFormattingVisitor.
+         *
+         * @param annoFormatter the formatter to use
+         * @param printVerboseGenerics whether to prints type variables in a less ambiguous manner
+         *     using [] to delimit them
+         * @param printInvisibleQualifiers whether or not to printInvisibles
+         */
         public NullnessFormattingVisitor(
                 AnnotationFormatter annoFormatter,
                 boolean printVerboseGenerics,

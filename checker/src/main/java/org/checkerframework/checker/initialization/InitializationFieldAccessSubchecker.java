@@ -18,9 +18,10 @@ import org.checkerframework.common.basetype.BaseTypeChecker;
  *
  * @see InitializationChecker
  */
-public class InitializationFieldAccessChecker extends BaseTypeChecker {
+public class InitializationFieldAccessSubchecker extends BaseTypeChecker {
 
-    public InitializationFieldAccessChecker() {}
+    /** Default constructor for InitializationFieldAccessSubchecker. */
+    public InitializationFieldAccessSubchecker() {}
 
     // Suppress all errors and warnings, since they are also reported by the InitializationChecker
 

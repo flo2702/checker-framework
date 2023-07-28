@@ -34,10 +34,15 @@ public class InitializationAnnotatedTypeFactory extends InitializationParentAnno
         return (InitializationChecker) super.getChecker();
     }
 
+    /**
+     * Gets the factory of the {@link InitializationFieldAccessSubchecker}.
+     *
+     * @return the factory of the {@link InitializationFieldAccessSubchecker}
+     */
     protected InitializationFieldAccessAnnotatedTypeFactory getFieldAccessFactory() {
         InitializationChecker checker = getChecker();
         BaseTypeChecker targetChecker = checker.getSubchecker(checker.getTargetCheckerClass());
-        return targetChecker.getTypeFactoryOfSubchecker(InitializationFieldAccessChecker.class);
+        return targetChecker.getTypeFactoryOfSubchecker(InitializationFieldAccessSubchecker.class);
     }
 
     // Don't perform the same flow analysis twice.

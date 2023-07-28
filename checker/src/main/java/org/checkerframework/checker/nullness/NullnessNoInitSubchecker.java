@@ -4,7 +4,7 @@ import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.MethodTree;
 
 import org.checkerframework.checker.initialization.InitializationChecker;
-import org.checkerframework.checker.initialization.InitializationFieldAccessChecker;
+import org.checkerframework.checker.initialization.InitializationFieldAccessSubchecker;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
@@ -35,7 +35,7 @@ public class NullnessNoInitSubchecker extends BaseTypeChecker {
         if (!hasOption("assumeKeyFor")) {
             checkers.add(KeyForSubchecker.class);
         }
-        checkers.add(InitializationFieldAccessChecker.class);
+        checkers.add(InitializationFieldAccessSubchecker.class);
         return checkers;
     }
 
