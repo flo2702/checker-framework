@@ -150,7 +150,12 @@ public class NullnessNoInitTransfer
         store.insertValue(internalRepr, NONNULL);
     }
 
-    /** Sets a given {@link Node} {@code node} to non-null in the given {@link TransferResult}. */
+    /**
+     * Sets a given node to non-null in the given transfer result.
+     *
+     * @param result the transfer result
+     * @param node the node to make non-null
+     */
     protected void makeNonNull(
             TransferResult<NullnessNoInitValue, NullnessNoInitStore> result, Node node) {
         if (result.containsTwoStores()) {
@@ -161,7 +166,11 @@ public class NullnessNoInitTransfer
         }
     }
 
-    /** Refine the given result to @NonNull. */
+    /**
+     * Refine the given result to @NonNull.
+     *
+     * @param result the result to refine
+     */
     protected void refineToNonNull(
             TransferResult<NullnessNoInitValue, NullnessNoInitStore> result) {
         NullnessNoInitValue oldResultValue = result.getResultValue();

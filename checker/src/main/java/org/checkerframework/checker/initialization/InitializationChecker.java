@@ -104,7 +104,12 @@ public abstract class InitializationChecker extends BaseTypeChecker {
         return checkers;
     }
 
-    /** Returns a list of all fields of the given class. */
+    /**
+     * Returns a list of all fields of the given class.
+     *
+     * @param clazz the class
+     * @return a list of all fields of {@code clazz}
+     */
     public static List<VariableTree> getAllFields(ClassTree clazz) {
         List<VariableTree> fields = new ArrayList<>();
         for (Tree t : clazz.getMembers()) {

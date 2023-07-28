@@ -340,7 +340,14 @@ public abstract class InitializationParentAnnotatedTypeFactory
         return annotation;
     }
 
-    /** Returns whether the field {@code f} is unused, given the annotations on the receiver. */
+    /**
+     * Returns whether the specified field is unused, given the specified annotations on the
+     * receiver.
+     *
+     * @param field the field to check
+     * @param receiverAnnos the annotations on the receiver
+     * @return whether {@code field} is unused given {@code receiverAnnos}
+     */
     protected boolean isUnused(
             VariableTree field, Collection<? extends AnnotationMirror> receiverAnnos) {
         if (receiverAnnos.isEmpty()) {
