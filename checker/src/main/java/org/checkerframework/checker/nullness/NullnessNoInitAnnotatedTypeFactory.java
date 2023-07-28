@@ -625,11 +625,9 @@ public class NullnessNoInitAnnotatedTypeFactory
         List<TreeAnnotator> annotators = new ArrayList<>(3);
         // annotators.add(new DebugListTreeAnnotator(new Tree.Kind[]
         // {Tree.Kind.CONDITIONAL_EXPRESSION}));
-        if (!checker.hasOptionNoSubcheckers("assumeInitialized")) {
-            annotators.add(
-                    new InitializationFieldAccessAnnotatedTypeFactory
-                            .CommitmentFieldAccessTreeAnnotator(this));
-        }
+        annotators.add(
+                new InitializationFieldAccessAnnotatedTypeFactory
+                        .CommitmentFieldAccessTreeAnnotator(this));
         annotators.add(new NullnessPropagationTreeAnnotator(this));
         annotators.add(new LiteralTreeAnnotator(this));
         return new ListTreeAnnotator(annotators);

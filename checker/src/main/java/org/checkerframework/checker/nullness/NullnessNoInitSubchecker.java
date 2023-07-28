@@ -35,9 +35,7 @@ public class NullnessNoInitSubchecker extends BaseTypeChecker {
         if (!hasOption("assumeKeyFor")) {
             checkers.add(KeyForSubchecker.class);
         }
-        if (!hasOption("assumeInitialized")) {
-            checkers.add(InitializationFieldAccessChecker.class);
-        }
+        checkers.add(InitializationFieldAccessChecker.class);
         return checkers;
     }
 

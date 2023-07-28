@@ -4,7 +4,6 @@ import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.Tree;
 
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.dataflow.analysis.TransferResult;
 import org.checkerframework.dataflow.cfg.node.ReturnNode;
@@ -55,12 +54,12 @@ public class InitializationAnnotatedTypeFactory extends InitializationParentAnno
     }
 
     @Override
-    public @Nullable InitializationStore getRegularExitStore(Tree tree) {
+    public InitializationStore getRegularExitStore(Tree tree) {
         return getFieldAccessFactory().getRegularExitStore(tree);
     }
 
     @Override
-    public @Nullable InitializationStore getExceptionalExitStore(Tree tree) {
+    public InitializationStore getExceptionalExitStore(Tree tree) {
         return getFieldAccessFactory().getExceptionalExitStore(tree);
     }
 

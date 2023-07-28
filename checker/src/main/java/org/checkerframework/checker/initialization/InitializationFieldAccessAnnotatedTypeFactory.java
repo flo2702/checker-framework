@@ -1,5 +1,6 @@
 package org.checkerframework.checker.initialization;
 
+import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.ExpressionTree;
 import com.sun.source.tree.IdentifierTree;
 import com.sun.source.tree.MemberSelectTree;
@@ -30,6 +31,15 @@ public class InitializationFieldAccessAnnotatedTypeFactory
     @Override
     protected InitializationAnalysis createFlowAnalysis() {
         return new InitializationAnalysis(checker, this);
+    }
+
+    @Override
+    protected void performFlowAnalysis(ClassTree classTree) {
+        // Only perform the analysis if initialization checking is turned on.
+        if (!checker.hasOption("assumeInitialized")) {
+            super.performFlowAnalysis(classTree);
+            ;
+        }
     }
 
     InitializationAnalysis getAnalysis() {
@@ -95,6 +105,10 @@ public class InitializationFieldAccessAnnotatedTypeFactory
                             .getTypeFactoryOfSubchecker(InitializationFieldAccessChecker.class);
             Element element = TreeUtils.elementFromUse(tree);
             AnnotatedTypeMirror owner = initFactory.getReceiverType(tree);
+
+            if (factory.getChecker().hasOption("assumeInitialized")) {
+                return;
+            }
 
             if (owner == null) {
                 return;

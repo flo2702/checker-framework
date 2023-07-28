@@ -19,8 +19,6 @@ import java.util.List;
 import java.util.NavigableSet;
 import java.util.Set;
 
-import javax.annotation.processing.SupportedOptions;
-
 /**
  * Tracks whether a value is initialized (all its fields are set), and checks that values are
  * initialized before being used. Implements the freedom-before-commitment scheme for
@@ -35,32 +33,36 @@ import javax.annotation.processing.SupportedOptions;
  *       initialization, and when such a field is initialized: A field is checked for initialization
  *       if its declared type has an {@link InvariantQualifier} (e.g., {@link NonNull}). Such a
  *       field becomes initialized when its refined type has that same invariant qualifier (which
- *       can happen either by assigning the field or by contract annotation like {@link
+ *       can happen either by assigning the field or by a contract annotation like {@link
  *       EnsuresNonNull}). You can look at the {@link NullnessChecker} for an example: The
  *       NullnessChecker is a subclass of this checker and uses the {@link NullnessNoInitSubchecker}
- *       as the target checker.
+ *       as the target checker; thus, the NullnessNoInitSubchecker actually checks NonNull and
+ *       related qualifiers, while the NullnessChecker checks Initialized and related qualifers.
  *   <li>Use the {@link InitializationFieldAccessChecker} as a subchecker and add its {@link
  *       CommitmentFieldAccessTreeAnnotator} as a tree annotator. This is necessary to give possibly
  *       uninitialized fields the top type of the target hierarchy (e.g., {@link Nullable}),
  *       ensuring that all fields are initialized before being used. This needs to be a separate
  *       checker because the target checker cannot access any type information from its parent,
- *       which is only initialized after its subcheckers have finished.
+ *       which is only initialized after all subcheckers have finished.
  *   <li>Override all necessary methods in the target checker's type factory to take the type
  *       information from the InitializationDeclarationChecker into account. You can look at {@link
  *       NullnessNoInitAnnotatedTypeFactory} for examples.
+ *   <li>The subclass should support the command-line option {@code -AassumeInitialized} via
+ *       {@code @SupportedOptions({"assumeInitialized"})}, initialization checking can be turned
+ *       off. This gives users of, e.g., the NullnessChecker an easy way to turn off initialization
+ *       checking without having to directly call the NullnessNoInitSubchecker.
  * </ol>
  *
- * <p>If the command-line option {@code -AassumeInitialized} is given, this checker does nothing
- * except call its subcheckers. This gives users of, e.g., the NullnessChecker an easy way to turn
- * off initialization checking without having to directly call the NullnessNoInitSubchecker.
- *
- * <p>Note also that the flow-sensitive type refinement for this type system is performed by the
- * {@link InitializationFieldAccessChecker}; this checker performs no refinement, instead reusing
- * the results from that one.
+ * <p>If you want to modify the freedom-before-commitment scheme in your subclass, note that the
+ * InitializationChecker does not use the default convention where, e.g., the annotated type factory
+ * for {@code NameChecker} is {@code NameAnnotatedTypeFactory}. Instead every subclass of this
+ * checker always uses the {@link InitializationAnnotatedTypeFactory} unless this behavior is
+ * overridden. Note also that the flow-sensitive type refinement for this type system is performed
+ * by the {@link InitializationFieldAccessChecker}; this checker performs no refinement, instead
+ * reusing the results from that one.
  *
  * @checker_framework.manual #initialization-checker Initialization Checker
  */
-@SupportedOptions({"assumeInitialized"})
 public abstract class InitializationChecker extends BaseTypeChecker {
 
     /** Default constructor for InitializationChecker. */
