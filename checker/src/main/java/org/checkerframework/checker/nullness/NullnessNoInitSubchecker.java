@@ -1,5 +1,8 @@
 package org.checkerframework.checker.nullness;
 
+import com.sun.source.tree.ClassTree;
+import com.sun.source.tree.MethodTree;
+
 import org.checkerframework.checker.initialization.InitializationChecker;
 import org.checkerframework.checker.initialization.InitializationFieldAccessChecker;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -42,11 +45,24 @@ public class NullnessNoInitSubchecker extends BaseTypeChecker {
     public NavigableSet<String> getSuppressWarningsPrefixes() {
         NavigableSet<String> result = super.getSuppressWarningsPrefixes();
         result.add("nullness");
+        result.remove("nullnessnoinit");
         return result;
     }
 
     @Override
     protected BaseTypeVisitor<?> createSourceVisitor() {
         return new NullnessNoInitVisitor(this);
+    }
+
+    // The NullnessNoInitChecker should also skip defs skipped by the NullnessChecker
+
+    @Override
+    public boolean shouldSkipDefs(ClassTree tree) {
+        return super.shouldSkipDefs(tree) || parentChecker.shouldSkipDefs(tree);
+    }
+
+    @Override
+    public boolean shouldSkipDefs(ClassTree cls, MethodTree meth) {
+        return super.shouldSkipDefs(cls, meth) || parentChecker.shouldSkipDefs(cls, meth);
     }
 }

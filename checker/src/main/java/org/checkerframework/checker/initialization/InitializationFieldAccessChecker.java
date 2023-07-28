@@ -1,5 +1,6 @@
 package org.checkerframework.checker.initialization;
 
+import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 
 /**
@@ -20,4 +21,17 @@ import org.checkerframework.common.basetype.BaseTypeChecker;
 public class InitializationFieldAccessChecker extends BaseTypeChecker {
 
     public InitializationFieldAccessChecker() {}
+
+    // Suppress all errors and warnings, since they are also reported by the InitializationChecker
+
+    @Override
+    public void reportError(Object source, @CompilerMessageKey String messageKey, Object... args) {
+        // do nothing
+    }
+
+    @Override
+    public void reportWarning(
+            Object source, @CompilerMessageKey String messageKey, Object... args) {
+        // do nothing
+    }
 }

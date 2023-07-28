@@ -2625,7 +2625,7 @@ public abstract class SourceChecker extends AbstractTypeProcessor implements Opt
      * @param tree class to potentially skip
      * @return true if checker should not test {@code tree}
      */
-    public final boolean shouldSkipDefs(ClassTree tree) {
+    public boolean shouldSkipDefs(ClassTree tree) {
         String qualifiedName = TreeUtils.typeOf(tree).toString();
         // System.out.printf("shouldSkipDefs(%s) %s%nskipDefs %s%nonlyDefs %s%nresult %s%n%n",
         //                   tree,
@@ -2655,7 +2655,7 @@ public abstract class SourceChecker extends AbstractTypeProcessor implements Opt
      * @param meth method to potentially skip
      * @return true if checker should not test {@code meth}
      */
-    public final boolean shouldSkipDefs(ClassTree cls, MethodTree meth) {
+    public boolean shouldSkipDefs(ClassTree cls, MethodTree meth) {
         return shouldSkipDefs(cls);
     }
 
