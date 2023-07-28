@@ -48,7 +48,7 @@ import java.util.Set;
  *       information from the InitializationDeclarationChecker into account. You can look at {@link
  *       NullnessNoInitAnnotatedTypeFactory} for examples.
  *   <li>The subclass should support the command-line option {@code -AassumeInitialized} via
- *       {@code @SupportedOptions({"assumeInitialized"})}, initialization checking can be turned
+ *       {@code @SupportedOptions({"assumeInitialized"})}, so initialization checking can be turned
  *       off. This gives users of, e.g., the NullnessChecker an easy way to turn off initialization
  *       checking without having to directly call the NullnessNoInitSubchecker.
  * </ol>
