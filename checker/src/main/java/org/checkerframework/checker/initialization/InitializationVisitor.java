@@ -253,11 +253,13 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
             // See GenericAnnotatedTypeFactory.performFlowAnalysis for why we use
             // the regular exit store of the class here.
             InitializationStore store = atypeFactory.getRegularExitStore(tree);
-            // Add field values for fields with an initializer.
-            for (FieldInitialValue<CFValue> fieldInitialValue :
-                    store.getAnalysis().getFieldInitialValues()) {
-                if (fieldInitialValue.initializer != null) {
-                    store.addInitializedField(fieldInitialValue.fieldDecl.getField());
+            if (store != null) {
+                // Add field values for fields with an initializer.
+                for (FieldInitialValue<CFValue> fieldInitialValue :
+                        store.getAnalysis().getFieldInitialValues()) {
+                    if (fieldInitialValue.initializer != null) {
+                        store.addInitializedField(fieldInitialValue.fieldDecl.getField());
+                    }
                 }
             }
 
