@@ -49,6 +49,7 @@ import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -180,11 +181,12 @@ public abstract class InitializationParentAnnotatedTypeFactory
 
     @Override
     protected Set<Class<? extends Annotation>> createSupportedTypeQualifiers() {
-        return Set.of(
-                UnknownInitialization.class,
-                UnderInitialization.class,
-                Initialized.class,
-                FBCBottom.class);
+        Set<Class<? extends Annotation>> result = new HashSet<>();
+        result.add(UnknownInitialization.class);
+        result.add(UnderInitialization.class);
+        result.add(Initialized.class);
+        result.add(FBCBottom.class);
+        return result;
     }
 
     @Override
