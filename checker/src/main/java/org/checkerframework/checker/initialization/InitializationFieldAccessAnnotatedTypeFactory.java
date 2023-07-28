@@ -51,7 +51,7 @@ public class InitializationFieldAccessAnnotatedTypeFactory
      * Returns the flow analysis.
      *
      * @return the flow analysis
-     * @see {@link #getFlowResult()}
+     * @see #getFlowResult()
      */
     InitializationAnalysis getAnalysis() {
         return analysis;
