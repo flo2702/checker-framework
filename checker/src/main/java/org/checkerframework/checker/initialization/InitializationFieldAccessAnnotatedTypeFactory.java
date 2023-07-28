@@ -40,13 +40,6 @@ public class InitializationFieldAccessAnnotatedTypeFactory
         return flowResult;
     }
 
-    // These warnings are given by the InitializationAnnotatedTypeFactory.
-    // We shouldn't give them twice.
-    @Override
-    public boolean shouldWarnIfStubRedundantWithBytecode() {
-        return false;
-    }
-
     /**
      * This annotator should be added to {@link GenericAnnotatedTypeFactory#createTreeAnnotator} for
      * the target checker. It ensures that the fields of an uninitialized receiver have the top type
