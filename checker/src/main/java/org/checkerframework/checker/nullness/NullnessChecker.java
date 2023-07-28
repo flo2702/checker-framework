@@ -6,8 +6,6 @@ import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.framework.qual.StubFiles;
 import org.checkerframework.framework.source.SupportedLintOptions;
 
-import java.util.Collection;
-
 import javax.annotation.processing.SupportedOptions;
 
 /**
@@ -85,11 +83,6 @@ public class NullnessChecker extends InitializationChecker {
 
     /** Default constructor for NullnessChecker. */
     public NullnessChecker() {}
-
-    @Override
-    public Collection<String> getSuppressWarningsPrefixesOfSubcheckers() {
-        return getSuppressWarningsPrefixes();
-    }
 
     @Override
     public boolean checkPrimitives() {
