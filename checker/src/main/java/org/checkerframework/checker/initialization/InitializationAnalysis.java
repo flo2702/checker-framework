@@ -10,7 +10,7 @@ import javax.lang.model.type.TypeMirror;
 
 /**
  * The analysis class for the initialization type system (serves as factory for the transfer
- * function, stores and abstract values.
+ * function, stores, and abstract values.
  */
 public class InitializationAnalysis
         extends CFAbstractAnalysis<CFValue, InitializationStore, InitializationTransfer> {

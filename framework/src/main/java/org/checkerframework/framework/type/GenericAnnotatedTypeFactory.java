@@ -522,7 +522,7 @@ public abstract class GenericAnnotatedTypeFactory<
     /**
      * Returns an immutable set of the <em>invariant</em> type qualifiers supported by this checker.
      *
-     * @return the monotonic type qualifiers supported this processor, or an empty set if none
+     * @return the invariant type qualifiers supported this processor, or an empty set if none
      * @see InvariantQualifier
      */
     public final Set<Class<? extends Annotation>> getSupportedInvariantTypeQualifiers() {
