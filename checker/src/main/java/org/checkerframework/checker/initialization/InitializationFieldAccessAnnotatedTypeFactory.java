@@ -122,23 +122,24 @@ public class InitializationFieldAccessAnnotatedTypeFactory
          * @param type the field access's unadapted type
          */
         private void computeFieldAccessType(ExpressionTree tree, AnnotatedTypeMirror type) {
+            if (type instanceof AnnotatedExecutableType) {
+                return;
+            }
+
             GenericAnnotatedTypeFactory<?, ?, ?, ?> factory =
                     (GenericAnnotatedTypeFactory<?, ?, ?, ?>) atypeFactory;
+
+            if (factory.getChecker().hasOption("assumeInitialized")) {
+                return;
+            }
+
             InitializationFieldAccessAnnotatedTypeFactory initFactory =
                     factory.getChecker()
                             .getTypeFactoryOfSubchecker(InitializationFieldAccessSubchecker.class);
             Element element = TreeUtils.elementFromUse(tree);
             AnnotatedTypeMirror owner = initFactory.getReceiverType(tree);
 
-            if (factory.getChecker().hasOption("assumeInitialized")) {
-                return;
-            }
-
             if (owner == null) {
-                return;
-            }
-
-            if (type instanceof AnnotatedExecutableType) {
                 return;
             }
 

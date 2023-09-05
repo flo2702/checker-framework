@@ -223,6 +223,10 @@ public abstract class InitializationParentAnnotatedTypeFactory
     public AnnotatedDeclaredType getSelfType(Tree tree) {
         AnnotatedDeclaredType selfType = super.getSelfType(tree);
 
+        if (checker.hasOption("assumeInitialized")) {
+            return selfType;
+        }
+
         TreePath path = getPath(tree);
         AnnotatedDeclaredType enclosing = selfType;
         while (path != null && enclosing != null) {
