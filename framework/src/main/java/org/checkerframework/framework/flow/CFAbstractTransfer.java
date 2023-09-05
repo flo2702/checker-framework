@@ -591,7 +591,7 @@ public abstract class CFAbstractTransfer<
      *
      * @param value the value; possibly null
      * @param in the TransferResult to copy
-     * @return the input informatio
+     * @return the input information
      */
     @SideEffectFree
     protected TransferResult<V, S> recreateTransferResult(
