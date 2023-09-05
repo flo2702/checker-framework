@@ -19,7 +19,6 @@ import org.checkerframework.dataflow.expression.LocalVariable;
 import org.checkerframework.dataflow.expression.MethodCall;
 import org.checkerframework.dataflow.expression.ThisReference;
 import org.checkerframework.dataflow.qual.SideEffectFree;
-import org.checkerframework.framework.qual.InvariantQualifier;
 import org.checkerframework.framework.qual.MonotonicQualifier;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
@@ -235,9 +234,10 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      *       org.checkerframework.dataflow.qual.SideEffectFree} or {@link
      *       org.checkerframework.dataflow.qual.Pure}), then no information needs to be removed.
      *   <li>Otherwise, all information about field accesses {@code a.f} needs to be removed, except
-     *       if the method {@code n} cannot modify {@code a.f} (e.g., if {@code a} is a local
-     *       variable or {@code this}, and {@code f} is final) or {@code a.f} is persistent ({@link
-     *       #isPersistent(FieldAccess)}).
+     *       if the method {@code n} cannot modify {@code a.f}. This holds if {@code a} is a local
+     *       variable or {@code this}, and {@code f} is final, or if {@code a.f} has a {@link
+     *       MonotonicQualifier} in the current store. Subclasses can change this behavior by
+     *       overriding {@link #newFieldValueAfterMethodCall(FieldAccess, CFAbstractValue)}.
      *   <li>Furthermore, if the field has a monotonic annotation, then its information can also be
      *       kept.
      * </ol>
@@ -272,7 +272,7 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
             if (sideEffectsUnrefineAliases) {
                 fieldValues.entrySet().removeIf(e -> !e.getKey().isUnmodifiableByOtherCode());
             } else {
-                // Case 2 (unassignable and persistent fields) and case 3 (monotonic fields)
+                // Case 2 (unassignable fields) and case 3 (monotonic fields)
                 updateFieldValuesForMethodCall();
             }
 
@@ -289,120 +289,103 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
     }
 
     /**
+     * Returns the new value of a field after a method call, or {@code null} if the field should be
+     * removed from the store.
+     *
+     * <p>In this default implementation, the field's value is preserved if it is either
+     * unassignable (see {@link FieldAccess#isUnassignableByOtherCode()}) or has a monotonic
+     * qualifier. Otherwise, it is removed from the store.
+     *
+     * @param fieldAccess the field whose value to update
+     * @param value the field's value before the method call
+     * @return the field's value after the method call, or {@code null} if the field should be
+     *     removed from the store
+     */
+    protected V newFieldValueAfterMethodCall(FieldAccess fieldAccess, V value) {
+        // The field is unassignable.
+        if (fieldAccess.isUnassignableByOtherCode()) {
+            // Keep information.
+            return value;
+        }
+
+        // The field has a monotonic annotation.
+        if (!atypeFactory.getSupportedMonotonicTypeQualifiers().isEmpty()) {
+            Set<AnnotationMirror> fieldAnnotations =
+                    atypeFactory
+                            .getAnnotationWithMetaAnnotation(
+                                    fieldAccess.getField(), MonotonicQualifier.class)
+                            .stream()
+                            .map(p -> p.second)
+                            .map(
+                                    anno -> {
+                                        @SuppressWarnings("deprecation") // permitted for use in
+                                        // the framework
+                                        Name name =
+                                                AnnotationUtils.getElementValueClassName(
+                                                        anno, "value", false);
+                                        return AnnotationBuilder.fromName(
+                                                atypeFactory.getElementUtils(), name);
+                                    })
+                            .collect(Collectors.toSet());
+            V newValue = getMonotonicValue(value, fieldAnnotations, atypeFactory);
+            if (newValue != null) {
+                // Keep information for all hierarchies where we had a
+                // monotonic annotation.
+                return newValue;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Helper for {@link #updateForMethodCall(MethodInvocationNode, CFAbstractValue)}. Remove any
      * information about field values that might not be valid any more after a method call, and add
      * information guaranteed by the method.
      *
-     * <p>More specifically, remove all information about fields except for unassignable fields,
-     * persistent ({@link #isPersistent(FieldAccess)}) fields, and fields that have a monotonic
-     * annotation.
+     * <p>More specifically, remove all information about fields except for unassignable fields and
+     * fields that have a monotonic annotation.
      */
     private void updateFieldValuesForMethodCall() {
         Map<FieldAccess, V> newFieldValues =
                 new HashMap<>(CollectionsPlume.mapCapacity(fieldValues));
         for (Map.Entry<FieldAccess, V> e : fieldValues.entrySet()) {
             FieldAccess fieldAccess = e.getKey();
-            V otherVal = e.getValue();
+            V value = e.getValue();
 
-            // The field is unassignable.
-            if (fieldAccess.isUnassignableByOtherCode()) {
-                // Keep information.
-                newFieldValues.put(fieldAccess, otherVal);
-                continue;
-            }
-
-            // The field has an invariant annotation.
-            if (!atypeFactory.getSupportedInvariantTypeQualifiers().isEmpty()) {
-                Set<AnnotationMirror> fieldAnnotations =
-                        atypeFactory
-                                .getAnnotationWithMetaAnnotation(
-                                        fieldAccess.getField(), InvariantQualifier.class)
-                                .stream()
-                                .map(p -> p.first)
-                                .collect(Collectors.toSet());
-                V newOtherVal = getPersistentValue(otherVal, fieldAnnotations, atypeFactory);
-                if (newOtherVal != null) {
-                    // Keep information for all hierarchies where we had an
-                    // invariant annotation.
-                    newFieldValues.put(fieldAccess, newOtherVal);
-                    continue;
-                }
-            }
-
-            // The field has a monotonic annotation.
-            if (!atypeFactory.getSupportedMonotonicTypeQualifiers().isEmpty()) {
-                Set<AnnotationMirror> fieldAnnotations =
-                        atypeFactory
-                                .getAnnotationWithMetaAnnotation(
-                                        fieldAccess.getField(), MonotonicQualifier.class)
-                                .stream()
-                                .map(p -> p.second)
-                                .map(
-                                        anno -> {
-                                            @SuppressWarnings("deprecation") // permitted for use in
-                                            // the framework
-                                            Name name =
-                                                    AnnotationUtils.getElementValueClassName(
-                                                            anno, "value", false);
-                                            return AnnotationBuilder.fromName(
-                                                    atypeFactory.getElementUtils(), name);
-                                        })
-                                .collect(Collectors.toSet());
-                V newOtherVal = getPersistentValue(otherVal, fieldAnnotations, atypeFactory);
-                if (newOtherVal != null) {
-                    // Keep information for all hierarchies where we had a
-                    // monotonic annotation.
-                    newFieldValues.put(fieldAccess, newOtherVal);
-                    continue;
-                }
+            V newValue = newFieldValueAfterMethodCall(fieldAccess, value);
+            if (newValue != null) {
+                newFieldValues.put(fieldAccess, newValue);
             }
         }
         fieldValues = newFieldValues;
     }
 
     /**
-     * Computes the value of a field whose declaration has a monotonic or invariant annotation.
+     * Computes the value of a field whose declaration has a monotonic annotation.
      *
      * @param value the field's current value
-     * @param persistentAnnotations the monotonic or invariant annotations on the field's
-     *     declaration
+     * @param monotonicAnnotations the monotonic annotations on the field's declaration
      * @param factory the type factory to use
      * @return the value of the field
      */
-    private V getPersistentValue(
-            V value, Set<AnnotationMirror> persistentAnnotations, AnnotatedTypeFactory factory) {
+    private V getMonotonicValue(
+            V value, Set<AnnotationMirror> monotonicAnnotations, AnnotatedTypeFactory factory) {
         V result = null;
-        for (AnnotationMirror persistentAnnotation : persistentAnnotations) {
+        for (AnnotationMirror monotonicAnnotation : monotonicAnnotations) {
             // Make sure the target annotation is present.
             AnnotationMirror actual =
                     factory.getQualifierHierarchy()
-                            .findAnnotationInHierarchy(
-                                    value.getAnnotations(), persistentAnnotation);
+                            .findAnnotationInHierarchy(value.getAnnotations(), monotonicAnnotation);
             if (actual != null
-                    && factory.getQualifierHierarchy().isSubtype(actual, persistentAnnotation)) {
+                    && factory.getQualifierHierarchy().isSubtype(actual, monotonicAnnotation)) {
                 result =
                         analysis.createSingleAnnotationValue(
-                                        persistentAnnotation, value.getUnderlyingType())
+                                        monotonicAnnotation, value.getUnderlyingType())
                                 .mostSpecific(result, null);
             }
         }
         return result;
-    }
-
-    /**
-     * Whether or not the specified field access is persistent, i.e., should not be changed or
-     * removed by {@link #updateForMethodCall(MethodInvocationNode, CFAbstractValue)}.
-     *
-     * <p>E.g., this is useful for checkers that use an initialization type system and don't want
-     * monotonically initialized fields to become uninitialized by method calls.
-     *
-     * <p>The result should only depend on {@code fieldAccess}.
-     *
-     * @param fieldAccess the field access to check
-     * @return whether {@code fieldAccess} is persistent
-     */
-    protected boolean isPersistent(FieldAccess fieldAccess) {
-        return false;
     }
 
     /**

@@ -132,14 +132,24 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
         return result;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * <p>Fields declared as {@link Initialized} (taking into account viewpoint adaption for {@link
-     * NotOnlyInitialized}) are persistent.
-     */
     @Override
-    protected boolean isPersistent(FieldAccess fieldAccess) {
+    protected CFValue newFieldValueAfterMethodCall(FieldAccess fieldAccess, CFValue value) {
+        if (isDeclaredInitialized(fieldAccess)) {
+            return value;
+        }
+
+        return super.newFieldValueAfterMethodCall(fieldAccess, value);
+    }
+
+    /**
+     * Determine whether the given field is declared as {@link Initialized} (taking into account
+     * viewpoint adaption for {@link NotOnlyInitialized}).
+     *
+     * @param fieldAccess the field to check
+     * @return whether the given field is declared as {@link Initialized} (taking into account
+     *     viewpoint adaption for {@link NotOnlyInitialized})
+     */
+    protected boolean isDeclaredInitialized(FieldAccess fieldAccess) {
         AnnotatedTypeMirror receiverType;
         if (thisValue != null && thisValue.getUnderlyingType().getKind() != TypeKind.ERROR) {
             receiverType =
@@ -165,7 +175,7 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
                 AnnotatedTypes.asMemberOf(
                         atypeFactory.types, atypeFactory, receiverType, fieldAccess.getField());
         return declaredType.hasAnnotation(
-                ((InitializationAnnotatedTypeFactory) atypeFactory).INITIALIZED);
+                ((InitializationParentAnnotatedTypeFactory) atypeFactory).INITIALIZED);
     }
 
     @Override

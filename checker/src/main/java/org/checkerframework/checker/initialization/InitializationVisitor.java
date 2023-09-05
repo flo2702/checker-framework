@@ -15,6 +15,7 @@ import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
 
 import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
+import org.checkerframework.checker.initialization.qual.HoldsForDefaultValues;
 import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.initialization.qual.UnderInitialization;
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
@@ -29,12 +30,10 @@ import org.checkerframework.framework.flow.CFAbstractAnalysis.FieldInitialValue;
 import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.flow.CFAbstractValue;
 import org.checkerframework.framework.flow.CFValue;
-import org.checkerframework.framework.qual.InvariantQualifier;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
 import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
-import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.framework.util.AnnotationFormatter;
 import org.checkerframework.javacutil.AnnotationMirrorSet;
 import org.checkerframework.javacutil.AnnotationUtils;
@@ -540,8 +539,10 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
      * Use the target checker to remove fields that are initialized or do not need to be initialized
      * in the store before or after {@code tree} from {@code uninitializedFields}.
      *
-     * <p>A field is initialized if it has an {@link InvariantQualifier} in the given store. A field
-     * does not need to be initialized if its declaration has no {@link InvariantQualifier}
+     * <p>A field is initialized if it has a non-top qualifier in the given store that does not have
+     * the meta-annotation {@link HoldsForDefaultValues} in the given store. A field does not need
+     * to be initialized if its declared type either {@link HoldsForDefaultValues} or is the top
+     * qualifier.
      *
      * @param tree the tree at whose location to check for initialization
      * @param uninitializedFields the possibly uninitialized fields to check
@@ -568,57 +569,23 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
         }
 
         // Filter out fields which are initialized according to subchecker
-        uninitializedFields.removeIf(var -> !isToBeInitialized(factory, store, var));
-    }
-
-    /**
-     * Determines whether the specified variable is yet to be initialized.
-     *
-     * <p>Returns {@code false} iff the variable need not be initialized. This holds for variables
-     * which are already initialized, i.e. have an invariant annotation, in the given store as well
-     * as variables whose declaration has no invariant annotation.
-     *
-     * @param factory the parent checker's factory
-     * @param store the store in which to check the variable's type
-     * @param var the variable to check
-     * @return whether the specified variable is yet to be initialized
-     */
-    private boolean isToBeInitialized(
-            GenericAnnotatedTypeFactory<?, ?, ?, ?> factory,
-            CFAbstractStore<?, ?> store,
-            VariableTree var) {
-        ClassTree enclosingClass = TreePathUtil.enclosingClass(atypeFactory.getPath(var));
-        Node receiver;
-        if (ElementUtils.isStatic(TreeUtils.elementFromDeclaration(var))) {
-            receiver = new ClassNameNode(enclosingClass);
-        } else {
-            receiver =
-                    new ImplicitThisNode(TreeUtils.elementFromDeclaration(enclosingClass).asType());
-        }
-        FieldAccessNode fa =
-                new FieldAccessNode(var, TreeUtils.elementFromDeclaration(var), receiver);
-        CFAbstractValue<?> value = store.getValue(fa);
-        AnnotatedTypeMirror declType = factory.getAnnotatedTypeLhs(var);
-
-        boolean result = true;
-
-        for (Class<? extends Annotation> invariant :
-                factory.getSupportedInvariantTypeQualifiers()) {
-            boolean hasInvariantInStore =
-                    value != null
-                            && value.getAnnotations().stream()
-                                    .anyMatch(
-                                            annotation ->
-                                                    factory.areSameByClass(annotation, invariant));
-            boolean hasInvariantAtDeclaration =
-                    AnnotatedTypes.findEffectiveLowerBoundAnnotations(
-                                    factory.getQualifierHierarchy(), declType)
-                            .stream()
-                            .anyMatch(annotation -> factory.areSameByClass(annotation, invariant));
-
-            result &= !hasInvariantInStore && hasInvariantAtDeclaration;
-        }
-
-        return result;
+        uninitializedFields.removeIf(
+                var -> {
+                    ClassTree enclosingClass =
+                            TreePathUtil.enclosingClass(atypeFactory.getPath(var));
+                    Node receiver;
+                    if (ElementUtils.isStatic(TreeUtils.elementFromDeclaration(var))) {
+                        receiver = new ClassNameNode(enclosingClass);
+                    } else {
+                        receiver =
+                                new ImplicitThisNode(
+                                        TreeUtils.elementFromDeclaration(enclosingClass).asType());
+                    }
+                    VariableElement varElement = TreeUtils.elementFromDeclaration(var);
+                    FieldAccessNode fa = new FieldAccessNode(var, varElement, receiver);
+                    CFAbstractValue<?> value = store.getValue(fa);
+                    return InitializationAnnotatedTypeFactory.isInitialized(
+                            factory, value, varElement);
+                });
     }
 }

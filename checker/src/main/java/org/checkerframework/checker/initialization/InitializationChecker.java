@@ -5,6 +5,7 @@ import com.sun.source.tree.Tree;
 import com.sun.source.tree.VariableTree;
 
 import org.checkerframework.checker.initialization.InitializationFieldAccessAnnotatedTypeFactory.CommitmentFieldAccessTreeAnnotator;
+import org.checkerframework.checker.initialization.qual.HoldsForDefaultValues;
 import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.nullness.NullnessChecker;
 import org.checkerframework.checker.nullness.NullnessNoInitAnnotatedTypeFactory;
@@ -13,7 +14,6 @@ import org.checkerframework.checker.nullness.qual.EnsuresNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.common.basetype.BaseTypeChecker;
-import org.checkerframework.framework.qual.InvariantQualifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,14 +32,14 @@ import java.util.Set;
  *   <li>Use a subclass of this checker as its parent checker. This is necessary because this
  *       checker is dependent on the target checker to know which fields should be checked for
  *       initialization, and when such a field is initialized: A field is checked for initialization
- *       if its declared type has an {@link InvariantQualifier} (e.g., {@link NonNull}). Such a
- *       field becomes initialized when its refined type has that same invariant qualifier (which
- *       can happen either by assigning the field or by a contract annotation like {@link
- *       EnsuresNonNull}). You can look at the {@link NullnessChecker} for an example: The {@link
- *       NullnessChecker} is a subclass of this checker and uses the {@link
- *       NullnessNoInitSubchecker} as the target checker; thus, the {@link NullnessNoInitSubchecker}
- *       actually checks {@link NonNull} and related qualifiers, while the NullnessChecker checks
- *       {@link Initialized} and related qualifers.
+ *       if its declared type is not the top type and does not have the meta-annotation {@link
+ *       HoldsForDefaultValues} (e.g., {@link NonNull}). Such a field becomes initialized as soon as
+ *       its refined type agrees with its declared type (which can happen either by assigning the
+ *       field or by a contract annotation like {@link EnsuresNonNull}). You can look at the {@link
+ *       NullnessChecker} for an example: The {@link NullnessChecker} is a subclass of this checker
+ *       and uses the {@link NullnessNoInitSubchecker} as the target checker; thus, the {@link
+ *       NullnessNoInitSubchecker} actually checks {@link NonNull} and related qualifiers, while the
+ *       NullnessChecker checks {@link Initialized} and related qualifers.
  *   <li>Use the {@link InitializationFieldAccessSubchecker} as a subchecker and add its {@link
  *       CommitmentFieldAccessTreeAnnotator} as a tree annotator. This is necessary to give possibly
  *       uninitialized fields the top type of the target hierarchy (e.g., {@link Nullable}),

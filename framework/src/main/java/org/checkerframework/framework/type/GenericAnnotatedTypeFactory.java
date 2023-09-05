@@ -56,7 +56,6 @@ import org.checkerframework.framework.qual.DefaultQualifier;
 import org.checkerframework.framework.qual.DefaultQualifierInHierarchy;
 import org.checkerframework.framework.qual.EnsuresQualifier;
 import org.checkerframework.framework.qual.EnsuresQualifierIf;
-import org.checkerframework.framework.qual.InvariantQualifier;
 import org.checkerframework.framework.qual.MonotonicQualifier;
 import org.checkerframework.framework.qual.QualifierForLiterals;
 import org.checkerframework.framework.qual.RelevantJavaTypes;
@@ -147,9 +146,6 @@ public abstract class GenericAnnotatedTypeFactory<
 
     /** To cache the supported monotonic type qualifiers. */
     private @MonotonicNonNull Set<Class<? extends Annotation>> supportedMonotonicQuals;
-
-    /** To cache the supported invariant type qualifiers. */
-    private @MonotonicNonNull Set<Class<? extends Annotation>> supportedInvariantQuals;
 
     /** to annotate types based on the given tree */
     protected TypeAnnotator typeAnnotator;
@@ -517,25 +513,6 @@ public abstract class GenericAnnotatedTypeFactory<
             }
         }
         return supportedMonotonicQuals;
-    }
-
-    /**
-     * Returns an immutable set of the <em>invariant</em> type qualifiers supported by this checker.
-     *
-     * @return the invariant type qualifiers supported this processor, or an empty set if none
-     * @see InvariantQualifier
-     */
-    public final Set<Class<? extends Annotation>> getSupportedInvariantTypeQualifiers() {
-        if (supportedInvariantQuals == null) {
-            supportedInvariantQuals = new HashSet<>();
-            for (Class<? extends Annotation> anno : getSupportedTypeQualifiers()) {
-                InvariantQualifier inv = anno.getAnnotation(InvariantQualifier.class);
-                if (inv != null) {
-                    supportedInvariantQuals.add(anno);
-                }
-            }
-        }
-        return supportedInvariantQuals;
     }
 
     /**

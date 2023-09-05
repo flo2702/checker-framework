@@ -1,11 +1,14 @@
 package org.checkerframework.checker.nullness;
 
+import org.checkerframework.checker.initialization.InitializationAnnotatedTypeFactory;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.checker.nullness.qual.PolyNull;
 import org.checkerframework.dataflow.cfg.visualize.CFGVisualizer;
+import org.checkerframework.dataflow.expression.FieldAccess;
 import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.flow.CFAbstractStore;
+import org.checkerframework.framework.qual.MonotonicQualifier;
 
 /**
  * In addition to the base class behavior, tracks whether {@link PolyNull} is known to be {@link
@@ -43,6 +46,30 @@ public class NullnessNoInitStore extends CFAbstractStore<NullnessNoInitValue, Nu
         super(s);
         isPolyNullNonNull = s.isPolyNullNonNull;
         isPolyNullNull = s.isPolyNullNull;
+    }
+
+    @Override
+    protected NullnessNoInitValue newFieldValueAfterMethodCall(
+            FieldAccess fieldAccess, NullnessNoInitValue value) {
+        NullnessNoInitValue result = super.newFieldValueAfterMethodCall(fieldAccess, value);
+
+        // If the field is initialized, we keep the declared type in the store.
+        if (result == null
+                && InitializationAnnotatedTypeFactory.isInitialized(
+                        atypeFactory, value, fieldAccess.getField())
+                && atypeFactory
+                        .getAnnotationWithMetaAnnotation(
+                                fieldAccess.getField(), MonotonicQualifier.class)
+                        .isEmpty()) {
+            result =
+                    analysis.createAbstractValue(
+                            atypeFactory
+                                    .getAnnotatedTypeLhs(fieldAccess.getField())
+                                    .getAnnotations(),
+                            value.getUnderlyingType());
+        }
+
+        return result;
     }
 
     @Override
