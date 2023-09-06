@@ -10,6 +10,9 @@ import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.qual.MonotonicQualifier;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * In addition to the base class behavior, tracks whether {@link PolyNull} is known to be {@link
  * NonNull} or {@link Nullable} (or not known to be either).
@@ -21,6 +24,19 @@ public class NullnessNoInitStore extends CFAbstractStore<NullnessNoInitValue, Nu
 
     /** True if, at this point, {@link PolyNull} is known to be {@link Nullable}. */
     protected boolean isPolyNullNull;
+
+    /**
+     * Initialized fields and their values.
+     *
+     * <p>Used by {@link #newFieldValueAfterMethodCall(FieldAccess, NullnessNoInitValue)} as cache
+     * to avoid performance issue in #1438.
+     *
+     * @see
+     *     InitializationAnnotatedTypeFactory#isInitialized(org.checkerframework.framework.type.GenericAnnotatedTypeFactory,
+     *     org.checkerframework.framework.flow.CFAbstractValue,
+     *     javax.lang.model.element.VariableElement)
+     */
+    protected Map<FieldAccess, NullnessNoInitValue> initializedFields;
 
     /**
      * Create a NullnessStore.
@@ -46,30 +62,44 @@ public class NullnessNoInitStore extends CFAbstractStore<NullnessNoInitValue, Nu
         super(s);
         isPolyNullNonNull = s.isPolyNullNonNull;
         isPolyNullNull = s.isPolyNullNull;
+        if (s.initializedFields != null) {
+            initializedFields = s.initializedFields;
+        }
     }
 
     @Override
     protected NullnessNoInitValue newFieldValueAfterMethodCall(
             FieldAccess fieldAccess, NullnessNoInitValue value) {
-        NullnessNoInitValue result = super.newFieldValueAfterMethodCall(fieldAccess, value);
+        if (initializedFields == null) {
+            initializedFields = new HashMap<>(4);
+        }
 
-        // If the field is initialized, we keep the declared type in the store.
-        if (result == null
-                && InitializationAnnotatedTypeFactory.isInitialized(
+        // If the field is initialized, we keep information in the store.
+        if (initializedFields.containsKey(fieldAccess)) {
+            return initializedFields.get(fieldAccess);
+        } else if (InitializationAnnotatedTypeFactory.isInitialized(
                         atypeFactory, value, fieldAccess.getField())
                 && atypeFactory
                         .getAnnotationWithMetaAnnotation(
                                 fieldAccess.getField(), MonotonicQualifier.class)
                         .isEmpty()) {
-            result =
-                    analysis.createAbstractValue(
-                            atypeFactory
-                                    .getAnnotatedTypeLhs(fieldAccess.getField())
-                                    .getAnnotations(),
-                            value.getUnderlyingType());
+
+            NullnessNoInitValue newValue;
+            if (fieldAccess.isUnassignableByOtherCode()) {
+                newValue = value;
+            } else {
+                newValue =
+                        analysis.createAbstractValue(
+                                atypeFactory
+                                        .getAnnotatedTypeLhs(fieldAccess.getField())
+                                        .getAnnotations(),
+                                value.getUnderlyingType());
+            }
+            initializedFields.put(fieldAccess, newValue);
+            return newValue;
         }
 
-        return result;
+        return super.newFieldValueAfterMethodCall(fieldAccess, value);
     }
 
     @Override
