@@ -108,8 +108,8 @@ public class InitializationFieldAccessAnnotatedTypeFactory
         }
 
         /**
-         * Adapts the type of a field access depending on the field's declared type and the
-         * receiver's initialization type.
+         * Adapts the type in the target checker hierarchy of a field access depending on the
+         * field's declared type and the receiver's initialization type.
          *
          * @param tree the field access
          * @param type the field access's unadapted type
