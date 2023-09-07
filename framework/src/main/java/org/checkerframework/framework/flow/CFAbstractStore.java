@@ -294,7 +294,7 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      *
      * <p>In this default implementation, the field's value is preserved if it is either
      * unassignable (see {@link FieldAccess#isUnassignableByOtherCode()}) or has a monotonic
-     * qualifier. Otherwise, it is removed from the store.
+     * qualifier (see . Otherwise, it is removed from the store.
      *
      * @param fieldAccess the field whose value to update
      * @param value the field's value before the method call
@@ -302,13 +302,28 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      *     removed from the store
      */
     protected V newFieldValueAfterMethodCall(FieldAccess fieldAccess, V value) {
-        // The field is unassignable.
+        // Handle unassignable fields.
         if (fieldAccess.isUnassignableByOtherCode()) {
-            // Keep information.
             return value;
         }
 
-        // The field has a monotonic annotation.
+        // Handle fields with monotonic annotations.
+        return newMonotonicFieldValueAfterMethodCall(fieldAccess, value);
+    }
+
+    /**
+     * Computes the value of a field whose declaration has a monotonic annotation, or returns {@code
+     * null} if the field has no monotonic annotation.
+     *
+     * <p>Used by {@link #newFieldValueAfterMethodCall(FieldAccess, CFAbstractValue)} to handle
+     * fields with monotonic annotations.
+     *
+     * @param fieldAccess the field whose value to compute
+     * @param value the field's value before the method call
+     * @return the field's value after the method call, or {@code null} if the field has no
+     *     monotonic annotation
+     */
+    protected V newMonotonicFieldValueAfterMethodCall(FieldAccess fieldAccess, V value) {
         if (!atypeFactory.getSupportedMonotonicTypeQualifiers().isEmpty()) {
             Set<AnnotationMirror> fieldAnnotations =
                     atypeFactory
@@ -327,12 +342,25 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                                                 atypeFactory.getElementUtils(), name);
                                     })
                             .collect(Collectors.toSet());
-            V newValue = getMonotonicValue(value, fieldAnnotations, atypeFactory);
-            if (newValue != null) {
-                // Keep information for all hierarchies where we had a
-                // monotonic annotation.
-                return newValue;
+            V newValue = null;
+            for (AnnotationMirror monotonicAnnotation : fieldAnnotations) {
+                // Make sure the target annotation is present.
+                AnnotationMirror actual =
+                        atypeFactory
+                                .getQualifierHierarchy()
+                                .findAnnotationInHierarchy(
+                                        value.getAnnotations(), monotonicAnnotation);
+                if (actual != null
+                        && atypeFactory
+                                .getQualifierHierarchy()
+                                .isSubtype(actual, monotonicAnnotation)) {
+                    newValue =
+                            analysis.createSingleAnnotationValue(
+                                            monotonicAnnotation, value.getUnderlyingType())
+                                    .mostSpecific(newValue, null);
+                }
             }
+            return newValue;
         }
 
         return null;
@@ -359,33 +387,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
             }
         }
         fieldValues = newFieldValues;
-    }
-
-    /**
-     * Computes the value of a field whose declaration has a monotonic annotation.
-     *
-     * @param value the field's current value
-     * @param monotonicAnnotations the monotonic annotations on the field's declaration
-     * @param factory the type factory to use
-     * @return the value of the field
-     */
-    private V getMonotonicValue(
-            V value, Set<AnnotationMirror> monotonicAnnotations, AnnotatedTypeFactory factory) {
-        V result = null;
-        for (AnnotationMirror monotonicAnnotation : monotonicAnnotations) {
-            // Make sure the target annotation is present.
-            AnnotationMirror actual =
-                    factory.getQualifierHierarchy()
-                            .findAnnotationInHierarchy(value.getAnnotations(), monotonicAnnotation);
-            if (actual != null
-                    && factory.getQualifierHierarchy().isSubtype(actual, monotonicAnnotation)) {
-                result =
-                        analysis.createSingleAnnotationValue(
-                                        monotonicAnnotation, value.getUnderlyingType())
-                                .mostSpecific(result, null);
-            }
-        }
-        return result;
     }
 
     /**

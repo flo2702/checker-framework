@@ -28,8 +28,8 @@ public class NullnessNoInitStore extends CFAbstractStore<NullnessNoInitValue, Nu
     /**
      * Initialized fields and their values.
      *
-     * <p>Used by {@link #newFieldValueAfterMethodCall(FieldAccess, NullnessNoInitValue)} as cache
-     * to avoid performance issue in #1438.
+     * <p>This is used by {@link #newFieldValueAfterMethodCall(FieldAccess, NullnessNoInitValue)} as
+     * cache to avoid performance issue in #1438.
      *
      * @see
      *     InitializationAnnotatedTypeFactory#isInitialized(org.checkerframework.framework.type.GenericAnnotatedTypeFactory,
@@ -70,11 +70,22 @@ public class NullnessNoInitStore extends CFAbstractStore<NullnessNoInitValue, Nu
     @Override
     protected NullnessNoInitValue newFieldValueAfterMethodCall(
             FieldAccess fieldAccess, NullnessNoInitValue value) {
+        // If the field is unassignable, it cannot change; thus we keep
+        // its current value.
+        // Unassignable fields must be handled before initialized fields
+        // because in the case of a field that is both unassignable and
+        // initialized, the initializedFields cache may contain an older,
+        // less refined value.
+        if (fieldAccess.isUnassignableByOtherCode()) {
+            return value;
+        }
+
         if (initializedFields == null) {
             initializedFields = new HashMap<>(4);
         }
 
-        // If the field is initialized, we keep information in the store.
+        // If the field is initialized, it can change, but cannot be uninitialized.
+        // We thus keep a new value based on its declared type.
         if (initializedFields.containsKey(fieldAccess)) {
             return initializedFields.get(fieldAccess);
         } else if (InitializationAnnotatedTypeFactory.isInitialized(
@@ -84,22 +95,19 @@ public class NullnessNoInitStore extends CFAbstractStore<NullnessNoInitValue, Nu
                                 fieldAccess.getField(), MonotonicQualifier.class)
                         .isEmpty()) {
 
-            NullnessNoInitValue newValue;
-            if (fieldAccess.isUnassignableByOtherCode()) {
-                newValue = value;
-            } else {
-                newValue =
-                        analysis.createAbstractValue(
-                                atypeFactory
-                                        .getAnnotatedTypeLhs(fieldAccess.getField())
-                                        .getAnnotations(),
-                                value.getUnderlyingType());
-            }
+            NullnessNoInitValue newValue =
+                    analysis.createAbstractValue(
+                            atypeFactory
+                                    .getAnnotatedTypeLhs(fieldAccess.getField())
+                                    .getAnnotations(),
+                            value.getUnderlyingType());
             initializedFields.put(fieldAccess, newValue);
             return newValue;
         }
 
-        return super.newFieldValueAfterMethodCall(fieldAccess, value);
+        // If the field has a monotonic annotation, we use the superclass's
+        // handling of monotonic annotations.
+        return super.newMonotonicFieldValueAfterMethodCall(fieldAccess, value);
     }
 
     @Override
