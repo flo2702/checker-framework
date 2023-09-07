@@ -96,13 +96,6 @@ public class InitializationFieldAccessAnnotatedTypeFactory
         @Override
         public Void visitIdentifier(IdentifierTree tree, AnnotatedTypeMirror p) {
             super.visitIdentifier(tree, p);
-
-            // Only call computeFieldAccessType for actual field accesses, not for direct uses
-            // of this and super.
-            if (tree.getName().contentEquals("this") || tree.getName().contentEquals("super")) {
-                return null;
-            }
-
             computeFieldAccessType(tree, p);
             return null;
         }
@@ -122,27 +115,43 @@ public class InitializationFieldAccessAnnotatedTypeFactory
          * @param type the field access's unadapted type
          */
         private void computeFieldAccessType(ExpressionTree tree, AnnotatedTypeMirror type) {
-            if (type instanceof AnnotatedExecutableType) {
-                return;
-            }
-
             GenericAnnotatedTypeFactory<?, ?, ?, ?> factory =
                     (GenericAnnotatedTypeFactory<?, ?, ?, ?>) atypeFactory;
 
+            // Don't adapt anything if initialization checking is turned off.
             if (factory.getChecker().hasOption("assumeInitialized")) {
                 return;
             }
 
-            InitializationFieldAccessAnnotatedTypeFactory initFactory =
-                    factory.getChecker()
-                            .getTypeFactoryOfSubchecker(InitializationFieldAccessSubchecker.class);
-            Element element = TreeUtils.elementFromUse(tree);
-            AnnotatedTypeMirror owner = initFactory.getReceiverType(tree);
+            // Don't adapt anything if "tree" is not actually a field access.
 
-            if (owner == null) {
+            // Don't adapt uses of the identifiers "this" or "super" that are not field accesses
+            // (e.g., constructor calls or uses of an outer this).
+            if (tree instanceof IdentifierTree) {
+                IdentifierTree identTree = (IdentifierTree) tree;
+                if (identTree.getName().contentEquals("this")
+                        || identTree.getName().contentEquals("super")) {
+                    return;
+                }
+            }
+
+            // Don't adapt method accesses.
+            if (type instanceof AnnotatedExecutableType) {
                 return;
             }
 
+            // Don't adapt trees that do not have a (explicit or implicit) receiver (e.g., local
+            // variables).
+            InitializationFieldAccessAnnotatedTypeFactory initFactory =
+                    atypeFactory
+                            .getChecker()
+                            .getTypeFactoryOfSubchecker(InitializationFieldAccessSubchecker.class);
+            AnnotatedTypeMirror receiver = initFactory.getReceiverType(tree);
+            if (receiver == null) {
+                return;
+            }
+
+            Element element = TreeUtils.elementFromUse(tree);
             AnnotatedTypeMirror fieldAnnotations = factory.getAnnotatedType(element);
 
             // not necessary if there is an explicit UnknownInitialization
@@ -151,14 +160,14 @@ public class InitializationFieldAccessAnnotatedTypeFactory
                     fieldAnnotations.getAnnotations(), initFactory.UNKNOWN_INITIALIZATION)) {
                 return;
             }
-            if (!initFactory.isUnknownInitialization(owner)
-                    && !initFactory.isUnderInitialization(owner)) {
+            if (!initFactory.isUnknownInitialization(receiver)
+                    && !initFactory.isUnderInitialization(receiver)) {
                 return;
             }
 
             TypeMirror fieldDeclarationType = element.getEnclosingElement().asType();
             boolean isOwnerInitialized =
-                    initFactory.isInitializedForFrame(owner, fieldDeclarationType);
+                    initFactory.isInitializedForFrame(receiver, fieldDeclarationType);
 
             // If the field has been initialized, don't clear annotations.
             // This is ok even if the field was initialized with a non-invariant

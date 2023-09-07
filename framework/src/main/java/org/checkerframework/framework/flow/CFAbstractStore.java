@@ -294,7 +294,8 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      *
      * <p>In this default implementation, the field's value is preserved if it is either
      * unassignable (see {@link FieldAccess#isUnassignableByOtherCode()}) or has a monotonic
-     * qualifier (see . Otherwise, it is removed from the store.
+     * qualifier (see {@link #newMonotonicFieldValueAfterMethodCall(FieldAccess, CFAbstractValue)}).
+     * Otherwise, it is removed from the store.
      *
      * @param fieldAccess the field whose value to update
      * @param value the field's value before the method call

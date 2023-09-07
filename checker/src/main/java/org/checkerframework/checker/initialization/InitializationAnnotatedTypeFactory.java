@@ -49,7 +49,11 @@ public class InitializationAnnotatedTypeFactory extends InitializationParentAnno
     /**
      * Gets the factory of the {@link InitializationFieldAccessSubchecker}.
      *
-     * @return the factory of the {@link InitializationFieldAccessSubchecker}
+     * <p>If type checking has not yet started, the subcheckers are uninitialized, and this returns
+     * {@code null}.
+     *
+     * @return the factory of the {@link InitializationFieldAccessSubchecker}, or {@code null} if
+     *     not yet initialized
      */
     protected InitializationFieldAccessAnnotatedTypeFactory getFieldAccessFactory() {
         InitializationChecker checker = getChecker();
