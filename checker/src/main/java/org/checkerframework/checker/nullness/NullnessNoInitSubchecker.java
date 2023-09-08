@@ -47,6 +47,11 @@ public class NullnessNoInitSubchecker extends BaseTypeChecker {
     }
 
     @Override
+    protected String getWarningMessagePrefix() {
+        return "nullness";
+    }
+
+    @Override
     protected BaseTypeVisitor<?> createSourceVisitor() {
         return new NullnessNoInitVisitor(this);
     }
