@@ -107,7 +107,7 @@ public class InitializationAnnotatedTypeFactory extends InitializationParentAnno
             GenericAnnotatedTypeFactory<?, ?, ?, ?> factory,
             CFAbstractValue<?> value,
             VariableElement var) {
-        AnnotatedTypeMirror declType = factory.getAnnotatedTypeLhs(var);
+        AnnotatedTypeMirror declType = factory.getAnnotatedType(var);
 
         Set<? extends AnnotationMirror> topAnnotations =
                 factory.getQualifierHierarchy().getTopAnnotations();

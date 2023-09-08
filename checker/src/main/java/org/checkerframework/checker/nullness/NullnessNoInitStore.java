@@ -97,9 +97,7 @@ public class NullnessNoInitStore extends CFAbstractStore<NullnessNoInitValue, Nu
 
             NullnessNoInitValue newValue =
                     analysis.createAbstractValue(
-                            atypeFactory
-                                    .getAnnotatedTypeLhs(fieldAccess.getField())
-                                    .getAnnotations(),
+                            atypeFactory.getAnnotatedType(fieldAccess.getField()).getAnnotations(),
                             value.getUnderlyingType());
             initializedFields.put(fieldAccess, newValue);
             return newValue;

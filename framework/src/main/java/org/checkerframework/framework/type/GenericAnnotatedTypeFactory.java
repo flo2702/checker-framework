@@ -1737,53 +1737,6 @@ public abstract class GenericAnnotatedTypeFactory<
      * <p>The default implementation returns the type without considering dataflow type refinement.
      * Subclass can override this method and add additional logic for computing the type of a LHS.
      *
-     * @param lhsElement left-hand side of an assignment
-     * @return AnnotatedTypeMirror of {@code lhsElement}
-     */
-    public AnnotatedTypeMirror getAnnotatedTypeLhs(VariableElement lhsElement) {
-        boolean oldComputingAnnotatedTypeMirrorOfLHS = computingAnnotatedTypeMirrorOfLHS;
-        computingAnnotatedTypeMirrorOfLHS = true;
-
-        AnnotatedTypeMirror res;
-        boolean oldUseFlow = useFlow;
-        boolean oldShouldCache = shouldCache;
-        useFlow = false;
-        // Don't cache the result because getAnnotatedType(lhsElement) could
-        // be called from elsewhere and would expect flow-sensitive type refinements.
-        shouldCache = false;
-        switch (lhsElement.getKind()) {
-            case ENUM_CONSTANT:
-            case FIELD:
-            case PARAMETER:
-            case LOCAL_VARIABLE:
-            case EXCEPTION_PARAMETER:
-            case CLASS:
-            case ENUM:
-            case INTERFACE:
-            case ANNOTATION_TYPE:
-                res = getAnnotatedType(lhsElement);
-                break;
-            default:
-                throw new BugInCF(
-                        "GenericAnnotatedTypeFactory: Unexpected element passed to"
-                                + " getAnnotatedTypeLhs. lhsTree: "
-                                + lhsElement
-                                + " Tree.Kind: "
-                                + lhsElement.getKind());
-        }
-        useFlow = oldUseFlow;
-        shouldCache = oldShouldCache;
-
-        computingAnnotatedTypeMirrorOfLHS = oldComputingAnnotatedTypeMirrorOfLHS;
-        return res;
-    }
-
-    /**
-     * Returns the type of a left-hand side of an assignment.
-     *
-     * <p>The default implementation returns the type without considering dataflow type refinement.
-     * Subclass can override this method and add additional logic for computing the type of a LHS.
-     *
      * @param lhsTree left-hand side of an assignment
      * @return AnnotatedTypeMirror of {@code lhsTree}
      */
