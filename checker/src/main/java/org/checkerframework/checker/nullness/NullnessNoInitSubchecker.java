@@ -43,7 +43,6 @@ public class NullnessNoInitSubchecker extends BaseTypeChecker {
     public NavigableSet<String> getSuppressWarningsPrefixes() {
         NavigableSet<String> result = super.getSuppressWarningsPrefixes();
         result.add("nullness");
-        result.remove("nullnessnoinit");
         return result;
     }
 

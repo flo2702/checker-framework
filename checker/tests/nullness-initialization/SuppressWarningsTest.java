@@ -4,7 +4,7 @@ public class SuppressWarningsTest {
 
     Object f;
 
-    @SuppressWarnings("all")
+    @SuppressWarnings("nullnessnoinit")
     void test() {
         String a = null;
         a.toString();
@@ -20,7 +20,7 @@ public class SuppressWarningsTest {
     @SuppressWarnings("nullness")
     SuppressWarningsTest() {}
 
-    @SuppressWarnings("nullness-no-init")
+    @SuppressWarnings("nullnessnoinit")
     // :: error: initialization.fields.uninitialized
     SuppressWarningsTest(int dummy) {}
 }

@@ -19,11 +19,11 @@ import javax.annotation.processing.SupportedOptions;
  * <p>You can use the following {@link SuppressWarnings} prefixes with this checker:
  *
  * <ul>
- *   <li>{@code @SuppressWarnings("nullness"} suppresses warnings for both nullness and
+ *   <li>{@code @SuppressWarnings("nullness")} suppresses warnings for both nullness and
  *       initialization annotations
- *   <li>{@code @SuppressWarnings("initialization"} suppresses warnings for initialization
+ *   <li>{@code @SuppressWarnings("initialization")} suppresses warnings for initialization
  *       annotations only
- *   <li>{@code @SuppressWarnings("nullness-no-init"} suppresses warnings for nullness annotations
+ *   <li>{@code @SuppressWarnings("nullnessnoinit")} suppresses warnings for nullness annotations
  *       only
  * </ul>
  *
