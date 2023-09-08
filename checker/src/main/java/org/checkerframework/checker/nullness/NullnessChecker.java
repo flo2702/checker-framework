@@ -16,6 +16,17 @@ import javax.annotation.processing.SupportedOptions;
  * <p>This checker uses the {@link NullnessNoInitSubchecker} to check for nullness and extends the
  * {@link InitializationChecker} to also check that all non-null fields are properly initialized.
  *
+ * <p>You can use the following {@link SuppressWarnings} prefixes with this checker:
+ *
+ * <ul>
+ *   <li>{@code @SuppressWarnings("nullness"} suppresses warnings for both nullness and
+ *       initialization annotations
+ *   <li>{@code @SuppressWarnings("initialization"} suppresses warnings for initialization
+ *       annotations only
+ *   <li>{@code @SuppressWarnings("nullness-no-init"} suppresses warnings for nullness annotations
+ *       only
+ * </ul>
+ *
  * <ol>
  *   <li>the {@link KeyForSubchecker}
  *   <li>the {@link InitializationChecker}
