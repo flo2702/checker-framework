@@ -1582,9 +1582,6 @@ class C {
 \end{figure}
 
 
-% Does our implementation handle static fields soundly?  NO!  See issue
-% #105.  Maybe document this?
-
 
 \subsectionAndLabel{How an object becomes initialized}{becoming-initialized}
 
@@ -2153,8 +2150,8 @@ message such as the following:
 MyFile.java:123: error: call to initHelper() not allowed on the given receiver.
     initHelper();
               ^
-  found   : @UnderInitialization(com.google.Bar.class) @NonNull MyClass
-  required: @Initialized @NonNull MyClass
+  found   : @UnderInitialization(com.google.Bar.class) MyClass
+  required: @Initialized MyClass
 \end{Verbatim}
 
 The problem is that the current object (\<this>) is under initialization,
@@ -2201,8 +2198,8 @@ the Nullness Checker issues the following warning:
 MyClass.java:7: error: call to helperMethod() not allowed on the given receiver.
     helperMethod();
                 ^
-  found   : @UnderInitialization(MyClass.class) @NonNull MyClass
-  required: @Initialized @NonNull MyClass
+  found   : @UnderInitialization(MyClass.class) MyClass
+  required: @Initialized MyClass
 1 error
 \end{Verbatim}
 
