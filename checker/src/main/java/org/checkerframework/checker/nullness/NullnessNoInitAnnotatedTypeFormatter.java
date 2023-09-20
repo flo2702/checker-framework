@@ -15,9 +15,9 @@ public class NullnessNoInitAnnotatedTypeFormatter extends DefaultAnnotatedTypeFo
     /**
      * Create a new NullnessNoInitAnnotatedTypeFormatter
      *
-     * @param printVerboseGenerics whether to prints type variables in a less ambiguous manner using
-     *     [] to delimit them
-     * @param printInvisibleQualifiers whether or not to printInvisibles
+     * @param printVerboseGenerics whether to print type variables in a less ambiguous manner using
+     *     {@code []} to delimit bounds
+     * @param printInvisibleQualifiers whether or not to print invisible qualifiers
      */
     public NullnessNoInitAnnotatedTypeFormatter(
             boolean printVerboseGenerics, boolean printInvisibleQualifiers) {
@@ -35,9 +35,9 @@ public class NullnessNoInitAnnotatedTypeFormatter extends DefaultAnnotatedTypeFo
          * Create a new NullnessFormattingVisitor.
          *
          * @param annoFormatter the formatter to use
-         * @param printVerboseGenerics whether to prints type variables in a less ambiguous manner
-         *     using [] to delimit them
-         * @param defaultInvisiblesSetting whether or not to printInvisibles
+         * @param printVerboseGenerics whether to print type variables in a less ambiguous manner
+         *     using {@code []} to delimit bounds
+         * @param defaultInvisiblesSetting whether or not to print invisible qualifiers
          */
         public NullnessFormattingVisitor(
                 AnnotationFormatter annoFormatter,
