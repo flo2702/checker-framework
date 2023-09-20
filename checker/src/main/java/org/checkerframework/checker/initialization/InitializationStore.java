@@ -10,6 +10,7 @@ import org.checkerframework.dataflow.expression.ThisReference;
 import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
+import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
 import org.checkerframework.framework.util.AnnotatedTypes;
 import org.plumelib.util.ToStringComparator;
 
@@ -133,12 +134,15 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
     }
 
     @Override
-    protected CFValue newFieldValueAfterMethodCall(FieldAccess fieldAccess, CFValue value) {
+    protected CFValue newFieldValueAfterMethodCall(
+            FieldAccess fieldAccess,
+            GenericAnnotatedTypeFactory<CFValue, InitializationStore, ?, ?> atypeFactory,
+            CFValue value) {
         if (isDeclaredInitialized(fieldAccess)) {
             return value;
         }
 
-        return super.newFieldValueAfterMethodCall(fieldAccess, value);
+        return super.newFieldValueAfterMethodCall(fieldAccess, atypeFactory, value);
     }
 
     /**
@@ -150,6 +154,8 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
      *     viewpoint adaption for {@link NotOnlyInitialized})
      */
     protected boolean isDeclaredInitialized(FieldAccess fieldAccess) {
+        InitializationParentAnnotatedTypeFactory atypeFactory =
+                (InitializationParentAnnotatedTypeFactory) analysis.getTypeFactory();
         AnnotatedTypeMirror receiverType;
         if (thisValue != null && thisValue.getUnderlyingType().getKind() != TypeKind.ERROR) {
             receiverType =
@@ -174,8 +180,7 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
         AnnotatedTypeMirror declaredType =
                 AnnotatedTypes.asMemberOf(
                         atypeFactory.types, atypeFactory, receiverType, fieldAccess.getField());
-        return declaredType.hasAnnotation(
-                ((InitializationParentAnnotatedTypeFactory) atypeFactory).INITIALIZED);
+        return declaredType.hasAnnotation(atypeFactory.INITIALIZED);
     }
 
     @Override
