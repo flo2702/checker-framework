@@ -43,7 +43,6 @@ public class InitializationFieldAccessAnnotatedTypeFactory
         // Only perform the analysis if initialization checking is turned on.
         if (!checker.hasOption("assumeInitialized")) {
             super.performFlowAnalysis(classTree);
-            ;
         }
     }
 

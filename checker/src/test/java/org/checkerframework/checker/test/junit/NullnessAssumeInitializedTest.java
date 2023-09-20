@@ -11,7 +11,7 @@ import java.util.List;
 public class NullnessAssumeInitializedTest extends CheckerFrameworkPerDirectoryTest {
 
     /**
-     * Create a NullnessNoInitTest.
+     * Create a NullnessAssumeInitializedTest.
      *
      * @param testFiles the files containing test code, which will be type-checked
      */

@@ -25,7 +25,7 @@ import java.util.List;
 public class NullnessTest extends CheckerFrameworkPerDirectoryTest {
 
     /**
-     * Create a NullnessInitTest.
+     * Create a NullnessTest.
      *
      * @param testFiles the files containing test code, which will be type-checked
      */
@@ -35,7 +35,6 @@ public class NullnessTest extends CheckerFrameworkPerDirectoryTest {
                 org.checkerframework.checker.nullness.NullnessChecker.class,
                 "nullness",
                 "-AcheckPurityAnnotations",
-                // "-AassumeInitialized",
                 "-AconservativeArgumentNullnessAfterInvocation=true",
                 "-Xlint:deprecation",
                 "-Alint=soundArrayCreationNullness,"

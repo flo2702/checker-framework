@@ -39,7 +39,7 @@ import java.util.Set;
  *       NullnessChecker} for an example: The {@link NullnessChecker} is a subclass of this checker
  *       and uses the {@link NullnessNoInitSubchecker} as the target checker; thus, the {@link
  *       NullnessNoInitSubchecker} actually checks {@link NonNull} and related qualifiers, while the
- *       NullnessChecker checks {@link Initialized} and related qualifers.
+ *       NullnessChecker checks {@link Initialized} and related qualifiers.
  *   <li>Use the {@link InitializationFieldAccessSubchecker} as a subchecker and add its {@link
  *       CommitmentFieldAccessTreeAnnotator} as a tree annotator. This is necessary to give possibly
  *       uninitialized fields the top type of the target hierarchy (e.g., {@link Nullable}),
