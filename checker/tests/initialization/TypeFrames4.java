@@ -11,7 +11,7 @@ public class TypeFrames4 {
     }
 
     public TypeFrames4(int dummy) {
-        // :: error: assignment.type.incompatible
+        // :: error: (assignment.type.incompatible)
         @UnderInitialization(TypeFrames4.class) TypeFrames4 a = this;
         f = new Object();
     }

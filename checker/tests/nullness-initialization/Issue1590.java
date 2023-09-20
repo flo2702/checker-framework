@@ -6,7 +6,7 @@ public class Issue1590 {
     public Issue1590() {
         // valid because of suppressed warnings
         init();
-        // :: error: dereference.of.nullable
+        // :: error: (dereference.of.nullable)
         a.length();
     }
 

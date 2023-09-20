@@ -1,5 +1,3 @@
-import org.checkerframework.checker.nullness.qual.*;
-
 public class SuppressWarningsTest {
 
     Object f;
@@ -13,7 +11,7 @@ public class SuppressWarningsTest {
     @SuppressWarnings("initialization")
     void test2() {
         String a = null;
-        // :: error: dereference.of.nullable
+        // :: error: (dereference.of.nullable)
         a.toString();
     }
 
@@ -21,6 +19,6 @@ public class SuppressWarningsTest {
     SuppressWarningsTest() {}
 
     @SuppressWarnings("nullnessnoinit")
-    // :: error: initialization.fields.uninitialized
+    // :: error: (initialization.fields.uninitialized)
     SuppressWarningsTest(int dummy) {}
 }
