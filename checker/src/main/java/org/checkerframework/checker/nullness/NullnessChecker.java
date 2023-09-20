@@ -27,12 +27,9 @@ import javax.annotation.processing.SupportedOptions;
  *       only
  * </ul>
  *
- * <ol>
- *   <li>the {@link KeyForSubchecker}
- *   <li>the {@link InitializationChecker}
- *   <li>the {@link NullnessNoInitSubchecker}
- * </ol>
- *
+ * @see KeyForSubchecker
+ * @see InitializationChecker
+ * @see NullnessNoInitSubchecker
  * @checker_framework.manual #nullness-checker Nullness Checker
  */
 @SupportedLintOptions({
