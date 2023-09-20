@@ -533,6 +533,24 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
                 checker.reportError(tree, errorMsg, fieldsString);
             }
         }
+
+        /* NO-AFU
+        // Support -Ainfer command-line argument.
+        WholeProgramInference wpi = atypeFactory.getWholeProgramInference();
+        if (wpi != null) {
+          // For each uninitialized field, treat it as if the default value is assigned to it.
+          List<VariableTree> uninitFields = new ArrayList<>(violatingFields);
+          uninitFields.addAll(nonviolatingFields);
+          for (VariableTree fieldTree : uninitFields) {
+            Element elt = TreeUtils.elementFromDeclaration(fieldTree);
+            wpi.updateFieldFromType(
+                fieldTree,
+                elt,
+                fieldTree.getName().toString(),
+                atypeFactory.getDefaultValueAnnotatedType(elt.asType()));
+          }
+        }
+        */
     }
 
     /**
