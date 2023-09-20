@@ -1675,9 +1675,9 @@ public abstract class GenericAnnotatedTypeFactory<
      * left- or right-hand side of an assignment (e.g., in the presence of type refinements or for
      * uninitialized fields in the Initialization Checker.)
      *
-     * @see #isComputingAnnotatedTypeMirrorOfLHS()
+     * @see #isComputingAnnotatedTypeMirrorOfLhs()
      */
-    private boolean computingAnnotatedTypeMirrorOfLHS = false;
+    private boolean computingAnnotatedTypeMirrorOfLhs = false;
 
     /**
      * Returns whether {@link #getAnnotatedTypeLhs(Tree)} is running right now. This controls which
@@ -1687,8 +1687,8 @@ public abstract class GenericAnnotatedTypeFactory<
      * @return whether {@link #getAnnotatedTypeLhs(Tree)} is running right now
      * @see #getAnnotatedTypeLhs(Tree)
      */
-    public boolean isComputingAnnotatedTypeMirrorOfLHS() {
-        return computingAnnotatedTypeMirrorOfLHS;
+    public boolean isComputingAnnotatedTypeMirrorOfLhs() {
+        return computingAnnotatedTypeMirrorOfLhs;
     }
 
     /**
@@ -1741,16 +1741,16 @@ public abstract class GenericAnnotatedTypeFactory<
      * @return AnnotatedTypeMirror of {@code lhsTree}
      */
     public AnnotatedTypeMirror getAnnotatedTypeLhs(Tree lhsTree) {
-        boolean oldComputingAnnotatedTypeMirrorOfLHS = computingAnnotatedTypeMirrorOfLHS;
-        computingAnnotatedTypeMirrorOfLHS = true;
-
-        AnnotatedTypeMirror res;
         boolean oldUseFlow = useFlow;
         boolean oldShouldCache = shouldCache;
+        boolean oldComputingAnnotatedTypeMirrorOfLhs = computingAnnotatedTypeMirrorOfLhs;
         useFlow = false;
         // Don't cache the result because getAnnotatedType(lhsTree) could
         // be called from elsewhere and would expect flow-sensitive type refinements.
         shouldCache = false;
+        computingAnnotatedTypeMirrorOfLhs = true;
+
+        AnnotatedTypeMirror res;
         switch (lhsTree.getKind()) {
             case VARIABLE:
             case IDENTIFIER:
@@ -1777,8 +1777,7 @@ public abstract class GenericAnnotatedTypeFactory<
         }
         useFlow = oldUseFlow;
         shouldCache = oldShouldCache;
-
-        computingAnnotatedTypeMirrorOfLHS = oldComputingAnnotatedTypeMirrorOfLHS;
+        computingAnnotatedTypeMirrorOfLhs = oldComputingAnnotatedTypeMirrorOfLhs;
         return res;
     }
 

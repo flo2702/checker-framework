@@ -132,7 +132,7 @@ public class SignednessAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
     @Override
     protected void addComputedTypeAnnotations(
             Tree tree, AnnotatedTypeMirror type, boolean iUseFlow) {
-        if (!isComputingAnnotatedTypeMirrorOfLHS()) {
+        if (!isComputingAnnotatedTypeMirrorOfLhs()) {
             addSignednessGlbAnnotation(tree, type);
         }
 

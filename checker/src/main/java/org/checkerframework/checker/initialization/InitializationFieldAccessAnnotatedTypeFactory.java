@@ -188,7 +188,7 @@ public class InitializationFieldAccessAnnotatedTypeFactory
                                     .contains(declaration);
             if (!isOwnerInitialized
                     && !isFieldInitialized
-                    && !factory.isComputingAnnotatedTypeMirrorOfLHS()) {
+                    && !factory.isComputingAnnotatedTypeMirrorOfLhs()) {
                 // The receiver is not initialized for this frame and the type being computed is
                 // not a LHS.
                 // Replace all annotations with the top annotation for that hierarchy.
