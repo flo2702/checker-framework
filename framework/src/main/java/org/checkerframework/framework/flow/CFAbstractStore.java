@@ -69,9 +69,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
     /** The analysis class this store belongs to. */
     protected final CFAbstractAnalysis<V, S, ?> analysis;
 
-    /** The type factory used by this store. */
-    protected final GenericAnnotatedTypeFactory<V, S, ?, ?> atypeFactory;
-
     /** Information collected about local variables (including method parameters). */
     protected final Map<LocalVariable, V> localVariableValues;
 
@@ -131,15 +128,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
         return uid;
     }
 
-    /**
-     * Returns the type factory used by this store.
-     *
-     * @return the type factory used by this store
-     */
-    public GenericAnnotatedTypeFactory<V, S, ?, ?> getTypeFactory() {
-        return atypeFactory;
-    }
-
     /* --------------------------------------------------------- */
     /* Initialization */
     /* --------------------------------------------------------- */
@@ -152,7 +140,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      */
     protected CFAbstractStore(CFAbstractAnalysis<V, S, ?> analysis, boolean sequentialSemantics) {
         this.analysis = analysis;
-        this.atypeFactory = analysis.getTypeFactory();
         localVariableValues = new HashMap<>();
         thisValue = null;
         fieldValues = new HashMap<>();
@@ -172,7 +159,6 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      */
     protected CFAbstractStore(CFAbstractStore<V, S> other) {
         this.analysis = other.analysis;
-        this.atypeFactory = other.atypeFactory;
         localVariableValues = new HashMap<>(other.localVariableValues);
         thisValue = other.thisValue;
         fieldValues = new HashMap<>(other.fieldValues);
@@ -237,7 +223,8 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      *       if the method {@code n} cannot modify {@code a.f}. This holds if {@code a} is a local
      *       variable or {@code this}, and {@code f} is final, or if {@code a.f} has a {@link
      *       MonotonicQualifier} in the current store. Subclasses can change this behavior by
-     *       overriding {@link #newFieldValueAfterMethodCall(FieldAccess, CFAbstractValue)}.
+     *       overriding {@link #newFieldValueAfterMethodCall(FieldAccess,
+     *       GenericAnnotatedTypeFactory, CFAbstractValue)}.
      *   <li>Furthermore, if the field has a monotonic annotation, then its information can also be
      *       kept.
      * </ol>
@@ -245,9 +232,13 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      * Furthermore, if the method is deterministic, we store its result {@code val} in the store.
      *
      * @param methodInvocationNode method whose information is being updated
+     * @param atypeFactory AnnotatedTypeFactory of the associated checker
      * @param val abstract value of the method call
      */
-    public void updateForMethodCall(MethodInvocationNode methodInvocationNode, V val) {
+    public void updateForMethodCall(
+            MethodInvocationNode methodInvocationNode,
+            GenericAnnotatedTypeFactory<V, S, ?, ?> atypeFactory,
+            V val) {
         ExecutableElement method = methodInvocationNode.getTarget().getMethod();
 
         // Case 1: The method is side-effect-free.
@@ -273,7 +264,7 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
                 fieldValues.entrySet().removeIf(e -> !e.getKey().isUnmodifiableByOtherCode());
             } else {
                 // Case 2 (unassignable fields) and case 3 (monotonic fields)
-                updateFieldValuesForMethodCall();
+                updateFieldValuesForMethodCall(atypeFactory);
             }
 
             // update array values
@@ -294,95 +285,105 @@ public abstract class CFAbstractStore<V extends CFAbstractValue<V>, S extends CF
      *
      * <p>In this default implementation, the field's value is preserved if it is either
      * unassignable (see {@link FieldAccess#isUnassignableByOtherCode()}) or has a monotonic
-     * qualifier (see {@link #newMonotonicFieldValueAfterMethodCall(FieldAccess, CFAbstractValue)}).
-     * Otherwise, it is removed from the store.
+     * qualifier (see {@link #newMonotonicFieldValueAfterMethodCall(FieldAccess,
+     * GenericAnnotatedTypeFactory, CFAbstractValue)}). Otherwise, it is removed from the store.
      *
      * @param fieldAccess the field whose value to update
+     * @param atypeFactory AnnotatedTypeFactory of the associated checker
      * @param value the field's value before the method call
      * @return the field's value after the method call, or {@code null} if the field should be
      *     removed from the store
      */
-    protected V newFieldValueAfterMethodCall(FieldAccess fieldAccess, V value) {
+    protected V newFieldValueAfterMethodCall(
+            FieldAccess fieldAccess,
+            GenericAnnotatedTypeFactory<V, S, ?, ?> atypeFactory,
+            V value) {
         // Handle unassignable fields.
         if (fieldAccess.isUnassignableByOtherCode()) {
             return value;
         }
 
         // Handle fields with monotonic annotations.
-        return newMonotonicFieldValueAfterMethodCall(fieldAccess, value);
+        return newMonotonicFieldValueAfterMethodCall(fieldAccess, atypeFactory, value);
     }
 
     /**
      * Computes the value of a field whose declaration has a monotonic annotation, or returns {@code
      * null} if the field has no monotonic annotation.
      *
-     * <p>Used by {@link #newFieldValueAfterMethodCall(FieldAccess, CFAbstractValue)} to handle
-     * fields with monotonic annotations.
+     * <p>Used by {@link #newFieldValueAfterMethodCall(FieldAccess, GenericAnnotatedTypeFactory,
+     * CFAbstractValue)} to handle fields with monotonic annotations.
      *
      * @param fieldAccess the field whose value to compute
+     * @param atypeFactory AnnotatedTypeFactory of the associated checker
      * @param value the field's value before the method call
      * @return the field's value after the method call, or {@code null} if the field has no
      *     monotonic annotation
      */
-    protected V newMonotonicFieldValueAfterMethodCall(FieldAccess fieldAccess, V value) {
-        if (!atypeFactory.getSupportedMonotonicTypeQualifiers().isEmpty()) {
-            Set<AnnotationMirror> fieldAnnotations =
-                    atypeFactory
-                            .getAnnotationWithMetaAnnotation(
-                                    fieldAccess.getField(), MonotonicQualifier.class)
-                            .stream()
-                            .map(p -> p.second)
-                            .map(
-                                    anno -> {
-                                        @SuppressWarnings("deprecation") // permitted for use in
-                                        // the framework
-                                        Name name =
-                                                AnnotationUtils.getElementValueClassName(
-                                                        anno, "value", false);
-                                        return AnnotationBuilder.fromName(
-                                                atypeFactory.getElementUtils(), name);
-                                    })
-                            .collect(Collectors.toSet());
-            V newValue = null;
-            for (AnnotationMirror monotonicAnnotation : fieldAnnotations) {
-                // Make sure the target annotation is present.
-                AnnotationMirror actual =
-                        atypeFactory
-                                .getQualifierHierarchy()
-                                .findAnnotationInHierarchy(
-                                        value.getAnnotations(), monotonicAnnotation);
-                if (actual != null
-                        && atypeFactory
-                                .getQualifierHierarchy()
-                                .isSubtype(actual, monotonicAnnotation)) {
-                    newValue =
-                            analysis.createSingleAnnotationValue(
-                                            monotonicAnnotation, value.getUnderlyingType())
-                                    .mostSpecific(newValue, null);
-                }
-            }
-            return newValue;
+    protected V newMonotonicFieldValueAfterMethodCall(
+            FieldAccess fieldAccess,
+            GenericAnnotatedTypeFactory<V, S, ?, ?> atypeFactory,
+            V value) {
+        if (atypeFactory.getSupportedMonotonicTypeQualifiers().isEmpty()) {
+            return null;
         }
 
-        return null;
+        Set<AnnotationMirror> fieldAnnotations =
+                atypeFactory
+                        .getAnnotationWithMetaAnnotation(
+                                fieldAccess.getField(), MonotonicQualifier.class)
+                        .stream()
+                        .map(p -> p.second)
+                        .map(
+                                anno -> {
+                                    @SuppressWarnings("deprecation") // permitted for use in
+                                    // the framework
+                                    Name name =
+                                            AnnotationUtils.getElementValueClassName(
+                                                    anno, "value", false);
+                                    return AnnotationBuilder.fromName(
+                                            atypeFactory.getElementUtils(), name);
+                                })
+                        .collect(Collectors.toSet());
+        V newValue = null;
+        for (AnnotationMirror monotonicAnnotation : fieldAnnotations) {
+            // Make sure the target annotation is present.
+            AnnotationMirror actual =
+                    atypeFactory
+                            .getQualifierHierarchy()
+                            .findAnnotationInHierarchy(value.getAnnotations(), monotonicAnnotation);
+            if (actual != null
+                    && atypeFactory
+                            .getQualifierHierarchy()
+                            .isSubtype(actual, monotonicAnnotation)) {
+                newValue =
+                        analysis.createSingleAnnotationValue(
+                                        monotonicAnnotation, value.getUnderlyingType())
+                                .mostSpecific(newValue, null);
+            }
+        }
+        return newValue;
     }
 
     /**
-     * Helper for {@link #updateForMethodCall(MethodInvocationNode, CFAbstractValue)}. Remove any
-     * information about field values that might not be valid any more after a method call, and add
-     * information guaranteed by the method.
+     * Helper for {@link #updateForMethodCall(MethodInvocationNode, GenericAnnotatedTypeFactory,
+     * CFAbstractValue)}. Remove any information about field values that might not be valid any more
+     * after a method call, and add information guaranteed by the method.
      *
      * <p>More specifically, remove all information about fields except for unassignable fields and
      * fields that have a monotonic annotation.
+     *
+     * @param atypeFactory AnnotatedTypeFactory of the associated checker
      */
-    private void updateFieldValuesForMethodCall() {
+    private void updateFieldValuesForMethodCall(
+            GenericAnnotatedTypeFactory<V, S, ?, ?> atypeFactory) {
         Map<FieldAccess, V> newFieldValues =
                 new HashMap<>(CollectionsPlume.mapCapacity(fieldValues));
         for (Map.Entry<FieldAccess, V> e : fieldValues.entrySet()) {
             FieldAccess fieldAccess = e.getKey();
             V value = e.getValue();
 
-            V newValue = newFieldValueAfterMethodCall(fieldAccess, value);
+            V newValue = newFieldValueAfterMethodCall(fieldAccess, atypeFactory, value);
             if (newValue != null) {
                 newFieldValues.put(fieldAccess, newValue);
             }

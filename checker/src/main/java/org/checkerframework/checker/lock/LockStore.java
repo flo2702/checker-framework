@@ -14,6 +14,7 @@ import org.checkerframework.dataflow.expression.MethodCall;
 import org.checkerframework.dataflow.expression.ThisReference;
 import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.flow.CFValue;
+import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
 import org.checkerframework.framework.type.QualifierHierarchy;
 import org.checkerframework.javacutil.AnnotationMirrorSet;
 import org.checkerframework.javacutil.AnnotationUtils;
@@ -38,6 +39,9 @@ public class LockStore extends CFAbstractStore<CFValue, LockStore> {
      */
     protected boolean inConstructorOrInitializer = false;
 
+    /** The type factory to use. */
+    private final LockAnnotatedTypeFactory atypeFactory;
+
     /**
      * Create a LockStore.
      *
@@ -47,12 +51,14 @@ public class LockStore extends CFAbstractStore<CFValue, LockStore> {
      */
     public LockStore(LockAnalysis analysis, boolean sequentialSemantics) {
         super(analysis, sequentialSemantics);
+        this.atypeFactory = (LockAnnotatedTypeFactory) analysis.getTypeFactory();
     }
 
     /** Copy constructor. */
     public LockStore(LockAnalysis analysis, CFAbstractStore<CFValue, LockStore> other) {
         super(other);
         this.inConstructorOrInitializer = ((LockStore) other).inConstructorOrInitializer;
+        this.atypeFactory = ((LockStore) other).atypeFactory;
     }
 
     @Override
@@ -125,17 +131,17 @@ public class LockStore extends CFAbstractStore<CFValue, LockStore> {
     private CFValue changeLockAnnoToTop(JavaExpression je, CFValue currentValue) {
         if (currentValue == null) {
             AnnotationMirrorSet set = new AnnotationMirrorSet();
-            set.add(getTypeFactory().GUARDEDBYUNKNOWN);
-            set.add(getTypeFactory().LOCKPOSSIBLYHELD);
+            set.add(atypeFactory.GUARDEDBYUNKNOWN);
+            set.add(atypeFactory.LOCKPOSSIBLYHELD);
             return analysis.createAbstractValue(set, je.getType());
         }
 
         QualifierHierarchy hierarchy = atypeFactory.getQualifierHierarchy();
         AnnotationMirrorSet currentSet = currentValue.getAnnotations();
         AnnotationMirror gb =
-                hierarchy.findAnnotationInHierarchy(currentSet, getTypeFactory().GUARDEDBYUNKNOWN);
+                hierarchy.findAnnotationInHierarchy(currentSet, atypeFactory.GUARDEDBYUNKNOWN);
         AnnotationMirrorSet newSet = new AnnotationMirrorSet();
-        newSet.add(getTypeFactory().LOCKPOSSIBLYHELD);
+        newSet.add(atypeFactory.LOCKPOSSIBLYHELD);
         if (gb != null) {
             newSet.add(gb);
         }
@@ -147,22 +153,17 @@ public class LockStore extends CFAbstractStore<CFValue, LockStore> {
     }
 
     @Override
-    public LockAnnotatedTypeFactory getTypeFactory() {
-        return (LockAnnotatedTypeFactory) super.getTypeFactory();
-    }
-
-    @Override
     public @Nullable CFValue getValue(JavaExpression expr) {
 
         if (inConstructorOrInitializer) {
             // 'this' is automatically considered as being held in a constructor or initializer.
             // The class name, however, is not.
             if (expr instanceof ThisReference) {
-                initializeThisValue(getTypeFactory().LOCKHELD, expr.getType());
+                initializeThisValue(atypeFactory.LOCKHELD, expr.getType());
             } else if (expr instanceof FieldAccess) {
                 FieldAccess fieldAcc = (FieldAccess) expr;
                 if (!fieldAcc.isStatic() && fieldAcc.getReceiver() instanceof ThisReference) {
-                    insertValue(fieldAcc.getReceiver(), getTypeFactory().LOCKHELD);
+                    insertValue(fieldAcc.getReceiver(), atypeFactory.LOCKHELD);
                 }
             }
         }
@@ -178,8 +179,11 @@ public class LockStore extends CFAbstractStore<CFValue, LockStore> {
     }
 
     @Override
-    public void updateForMethodCall(MethodInvocationNode n, CFValue val) {
-        super.updateForMethodCall(n, val);
+    public void updateForMethodCall(
+            MethodInvocationNode n,
+            GenericAnnotatedTypeFactory<CFValue, LockStore, ?, ?> atypeFactory,
+            CFValue val) {
+        super.updateForMethodCall(n, atypeFactory, val);
         ExecutableElement method = n.getTarget().getMethod();
         // The following behavior is similar to setting the sideEffectsUnrefineAliases field of
         // Lockannotatedtypefactory, but it affects only the LockPosssiblyHeld type hierarchy (not
@@ -220,7 +224,7 @@ public class LockStore extends CFAbstractStore<CFValue, LockStore> {
      * @return whether the {@code value} has the {@link LockHeld} annotation
      */
     boolean hasLockHeld(CFValue value) {
-        return AnnotationUtils.containsSame(value.getAnnotations(), getTypeFactory().LOCKHELD);
+        return AnnotationUtils.containsSame(value.getAnnotations(), atypeFactory.LOCKHELD);
     }
 
     /**
@@ -230,8 +234,7 @@ public class LockStore extends CFAbstractStore<CFValue, LockStore> {
      * @return whether the {@code value} has the {@link LockPossiblyHeld} annotation
      */
     boolean hasLockPossiblyHeld(CFValue value) {
-        return AnnotationUtils.containsSame(
-                value.getAnnotations(), getTypeFactory().LOCKPOSSIBLYHELD);
+        return AnnotationUtils.containsSame(value.getAnnotations(), atypeFactory.LOCKPOSSIBLYHELD);
     }
 
     @Override
