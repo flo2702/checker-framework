@@ -786,16 +786,7 @@ public class NullnessNoInitAnnotatedTypeFactory
 
     @Override
     protected QualifierHierarchy createQualifierHierarchy() {
-        return new NullnessQualifierHierarchy();
-    }
-
-    /** NullnessQualifierHierarchy. */
-    protected class NullnessQualifierHierarchy extends NoElementQualifierHierarchy {
-
-        /** Creates NullnessQualifierHierarchy. */
-        public NullnessQualifierHierarchy() {
-            super(NullnessNoInitAnnotatedTypeFactory.this.getSupportedTypeQualifiers(), elements);
-        }
+        return new NoElementQualifierHierarchy(getSupportedTypeQualifiers(), elements);
     }
 
     /**
