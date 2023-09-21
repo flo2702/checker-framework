@@ -25,7 +25,12 @@ public class NotOnlyInitializedTest {
     }
 
     static void testDeref2(@UnderInitialization NotOnlyInitializedTest o) {
-        // o is not fully iniatlized, so we cannot dereference its fields
+        // o is not fully iniatlized, so we cannot dereference its fields.
+        // We thus get a dereference.of.nullable error by the Nullness Checker for both o.f and o.g.
+        // For o.f, we also get a method.invocation.invalid error by the Initialization Checker
+        // because o.f is declared as @NotOnlyInitialized and thus may not be @Initialized,
+        // but toLowerCase()'s receiver type is, by default, @Initialized.
+
         // :: error: (dereference.of.nullable) :: error: (method.invocation.invalid)
         o.f.toString();
         // :: error: (dereference.of.nullable)

@@ -4,7 +4,8 @@ import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.Tree;
 
-import org.checkerframework.checker.initialization.qual.HoldsForDefaultValues;
+import org.checkerframework.checker.initialization.qual.HoldsForDefaultValue;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.dataflow.analysis.TransferResult;
 import org.checkerframework.dataflow.cfg.node.ReturnNode;
@@ -46,6 +47,9 @@ public class InitializationAnnotatedTypeFactory extends InitializationParentAnno
         return (InitializationChecker) super.getChecker();
     }
 
+    // Don't perform the same flow analysis twice.
+    // Instead, reuse results from InitializationFieldAccessChecker
+
     /**
      * Gets the factory of the {@link InitializationFieldAccessSubchecker}.
      *
@@ -55,14 +59,11 @@ public class InitializationAnnotatedTypeFactory extends InitializationParentAnno
      * @return the factory of the {@link InitializationFieldAccessSubchecker}, or {@code null} if
      *     not yet initialized
      */
-    protected InitializationFieldAccessAnnotatedTypeFactory getFieldAccessFactory() {
+    protected @Nullable InitializationFieldAccessAnnotatedTypeFactory getFieldAccessFactory() {
         InitializationChecker checker = getChecker();
         BaseTypeChecker targetChecker = checker.getSubchecker(checker.getTargetCheckerClass());
         return targetChecker.getTypeFactoryOfSubchecker(InitializationFieldAccessSubchecker.class);
     }
-
-    // Don't perform the same flow analysis twice.
-    // Instead, reuse results from InitializationFieldAccessChecker
 
     @Override
     protected InitializationAnalysis createFlowAnalysis() {
@@ -95,8 +96,9 @@ public class InitializationAnnotatedTypeFactory extends InitializationParentAnno
      *
      * <p>Returns {@code true} iff the variable's current value is initialized. This holds for
      * variables whose value has a non-top qualifier that does not have the meta-annotation {@link
-     * HoldsForDefaultValues} as well as variables whose declaration has a qualifier that {@link
-     * HoldsForDefaultValues}.
+     * HoldsForDefaultValue} (e.g., variables with a {@code NonNull} value), as well as variables
+     * whose declaration has a qualifier that has the meta-annotation {@link HoldsForDefaultValue}
+     * (e.g., variables whose declared type is {@code Nullable}).
      *
      * @param factory the parent checker's factory
      * @param value the variable's current value
@@ -114,7 +116,7 @@ public class InitializationAnnotatedTypeFactory extends InitializationParentAnno
 
         for (Class<? extends Annotation> invariant : factory.getSupportedTypeQualifiers()) {
             // Skip default-value, monotonic, polymorphic, and top qualifiers
-            if (invariant.getAnnotation(HoldsForDefaultValues.class) != null
+            if (invariant.getAnnotation(HoldsForDefaultValue.class) != null
                     || invariant.getAnnotation(MonotonicQualifier.class) != null
                     || invariant.getAnnotation(PolymorphicQualifier.class) != null
                     || topAnnotations.stream()

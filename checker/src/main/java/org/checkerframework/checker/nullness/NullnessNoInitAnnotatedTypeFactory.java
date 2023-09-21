@@ -577,8 +577,7 @@ public class NullnessNoInitAnnotatedTypeFactory
                 AnnotatedTypeMirror refined = super.getAnnotatedTypeBefore(expr, tree);
                 AnnotatedTypeMirror res = AnnotatedTypeMirror.createType(fa.getType(), this, false);
                 // If the expression is initialized, then by definition, it has at least its
-                // declared
-                // annotation.
+                // declared annotation.
                 // Assuming the correctness of the Nullness Checker's type refinement,
                 // it also has its refined annotation.
                 // We thus use the GLB of those two annotations.

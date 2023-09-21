@@ -15,7 +15,7 @@ import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
 
 import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
-import org.checkerframework.checker.initialization.qual.HoldsForDefaultValues;
+import org.checkerframework.checker.initialization.qual.HoldsForDefaultValue;
 import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.initialization.qual.UnderInitialization;
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
@@ -498,10 +498,10 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
                         store, getCurrentPath(), staticFields, receiverAnnotations);
         uninitializedFields.removeAll(initializedFields);
 
-        // Errors are issued at the field declaration if the fields are static or if the constructor
-        // is the default constructor.
-        // Errors are issued at the constructor declaration if the fields are non-static and the
-        // constructor is non-default.
+        // If we are checking initialization of a class's static fields or of a default constructor,
+        // we issue an error for every uninitialized field at the respective field declaration.
+        // If we are checking a non-default constructor, we issue a single error at the constructor
+        // declaration.
         boolean errorAtField = staticFields || TreeUtils.isSynthetic((MethodTree) tree);
 
         String errorMsg =
@@ -558,8 +558,8 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
      * in the store before or after {@code tree} from {@code uninitializedFields}.
      *
      * <p>A field is initialized if it has a non-top qualifier in the given store that does not have
-     * the meta-annotation {@link HoldsForDefaultValues} in the given store. A field does not need
-     * to be initialized if its declared type either {@link HoldsForDefaultValues} or is the top
+     * the meta-annotation {@link HoldsForDefaultValue} in the given store. A field does not need to
+     * be initialized if its declared type either {@link HoldsForDefaultValue} or is the top
      * qualifier.
      *
      * @param tree the tree at whose location to check for initialization

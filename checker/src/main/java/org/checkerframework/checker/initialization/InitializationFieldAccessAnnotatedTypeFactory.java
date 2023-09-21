@@ -150,23 +150,23 @@ public class InitializationFieldAccessAnnotatedTypeFactory
                 return;
             }
 
-            Element element = TreeUtils.elementFromUse(tree);
-            AnnotatedTypeMirror fieldAnnotations = factory.getAnnotatedType(element);
-
-            // not necessary if there is an explicit UnknownInitialization
-            // annotation on the field
-            if (AnnotationUtils.containsSameByName(
-                    fieldAnnotations.getAnnotations(), initFactory.UNKNOWN_INITIALIZATION)) {
-                return;
-            }
+            // Don't adapt trees whose receiver is initialized.
             if (!initFactory.isUnknownInitialization(receiver)
                     && !initFactory.isUnderInitialization(receiver)) {
                 return;
             }
 
-            TypeMirror fieldDeclarationType = element.getEnclosingElement().asType();
-            boolean isOwnerInitialized =
-                    initFactory.isInitializedForFrame(receiver, fieldDeclarationType);
+            // Don't adapt trees with an explicit UnknownInitialization annotation on the field
+            Element element = TreeUtils.elementFromUse(tree);
+            AnnotatedTypeMirror fieldAnnotations = factory.getAnnotatedType(element);
+            if (AnnotationUtils.containsSameByName(
+                    fieldAnnotations.getAnnotations(), initFactory.UNKNOWN_INITIALIZATION)) {
+                return;
+            }
+
+            TypeMirror fieldOwnerType = element.getEnclosingElement().asType();
+            boolean isReceiverInitToOwner =
+                    initFactory.isInitializedForFrame(receiver, fieldOwnerType);
 
             // If the field has been initialized, don't clear annotations.
             // This is ok even if the field was initialized with a non-invariant
@@ -177,7 +177,7 @@ public class InitializationFieldAccessAnnotatedTypeFactory
             // Here, we will get an error for the first assignment, but we won't get another
             // error for the second assignment.
             // See the AssignmentDuringInitialization test case.
-            Tree declaration = initFactory.declarationFromElement(TreeUtils.elementFromTree(tree));
+            Tree declaration = initFactory.declarationFromElement(element);
             InitializationStore store = initFactory.getStoreBefore(tree);
             boolean isFieldInitialized =
                     store != null
@@ -185,7 +185,7 @@ public class InitializationFieldAccessAnnotatedTypeFactory
                             && initFactory
                                     .getInitializedFields(store, initFactory.getPath(tree))
                                     .contains(declaration);
-            if (!isOwnerInitialized
+            if (!isReceiverInitToOwner
                     && !isFieldInitialized
                     && !factory.isComputingAnnotatedTypeMirrorOfLhs()) {
                 // The receiver is not initialized for this frame and the type being computed is

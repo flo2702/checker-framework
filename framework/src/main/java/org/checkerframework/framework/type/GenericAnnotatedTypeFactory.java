@@ -1294,10 +1294,10 @@ public abstract class GenericAnnotatedTypeFactory<
     }
 
     /**
-     * Returns true if the receiver of a method or constructor might not yet be fully initialized.
+     * Returns true if the receiver of a method or constructor might not be fully initialized.
      *
      * @param methodDeclTree the declaration of the method or constructor
-     * @return true if the receiver of a method or constructor might not yet be fully initialized
+     * @return true if the receiver of a method or constructor might not be fully initialized
      */
     @Pure
     public boolean isNotFullyInitializedReceiver(MethodTree methodDeclTree) {

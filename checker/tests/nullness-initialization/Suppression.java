@@ -1,4 +1,4 @@
-public class SuppressWarningsTest {
+public class Suppression {
 
     Object f;
 
@@ -16,9 +16,9 @@ public class SuppressWarningsTest {
     }
 
     @SuppressWarnings("nullness")
-    SuppressWarningsTest() {}
+    Suppression() {}
 
     @SuppressWarnings("nullnessnoinit")
     // :: error: (initialization.fields.uninitialized)
-    SuppressWarningsTest(int dummy) {}
+    Suppression(int dummy) {}
 }

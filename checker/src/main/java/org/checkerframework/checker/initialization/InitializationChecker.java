@@ -5,7 +5,7 @@ import com.sun.source.tree.Tree;
 import com.sun.source.tree.VariableTree;
 
 import org.checkerframework.checker.initialization.InitializationFieldAccessAnnotatedTypeFactory.CommitmentFieldAccessTreeAnnotator;
-import org.checkerframework.checker.initialization.qual.HoldsForDefaultValues;
+import org.checkerframework.checker.initialization.qual.HoldsForDefaultValue;
 import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.nullness.NullnessChecker;
 import org.checkerframework.checker.nullness.NullnessNoInitAnnotatedTypeFactory;
@@ -26,20 +26,23 @@ import java.util.Set;
  * initialization, augmented by type frames.
  *
  * <p>Because there is a cyclic dependency between this type system and the target type system,
- * using this checker is more complex than for others. Specifically, the target checker must:
+ * using this checker is more complex than for others. Specifically:
  *
  * <ol>
- *   <li>Use a subclass of this checker as its parent checker. This is necessary because this
- *       checker is dependent on the target checker to know which fields should be checked for
- *       initialization, and when such a field is initialized: A field is checked for initialization
- *       if its declared type is not the top type and does not have the meta-annotation {@link
- *       HoldsForDefaultValues} (e.g., {@link NonNull}). Such a field becomes initialized as soon as
- *       its refined type agrees with its declared type (which can happen either by assigning the
- *       field or by a contract annotation like {@link EnsuresNonNull}). You can look at the {@link
- *       NullnessChecker} for an example: The {@link NullnessChecker} is a subclass of this checker
- *       and uses the {@link NullnessNoInitSubchecker} as the target checker; thus, the {@link
- *       NullnessNoInitSubchecker} actually checks {@link NonNull} and related qualifiers, while the
- *       NullnessChecker checks {@link Initialized} and related qualifiers.
+ *   <li>Any target type system must provide two checkers: the target checker does all of the
+ *       checking of the target type system (e.g., nullness), while the target checker's parent
+ *       belongs to a subclass of the {@code InitializationChecker}. You can look at the {@link
+ *       NullnessChecker} for an example: For the nullness type system, the {@link
+ *       NullnessNoInitSubchecker} is the target checker which actually checks {@link NonNull} and
+ *       related qualifiers, while the {@link NullnessChecker} is a subclass of this checker and
+ *       thus checks {@link Initialized} and related qualifiers. The parent-child relationship
+ *       between the checkers is necessary because this checker is dependent on the target checker
+ *       to know which fields should be checked for initialization, and when such a field is
+ *       initialized: A field is checked for initialization if its declared type is not the top type
+ *       and does not have the meta-annotation {@link HoldsForDefaultValue} (e.g., {@link NonNull}).
+ *       Such a field becomes initialized as soon as its refined type agrees with its declared type
+ *       (which can happen either by assigning the field or by a contract annotation like {@link
+ *       EnsuresNonNull}).
  *   <li>Use the {@link InitializationFieldAccessSubchecker} as a subchecker and add its {@link
  *       CommitmentFieldAccessTreeAnnotator} as a tree annotator. This is necessary to give possibly
  *       uninitialized fields the top type of the target hierarchy (e.g., {@link Nullable}),
@@ -47,8 +50,8 @@ import java.util.Set;
  *       checker because the target checker cannot access any type information from its parent,
  *       which is only initialized after all subcheckers have finished.
  *   <li>Override all necessary methods in the target checker's type factory to take the type
- *       information from the InitializationDeclarationChecker into account. You can look at {@link
- *       NullnessNoInitAnnotatedTypeFactory} for examples.
+ *       information from the InitializationFieldAccessSubchecker into account. You can look at
+ *       {@link NullnessNoInitAnnotatedTypeFactory} for examples.
  *   <li>The subclass should support the command-line option {@code -AassumeInitialized} via
  *       {@code @SupportedOptions({"assumeInitialized"})}, so initialization checking can be turned
  *       off. This gives users of, e.g., the {@link NullnessChecker} an easy way to turn off
