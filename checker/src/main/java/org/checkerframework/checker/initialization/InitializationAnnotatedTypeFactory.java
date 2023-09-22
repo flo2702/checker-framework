@@ -13,6 +13,8 @@ import org.checkerframework.framework.flow.CFAbstractValue;
 import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.framework.qual.MonotonicQualifier;
 import org.checkerframework.framework.qual.PolymorphicQualifier;
+import org.checkerframework.framework.source.SourceChecker;
+import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
 import org.checkerframework.framework.util.AnnotatedTypes;
@@ -47,17 +49,24 @@ public class InitializationAnnotatedTypeFactory extends InitializationParentAnno
         return (InitializationChecker) super.getChecker();
     }
 
-    // Don't perform the same flow analysis twice.
-    // Instead, reuse results from InitializationFieldAccessChecker
-
     /**
-     * Gets the factory of the {@link InitializationFieldAccessSubchecker}.
+     * Gets the factory of the {@link InitializationFieldAccessSubchecker}, whose flow-analysis
+     * results we reuse to avoid performing the same flow analysis twice.
      *
      * <p>If type checking has not yet started, the subcheckers are uninitialized, and this returns
-     * {@code null}.
+     * {@code null}. More concretely, this method only returns a non-null value after {@link
+     * SourceChecker#initChecker()} has been called on all subcheckers. Since the flow analysis is
+     * initialized in {@link AnnotatedTypeFactory#postInit()}, and the type factory is created after
+     * all subcheckers have been initialized, this method will always return a non-null value unless
+     * a subclass attempts to use it for some purpose other than accessing the flow analysis.
      *
      * @return the factory of the {@link InitializationFieldAccessSubchecker}, or {@code null} if
      *     not yet initialized
+     * @see #createFlowAnalysis()
+     * @see #performFlowAnalysis(ClassTree)
+     * @see #getRegularExitStore(Tree)
+     * @see #getExceptionalExitStore(Tree)
+     * @see #getReturnStatementStores(MethodTree)
      */
     protected @Nullable InitializationFieldAccessAnnotatedTypeFactory getFieldAccessFactory() {
         InitializationChecker checker = getChecker();
