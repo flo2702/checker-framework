@@ -18,6 +18,7 @@ import com.sun.source.tree.VariableTree;
 
 import org.checkerframework.checker.initialization.InitializationFieldAccessAnnotatedTypeFactory;
 import org.checkerframework.checker.initialization.InitializationFieldAccessSubchecker;
+import org.checkerframework.checker.initialization.InitializationFieldAccessTreeAnnotator;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -624,9 +625,7 @@ public class NullnessNoInitAnnotatedTypeFactory
         List<TreeAnnotator> annotators = new ArrayList<>(3);
         // annotators.add(new DebugListTreeAnnotator(new Tree.Kind[]
         // {Tree.Kind.CONDITIONAL_EXPRESSION}));
-        annotators.add(
-                new InitializationFieldAccessAnnotatedTypeFactory
-                        .CommitmentFieldAccessTreeAnnotator(this));
+        annotators.add(new InitializationFieldAccessTreeAnnotator(this));
         annotators.add(new NullnessPropagationTreeAnnotator(this));
         annotators.add(new LiteralTreeAnnotator(this));
         return new ListTreeAnnotator(annotators);

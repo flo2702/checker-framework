@@ -8,8 +8,7 @@ import org.checkerframework.common.basetype.BaseTypeChecker;
  *
  * <p>This checker does not actually do any type checking. It exists to provide its parent checker
  * (the {@link InitializationChecker#getTargetCheckerClass()}) with declared initialization
- * qualifiers via the {@link
- * InitializationFieldAccessAnnotatedTypeFactory.CommitmentFieldAccessTreeAnnotator}.
+ * qualifiers via the {@link InitializationFieldAccessTreeAnnotator}.
  *
  * <p>Additionally, this checker performs the flow-sensitive type refinement for the fbc type
  * system, which is necessary to avoid reporting follow-up errors related to initialization (see the

@@ -15,7 +15,6 @@ import com.sun.source.util.TreePath;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
 
-import org.checkerframework.checker.initialization.InitializationFieldAccessAnnotatedTypeFactory.CommitmentFieldAccessTreeAnnotator;
 import org.checkerframework.checker.initialization.qual.FBCBottom;
 import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.initialization.qual.NotOnlyInitialized;
@@ -146,7 +145,7 @@ public abstract class InitializationParentAnnotatedTypeFactory
      * type and the declared annotations for the field.
      *
      * <p>To adapt the type in the target checker's hierarchy, see the {@link
-     * CommitmentFieldAccessTreeAnnotator} instead.
+     * InitializationFieldAccessTreeAnnotator} instead.
      *
      * @param type type of the field access expression
      * @param declaredFieldAnnotations declared annotations on the field

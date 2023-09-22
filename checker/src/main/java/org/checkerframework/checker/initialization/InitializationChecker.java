@@ -4,7 +4,6 @@ import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.Tree;
 import com.sun.source.tree.VariableTree;
 
-import org.checkerframework.checker.initialization.InitializationFieldAccessAnnotatedTypeFactory.CommitmentFieldAccessTreeAnnotator;
 import org.checkerframework.checker.initialization.qual.HoldsForDefaultValue;
 import org.checkerframework.checker.initialization.qual.Initialized;
 import org.checkerframework.checker.nullness.NullnessChecker;
@@ -43,20 +42,20 @@ import java.util.Set;
  *       Such a field becomes initialized as soon as its refined type agrees with its declared type
  *       (which can happen either by assigning the field or by a contract annotation like {@link
  *       EnsuresNonNull}).
- *   <li>Use the {@link InitializationFieldAccessSubchecker} as a subchecker and add its {@link
- *       CommitmentFieldAccessTreeAnnotator} as a tree annotator. This is necessary to give possibly
- *       uninitialized fields the top type of the target hierarchy (e.g., {@link Nullable}),
- *       ensuring that all fields are initialized before being used. This needs to be a separate
- *       checker because the target checker cannot access any type information from its parent,
- *       which is only initialized after all subcheckers have finished.
- *   <li>Override all necessary methods in the target checker's type factory to take the type
- *       information from the InitializationFieldAccessSubchecker into account. You can look at
- *       {@link NullnessNoInitAnnotatedTypeFactory} for examples.
- *   <li>The subclass should support the command-line option {@code -AassumeInitialized} via
- *       {@code @SupportedOptions({"assumeInitialized"})}, so initialization checking can be turned
- *       off. This gives users of, e.g., the {@link NullnessChecker} an easy way to turn off
- *       initialization checking without having to directly call the {@link
- *       NullnessNoInitSubchecker}.
+ *   <li>The target checker must add the {@link InitializationFieldAccessSubchecker} as a subchecker
+ *       and the {@link InitializationFieldAccessTreeAnnotator} as a tree annotator. This is
+ *       necessary to give possibly uninitialized fields the top type of the target hierarchy (e.g.,
+ *       {@link Nullable}), ensuring that all fields are initialized before being used. This needs
+ *       to be a separate checker because the target checker cannot access any type information from
+ *       its parent, which is only initialized after all subcheckers have finished.
+ *   <li>The target checker must override all necessary methods in the target checker's type factory
+ *       to take the type information from the InitializationFieldAccessSubchecker into account. You
+ *       can look at {@link NullnessNoInitAnnotatedTypeFactory} for examples.
+ *   <li>Any subclass of the {@code InitializationChecker} should support the command-line option
+ *       {@code -AassumeInitialized} via {@code @SupportedOptions({"assumeInitialized"})}, so
+ *       initialization checking can be turned off. This gives users of, e.g., the {@link
+ *       NullnessChecker} an easy way to turn off initialization checking without having to directly
+ *       call the {@link NullnessNoInitSubchecker}.
  * </ol>
  *
  * <p>If you want to modify the freedom-before-commitment scheme in your subclass, note that the
