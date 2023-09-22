@@ -168,16 +168,15 @@ public abstract class InitializationParentAnnotatedTypeFactory
                 fieldType.getAnnotations(), UNKNOWN_INITIALIZATION)) {
             return;
         }
+
         if (isUnknownInitialization(receiverType) || isUnderInitialization(receiverType)) {
             if (AnnotationUtils.containsSame(declaredFieldAnnotations, NOT_ONLY_INITIALIZED)) {
+                // A field declared @NotOnlyInitialized with an uninitialized receiver has
+                // @UnknownInitialization
                 type.replaceAnnotation(UNKNOWN_INITIALIZATION);
             } else {
-                type.replaceAnnotation(INITIALIZED);
-            }
-
-            if (!AnnotationUtils.containsSame(declaredFieldAnnotations, NOT_ONLY_INITIALIZED)) {
-                // add root annotation for all other hierarchies, and
-                // Initialized for the initialization hierarchy
+                // A field declared @NotOnlyInitialized with an initialized receiver is
+                // @Initialized
                 type.replaceAnnotation(INITIALIZED);
             }
         }

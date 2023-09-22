@@ -293,7 +293,14 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
         return super.visitMethod(tree, p);
     }
 
-    /** The assignment/variable/method invocation tree currently being checked. */
+    /**
+     * The assignment/variable/method invocation tree currently being checked.
+     *
+     * <p>In the case that the right-hand side is an object, this is used by {@link
+     * #reportCommonAssignmentError(AnnotatedTypeMirror, AnnotatedTypeMirror, Tree, String,
+     * Object...)} to get the correct store value for the right-hand side's fields and checker
+     * whether they are initialized according to the target checker.
+     */
     protected Tree commonAssignmentTree;
 
     @Override
@@ -353,8 +360,8 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
 
         InitializationStore store = atypeFactory.getStoreBefore(commonAssignmentTree);
 
-        // If possible, don't report an error directly and let the parent checker call
-        // InitializationAnnotatedTypeFactory#reportInitializionErrors later.
+        // If the stored value of valueTree is wrong, we still do not report an error
+        // if all necessary fields of valueTree are initialized according to the target checker.
 
         // We can't check if all necessary fields are initialized without a store.
         if (store == null) {
@@ -374,6 +381,8 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
             return;
         }
 
+        // Otherwise, we check if there are any uninitialized fields and only report the error
+        // if this is the case.
         List<VariableTree> uninitializedFields =
                 atypeFactory.getUninitializedFields(
                         store, getCurrentPath(), false, Collections.emptyList());
