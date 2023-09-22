@@ -9,7 +9,8 @@ command-line argument.
 Error messages will now be either from the Initialization Checker or the Nullness Checker, which
 simplifies the types in error messages.
 `@SuppressWarnings("initialization")` should be used to suppress initialization warnings.
-In this release, `nullness` continues to suppress warnings from the Initialization Checker. A future release
+In this release, `nullness` continues to suppress warnings from the Initialization Checker, while
+`nullnessnoinit` may be used to suppress warnings from the Nullness Checker only. A future release
 will make suppression behavior consistent with other checkers.
 
 **Implementation details:**
