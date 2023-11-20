@@ -136,7 +136,6 @@ public class InitializationAnnotatedTypeFactory extends InitializationParentAnno
      * @param isStatic whether to report static fields or instance fields
      * @param receiverAnnotations the annotations on the receiver
      * @return the fields that are not yet initialized in a given store
-     * @see
      */
     public List<VariableTree> getUninitializedFields(
             InitializationStore initStore,
