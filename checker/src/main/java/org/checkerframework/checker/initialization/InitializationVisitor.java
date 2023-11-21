@@ -360,19 +360,19 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
     @Override
     protected void reportMethodInvocabilityError(
             MethodInvocationTree node, AnnotatedTypeMirror found, AnnotatedTypeMirror expected) {
-        AnnotationMirror init = expected.getAnnotation(Initialized.class);
-        AnnotationMirror unknownInit = expected.getAnnotation(UnknownInitialization.class);
-        AnnotationMirror underInit = expected.getAnnotation(UnderInitialization.class);
-
-        // If the actual receiver type (found) is not a subtype of expected,
-        // we still do not report an error
-        // if all necessary fields are initialized in the store before the method call.
-
         // We only track field initialization for the current receiver.
         if (!TreeUtils.isSelfAccess(node)) {
             super.reportMethodInvocabilityError(node, found, expected);
             return;
         }
+
+        AnnotationMirror init = expected.getAnnotation(Initialized.class);
+        AnnotationMirror unknownInit = expected.getAnnotation(UnknownInitialization.class);
+        AnnotationMirror underInit = expected.getAnnotation(UnderInitialization.class);
+
+        // If the actual receiver type (found) is not a subtype of expected,
+        // we still do not report an error if all necessary fields are initialized in the store
+        // before the method call.
 
         // Find the frame for which the receiver must be initialized to discharge this error:
         // * If the expected type is @UnknownInitialization(A) or @UnderInitialization(A), the frame
@@ -415,14 +415,17 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
         uninitializedFields.removeAll(initializedFields);
 
         if (!uninitializedFields.isEmpty()) {
-            StringJoiner fieldsString = new StringJoiner(", ");
-            for (VariableTree f : uninitializedFields) {
-                fieldsString.add(f.getName());
-            }
+            // TODO: improve the error message by showing the uninitialized fields
+            // StringJoiner fieldsString = new StringJoiner(", ");
+            // for (VariableTree f : uninitializedFields) {
+            //     fieldsString.add(f.getName());
+            // }
             checker.reportError(
                     node,
                     "method.invocation.invalid",
-                    new Object[] {found.toString(), expected.toString()});
+                    TreeUtils.elementFromUse(node),
+                    found.toString(),
+                    expected.toString());
         }
     }
 

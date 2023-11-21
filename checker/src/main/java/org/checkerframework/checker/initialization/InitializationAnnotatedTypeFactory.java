@@ -120,11 +120,11 @@ public class InitializationAnnotatedTypeFactory extends InitializationParentAnno
      * <p>A field f is initialized if
      *
      * <ul>
-     *   <li>f initialized in the initialization store, i.e., has been assigned.
+     *   <li>f is initialized in the initialization store, i.e., it has been assigned;
      *   <li>the value of f in the target store has a non-top qualifier that does not have the
-     *       meta-annotation {@link HoldsForDefaultValue}.
+     *       meta-annotation {@link HoldsForDefaultValue}; or
      *   <li>the declared qualifier of f in the target hierarchy either has the meta-annotation
-     *       {@link HoldsForDefaultValue} or is a top qualifier
+     *       {@link HoldsForDefaultValue} or is a top qualifier.
      * </ul>
      *
      * <p>See {@link #getUninitializedFields(InitializationStore, TreePath, boolean, Collection)}
