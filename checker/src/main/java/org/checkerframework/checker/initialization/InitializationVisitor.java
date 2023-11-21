@@ -375,7 +375,7 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
         // * If the expected type is @UnknownInitialization(A) or @UnderInitialization(A), the frame
         // is A.
         // * If the expected type is @Initialized and the receiver type is final, the frame
-        // is receiver type.
+        // is the receiver type.
         // * Otherwise, this error cannot be discharged and is reported by the super method.
         TypeMirror frame;
         if (unknownInit != null) {

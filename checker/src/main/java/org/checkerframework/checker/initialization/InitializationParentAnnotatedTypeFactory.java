@@ -428,10 +428,11 @@ public abstract class InitializationParentAnnotatedTypeFactory
      * account the target checker.
      *
      * <p>I.e., this method returns all fields that have not been assigned, without considering
-     * fields that may be considered intialized by the target checekr even though they have not been
-     * explicitly assigned. See {@link InitializationAnnotatedTypeFactory#getUninitializedFields(
-     * InitializationStore, CFAbstractStore, TreePath, boolean, Collection)} for a method that does
-     * take the target checker into account.
+     * fields that may be considered initialized by the target checker even though they have not
+     * been explicitly assigned. See {@link
+     * InitializationAnnotatedTypeFactory#getUninitializedFields( InitializationStore,
+     * CFAbstractStore, TreePath, boolean, Collection)} for a method that does take the target
+     * checker into account.
      *
      * @param store a store
      * @param path the current path, used to determine the current class
