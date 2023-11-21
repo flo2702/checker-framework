@@ -21,6 +21,7 @@ import org.checkerframework.checker.nullness.NullnessChecker;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
 import org.checkerframework.framework.flow.CFAbstractAnalysis.FieldInitialValue;
+import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
@@ -304,13 +305,13 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
         String valueTypeString = pair.found;
         String varTypeString = pair.required;
 
-        InitializationStore store = atypeFactory.getStoreBefore(commonAssignmentTree);
-
         // If the stored value of valueTree is wrong, we still do not report an error
-        // if all necessary fields of valueTree are initialized according to the target checker.
+        // if all necessary fields of valueTree are initialized in the store before the assignment.
+
+        InitializationStore initStoreBefore = atypeFactory.getStoreBefore(commonAssignmentTree);
 
         // We can't check if all necessary fields are initialized without a store.
-        if (store == null) {
+        if (initStoreBefore == null) {
             super.reportCommonAssignmentError(varType, valueType, valueTree, errorKey, extraArgs);
             return;
         }
@@ -337,7 +338,7 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
                         ((InitializationChecker) checker).getTargetCheckerClass());
         List<VariableTree> uninitializedFields =
                 atypeFactory.getUninitializedFields(
-                        store,
+                        initStoreBefore,
                         targetFactory.getStoreBefore(commonAssignmentTree),
                         getCurrentPath(),
                         false,
@@ -359,17 +360,19 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
     @Override
     protected void reportMethodInvocabilityError(
             MethodInvocationTree node, AnnotatedTypeMirror found, AnnotatedTypeMirror expected) {
-        if (!TreeUtils.isSelfAccess(node)) {
-            super.reportMethodInvocabilityError(node, found, expected);
-            return;
-        }
-
         AnnotationMirror init = expected.getAnnotation(Initialized.class);
         AnnotationMirror unknownInit = expected.getAnnotation(UnknownInitialization.class);
         AnnotationMirror underInit = expected.getAnnotation(UnderInitialization.class);
 
-        // If the found receiver type is wrong, we still do not report an error
-        // if all necessary fields are initialized according to the target checker.
+        // If the actual receiver type (found) is not a subtype of expected,
+        // we still do not report an error
+        // if all necessary fields are initialized in the store before the method call.
+
+        // We only track field initialization for the current receiver.
+        if (!TreeUtils.isSelfAccess(node)) {
+            super.reportMethodInvocabilityError(node, found, expected);
+            return;
+        }
 
         // Find the frame for which the receiver must be initialized to discharge this error:
         // * If the expected type is @UnknownInitialization(A) or @UnderInitialization(A), the frame
@@ -390,8 +393,11 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
             return;
         }
 
-        TypeMirror receiverType = atypeFactory.getReceiverType(node).getUnderlyingType();
-        if (!atypeFactory.getProcessingEnv().getTypeUtils().isSubtype(frame, receiverType)) {
+        TypeMirror underlyingReceiverType = atypeFactory.getReceiverType(node).getUnderlyingType();
+        if (!atypeFactory
+                .getProcessingEnv()
+                .getTypeUtils()
+                .isSubtype(frame, underlyingReceiverType)) {
             super.reportMethodInvocabilityError(node, found, expected);
             return;
         }
@@ -441,23 +447,23 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
     }
 
     /**
-     * Checks that all fields (all static fields if {@code staticFields} is true) are initialized in
-     * the given store.
+     * Checks that all fields (all static fields if {@code staticFields} is true) are initialized at
+     * the end of a given constructor or static class initializer.
      *
      * @param tree a {@link ClassTree} if {@code staticFields} is true; a {@link MethodTree} for a
      *     constructor if {@code staticFields} is false. This is where errors are reported, if they
      *     are not reported at the fields themselves
      * @param staticFields whether to check static fields or instance fields
-     * @param store the store
+     * @param initExitStore the initialization exit store for the constructor or static initializer
      * @param receiverAnnotations the annotations on the receiver
      */
     protected void checkFieldsInitialized(
             Tree tree,
             boolean staticFields,
-            InitializationStore store,
+            InitializationStore initExitStore,
             List<? extends AnnotationMirror> receiverAnnotations) {
         // If the store is null, then the constructor cannot terminate successfully
-        if (store == null) {
+        if (initExitStore == null) {
             return;
         }
 
@@ -472,10 +478,12 @@ public class InitializationVisitor extends BaseTypeVisitor<InitializationAnnotat
         GenericAnnotatedTypeFactory<?, ?, ?, ?> targetFactory =
                 checker.getTypeFactoryOfSubcheckerOrNull(
                         ((InitializationChecker) checker).getTargetCheckerClass());
+        // The target checker's store corresponding to initExitStore
+        CFAbstractStore<?, ?> targetExitStore = targetFactory.getRegularExitStore(tree);
         List<VariableTree> uninitializedFields =
                 atypeFactory.getUninitializedFields(
-                        store,
-                        targetFactory.getRegularExitStore(tree),
+                        initExitStore,
+                        targetExitStore,
                         getCurrentPath(),
                         staticFields,
                         receiverAnnotations);

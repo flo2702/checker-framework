@@ -117,14 +117,14 @@ public class InitializationAnnotatedTypeFactory extends InitializationParentAnno
      * Returns the fields that are not yet initialized in a given store, taking into account the
      * target checker.
      *
-     * <p>A field is initialized if
+     * <p>A field f is initialized if
      *
      * <ul>
-     *   <li>it is initialized in the initialization store, i.e., has been assigned.
-     *   <li>it has a non-top qualifier that does not have the meta-annotation {@link
-     *       HoldsForDefaultValue} in the target store.
-     *   <li>its declared qualifier in the target hierarchy either has the meta-annotation {@link
-     *       HoldsForDefaultValue} or is a top qualifier
+     *   <li>f initialized in the initialization store, i.e., has been assigned.
+     *   <li>the value of f in the target store has a non-top qualifier that does not have the
+     *       meta-annotation {@link HoldsForDefaultValue}.
+     *   <li>the declared qualifier of f in the target hierarchy either has the meta-annotation
+     *       {@link HoldsForDefaultValue} or is a top qualifier
      * </ul>
      *
      * <p>See {@link #getUninitializedFields(InitializationStore, TreePath, boolean, Collection)}
