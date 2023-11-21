@@ -7,6 +7,8 @@ Version 3.39.0-eisop2 (October ??, 2023)
 
 **Closed issues:**
 
+eisop#610.
+
 
 Version 3.39.0-eisop1 (October 22, 2023)
 ----------------------------------------
