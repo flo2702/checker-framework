@@ -12,3 +12,24 @@ final class FinalClassLambda {
 
     static void use(Runnable r) {}
 }
+
+final class I2 extends Z {
+    @Nullable String s;
+
+    I2() {
+        use(() -> init());
+        use(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        init();
+                    }
+                });
+    }
+
+    void init() {}
+}
+
+class Z {
+    void use(Runnable r) {}
+}
