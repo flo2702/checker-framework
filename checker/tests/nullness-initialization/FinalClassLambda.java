@@ -1,10 +1,10 @@
 import org.checkerframework.checker.initialization.qual.*;
 import org.checkerframework.checker.nullness.qual.*;
 
-final class FinalClassLambda {
+final class FinalClassLambda1 {
     @Nullable String s;
 
-    FinalClassLambda() {
+    FinalClassLambda1() {
         use(this::init);
     }
 
@@ -13,10 +13,10 @@ final class FinalClassLambda {
     static void use(Runnable r) {}
 }
 
-final class I2 extends Z {
+final class FinalClassLambda2 extends FinalClassLambda2Base {
     @Nullable String s;
 
-    I2() {
+    FinalClassLambda2() {
         use(() -> init());
         use(
                 new Runnable() {
@@ -30,6 +30,6 @@ final class I2 extends Z {
     void init() {}
 }
 
-class Z {
+class FinalClassLambda2Base {
     void use(Runnable r) {}
 }
