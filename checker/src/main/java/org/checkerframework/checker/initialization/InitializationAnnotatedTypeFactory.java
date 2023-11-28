@@ -129,7 +129,7 @@ public class InitializationAnnotatedTypeFactory extends InitializationParentAnno
             Tree tree, AnnotatedTypeMirror.AnnotatedDeclaredType selfType, TreePath path) {
         ClassTree enclosingClass = TreePathUtil.enclosingClass(path);
         Type classType = ((JCTree) enclosingClass).type;
-        AnnotationMirror annotation = null;
+        AnnotationMirror annotation;
 
         // If all fields are initialized-only, and they are all initialized,
         // then:
@@ -160,7 +160,11 @@ public class InitializationAnnotatedTypeFactory extends InitializationParentAnno
                 } else {
                     annotation = createUnderInitializationAnnotation(classType);
                 }
+            } else {
+                annotation = null;
             }
+        } else {
+            annotation = null;
         }
 
         if (annotation == null) {
