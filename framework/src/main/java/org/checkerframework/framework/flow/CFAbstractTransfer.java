@@ -53,6 +53,7 @@ import org.checkerframework.framework.flow.CFAbstractAnalysis.FieldInitialValue;
 import org.checkerframework.framework.type.AnnotatedTypeFactory;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
+import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.framework.util.Contract;
 import org.checkerframework.framework.util.Contract.ConditionalPostcondition;
 import org.checkerframework.framework.util.Contract.Postcondition;
@@ -419,21 +420,36 @@ public abstract class CFAbstractTransfer<
                 continue;
             }
 
-            boolean isFieldOfCurrentClass = varEle.getEnclosingElement().equals(classEle);
-            // Maybe insert the declared type:
-            if (!isConstructor) {
-                // If it's not a constructor, use the declared type if the receiver of the method is
-                // fully initialized.
-                boolean isInitializedReceiver = !isNotFullyInitializedReceiver(methodTree);
-                if (isInitializedReceiver && isFieldOfCurrentClass) {
-                    store.insertValue(fieldInitialValue.fieldDecl, fieldInitialValue.declared);
-                }
-            } else {
+            // If the field belongs to another class, don't add it to the store.
+            if (!varEle.getEnclosingElement().equals(classEle)) {
+                continue;
+            }
+
+            // Maybe insert the adapted or declared field type:
+            if (isConstructor) {
                 // If it is a constructor, then only use the declared type if the field has been
                 // initialized.
-                if (fieldInitialValue.initializer != null && isFieldOfCurrentClass) {
+                if (fieldInitialValue.initializer != null) {
                     store.insertValue(fieldInitialValue.fieldDecl, fieldInitialValue.declared);
                 }
+            } else if (!isStaticMethod) {
+                // If it's a non-constructor object method,
+                // use the adapted type if the receiver of the method is
+                // fully initialized.
+                analysis.getTypeFactory().getAnnotatedType(fieldInitialValue.fieldDecl.getField());
+                AnnotatedTypeMirror receiverType =
+                        analysis.getTypeFactory().getSelfType(methodTree.getBody());
+                AnnotatedTypeMirror adaptedType =
+                        AnnotatedTypes.asMemberOf(
+                                analysis.getTypes(),
+                                analysis.getTypeFactory(),
+                                receiverType,
+                                fieldInitialValue.fieldDecl.getField());
+                store.insertValue(
+                        fieldInitialValue.fieldDecl, analysis.createAbstractValue(adaptedType));
+            } else {
+                // If it's a static method, use the declared type.
+                store.insertValue(fieldInitialValue.fieldDecl, fieldInitialValue.declared);
             }
         }
     }
