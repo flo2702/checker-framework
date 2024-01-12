@@ -426,19 +426,15 @@ public abstract class CFAbstractTransfer<
             }
 
             // Maybe insert the adapted or declared field type:
-            if (isConstructor) {
-                // If it is a constructor, then only use the declared type if the field has been
-                // initialized.
-                if (fieldInitialValue.initializer != null) {
-                    store.insertValue(fieldInitialValue.fieldDecl, fieldInitialValue.declared);
-                }
+            V value = null;
+            if ((isConstructor || isStaticMethod) && fieldInitialValue.initializer != null) {
+                // If it is a constructor or static method, then use the declared type
+                // if the field has been initialized.
+                value = analysis.createAbstractValue(fieldInitialValue.declared);
             } else if (!isStaticMethod) {
                 // If it's a non-constructor object method,
-                // use the adapted type if the receiver of the method is
-                // fully initialized.
+                // use the adapted type if the receiver of the method is fully initialized.
                 if (!isNotFullyInitializedReceiver(methodTree)) {
-                    analysis.getTypeFactory()
-                            .getAnnotatedType(fieldInitialValue.fieldDecl.getField());
                     AnnotatedTypeMirror receiverType =
                             analysis.getTypeFactory().getSelfType(methodTree.getBody());
                     AnnotatedTypeMirror adaptedType =
@@ -446,14 +442,15 @@ public abstract class CFAbstractTransfer<
                                     analysis.getTypes(),
                                     analysis.getTypeFactory(),
                                     receiverType,
-                                    fieldInitialValue.fieldDecl.getField());
-                    store.insertValue(
-                            fieldInitialValue.fieldDecl, analysis.createAbstractValue(adaptedType));
+                                    fieldInitialValue.fieldDecl.getField(),
+                                    fieldInitialValue.declared);
+                    value = analysis.createAbstractValue(adaptedType);
+                    if (value == null) {
+                        value = analysis.createAbstractValue(fieldInitialValue.declared);
+                    }
                 }
-            } else {
-                // If it's a static method, use the declared type.
-                store.insertValue(fieldInitialValue.fieldDecl, fieldInitialValue.declared);
             }
+            store.insertValue(fieldInitialValue.fieldDecl, value);
         }
     }
 
