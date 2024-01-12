@@ -436,17 +436,20 @@ public abstract class CFAbstractTransfer<
                 // If it's a non-constructor object method,
                 // use the adapted type if the receiver of the method is
                 // fully initialized.
-                analysis.getTypeFactory().getAnnotatedType(fieldInitialValue.fieldDecl.getField());
-                AnnotatedTypeMirror receiverType =
-                        analysis.getTypeFactory().getSelfType(methodTree.getBody());
-                AnnotatedTypeMirror adaptedType =
-                        AnnotatedTypes.asMemberOf(
-                                analysis.getTypes(),
-                                analysis.getTypeFactory(),
-                                receiverType,
-                                fieldInitialValue.fieldDecl.getField());
-                store.insertValue(
-                        fieldInitialValue.fieldDecl, analysis.createAbstractValue(adaptedType));
+                if (!isNotFullyInitializedReceiver(methodTree)) {
+                    analysis.getTypeFactory()
+                            .getAnnotatedType(fieldInitialValue.fieldDecl.getField());
+                    AnnotatedTypeMirror receiverType =
+                            analysis.getTypeFactory().getSelfType(methodTree.getBody());
+                    AnnotatedTypeMirror adaptedType =
+                            AnnotatedTypes.asMemberOf(
+                                    analysis.getTypes(),
+                                    analysis.getTypeFactory(),
+                                    receiverType,
+                                    fieldInitialValue.fieldDecl.getField());
+                    store.insertValue(
+                            fieldInitialValue.fieldDecl, analysis.createAbstractValue(adaptedType));
+                }
             } else {
                 // If it's a static method, use the declared type.
                 store.insertValue(fieldInitialValue.fieldDecl, fieldInitialValue.declared);
