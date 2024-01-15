@@ -7,7 +7,13 @@ import org.checkerframework.framework.type.AbstractViewpointAdapter;
 import java.lang.annotation.Annotation;
 import java.util.Set;
 
-import viewpointtest.quals.*;
+import viewpointtest.quals.A;
+import viewpointtest.quals.B;
+import viewpointtest.quals.Bottom;
+import viewpointtest.quals.C;
+import viewpointtest.quals.PolyVP;
+import viewpointtest.quals.ReceiverDependentQual;
+import viewpointtest.quals.Top;
 
 public class ViewpointTestAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
 
