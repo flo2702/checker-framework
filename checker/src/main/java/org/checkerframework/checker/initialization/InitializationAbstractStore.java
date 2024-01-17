@@ -161,8 +161,9 @@ public abstract class InitializationAbstractStore<
      *     viewpoint adaption for {@link NotOnlyInitialized})
      */
     protected boolean isDeclaredInitialized(FieldAccess fieldAccess) {
-        InitializationParentAnnotatedTypeFactory atypeFactory =
-                (InitializationParentAnnotatedTypeFactory) analysis.getTypeFactory();
+        InitializationParentAnnotatedTypeFactory<Value, Store, ?, ?> atypeFactory =
+                (InitializationParentAnnotatedTypeFactory<Value, Store, ?, ?>)
+                        analysis.getTypeFactory();
         AnnotatedTypeMirror receiverType;
         if (thisValue != null
                 && thisValue.getUnderlyingType().getKind() != TypeKind.ERROR
@@ -212,7 +213,7 @@ public abstract class InitializationAbstractStore<
      *
      * @return the analysis associated with this store
      */
-    public InitializationAnalysis getAnalysis() {
-        return (InitializationAnalysis) analysis;
+    public InitializationAbstractAnalysis<Value, ?, ?> getAnalysis() {
+        return (InitializationAbstractAnalysis<Value, ?, ?>) analysis;
     }
 }

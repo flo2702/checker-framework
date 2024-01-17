@@ -13,6 +13,7 @@ import org.checkerframework.checker.nullness.qual.EnsuresNonNull;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.common.basetype.BaseTypeChecker;
+import org.checkerframework.common.basetype.BaseTypeVisitor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -124,13 +125,15 @@ public abstract class InitializationChecker extends BaseTypeChecker {
     }
 
     @Override
-    public InitializationAnnotatedTypeFactory getTypeFactory() {
-        return (InitializationAnnotatedTypeFactory) super.getTypeFactory();
+    protected BaseTypeVisitor<?> createSourceVisitor() {
+        // Don't load the visitor reflexively based on checker class name.
+        // Instead, always use the InitializationVisitor.
+        return new InitializationVisitor(this);
     }
 
     @Override
-    protected InitializationVisitor createSourceVisitor() {
-        return new InitializationVisitor(this);
+    public InitializationAbstractAnnotatedTypeFactory<?, ?, ?, ?> getTypeFactory() {
+        return (InitializationAbstractAnnotatedTypeFactory<?, ?, ?, ?>) super.getTypeFactory();
     }
 
     @Override

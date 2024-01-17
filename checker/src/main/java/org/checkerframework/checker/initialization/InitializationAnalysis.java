@@ -19,7 +19,13 @@ public class InitializationAnalysis
      * @param factory the factory
      */
     protected InitializationAnalysis(
-            BaseTypeChecker checker, InitializationParentAnnotatedTypeFactory factory) {
+            BaseTypeChecker checker,
+            InitializationParentAnnotatedTypeFactory<
+                            CFValue,
+                            InitializationStore,
+                            InitializationTransfer,
+                            InitializationAnalysis>
+                    factory) {
         super(checker, factory);
     }
 
@@ -40,7 +46,15 @@ public class InitializationAnalysis
     }
 
     @Override
-    public InitializationParentAnnotatedTypeFactory getTypeFactory() {
-        return (InitializationParentAnnotatedTypeFactory) super.getTypeFactory();
+    @SuppressWarnings("unchecked")
+    public InitializationParentAnnotatedTypeFactory<
+                    CFValue, InitializationStore, InitializationTransfer, InitializationAnalysis>
+            getTypeFactory() {
+        return (InitializationParentAnnotatedTypeFactory<
+                        CFValue,
+                        InitializationStore,
+                        InitializationTransfer,
+                        InitializationAnalysis>)
+                super.getTypeFactory();
     }
 }

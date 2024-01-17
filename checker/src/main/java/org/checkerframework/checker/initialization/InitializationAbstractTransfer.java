@@ -53,7 +53,8 @@ public abstract class InitializationAbstractTransfer<
         extends CFAbstractTransfer<Value, Store, Transfer> {
 
     /** The initialization type factory */
-    protected final InitializationParentAnnotatedTypeFactory atypeFactory;
+    protected final InitializationParentAnnotatedTypeFactory<Value, Store, Transfer, ?>
+            atypeFactory;
 
     /**
      * Create a new InitializationAbstractTransfer for the given analysis.
@@ -62,7 +63,9 @@ public abstract class InitializationAbstractTransfer<
      */
     public InitializationAbstractTransfer(CFAbstractAnalysis<Value, Store, Transfer> analysis) {
         super(analysis);
-        this.atypeFactory = (InitializationParentAnnotatedTypeFactory) analysis.getTypeFactory();
+        this.atypeFactory =
+                (InitializationParentAnnotatedTypeFactory<Value, Store, Transfer, ?>)
+                        analysis.getTypeFactory();
     }
 
     /**

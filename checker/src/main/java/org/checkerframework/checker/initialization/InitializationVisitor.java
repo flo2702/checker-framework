@@ -1,6 +1,7 @@
 package org.checkerframework.checker.initialization;
 
 import org.checkerframework.common.basetype.BaseTypeChecker;
+import org.checkerframework.framework.flow.CFValue;
 
 /* NO-AFU
    import org.checkerframework.common.wholeprograminference.WholeProgramInference;
@@ -8,7 +9,12 @@ import org.checkerframework.common.basetype.BaseTypeChecker;
 
 /** The default visitor used by the freedom-before-commitment type-system. */
 public class InitializationVisitor
-        extends InitializationAbstractVisitor<InitializationAnnotatedTypeFactory> {
+        extends InitializationAbstractVisitor<
+                CFValue,
+                InitializationStore,
+                InitializationTransfer,
+                InitializationAnalysis,
+                InitializationAnnotatedTypeFactory> {
 
     /**
      * Create an InitializationVisitor.

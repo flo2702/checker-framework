@@ -6,9 +6,9 @@ import com.sun.source.util.TreePath;
 import org.checkerframework.checker.compilermsgs.qual.CompilerMessageKey;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.common.basetype.BaseTypeVisitor;
-import org.checkerframework.framework.flow.CFAbstractAnalysis.FieldInitialValue;
+import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.flow.CFAbstractStore;
-import org.checkerframework.framework.flow.CFValue;
+import org.checkerframework.framework.flow.CFAbstractValue;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedDeclaredType;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
@@ -35,7 +35,13 @@ import javax.lang.model.element.VariableElement;
  * @see InitializationVisitor
  */
 public abstract class InitializationAbstractVisitor<
-                Factory extends InitializationAnnotatedTypeFactory>
+                Value extends CFAbstractValue<Value>,
+                Store extends InitializationAbstractStore<Value, Store>,
+                Transfer extends InitializationAbstractTransfer<Value, Store, Transfer>,
+                Analysis extends InitializationAbstractAnalysis<Value, Store, Transfer>,
+                Factory extends
+                        InitializationAbstractAnnotatedTypeFactory<
+                                        Value, Store, Transfer, Analysis>>
         extends BaseTypeVisitor<Factory> {
 
     // Error message keys
@@ -153,10 +159,10 @@ public abstract class InitializationAbstractVisitor<
         for (Tree member : tree.getMembers()) {
             if (member.getKind() == Tree.Kind.BLOCK && !((BlockTree) member).isStatic()) {
                 BlockTree block = (BlockTree) member;
-                InitializationStore store = atypeFactory.getRegularExitStore(block);
+                Store store = atypeFactory.getRegularExitStore(block);
 
                 // Add field values for fields with an initializer.
-                for (FieldInitialValue<CFValue> fieldInitialValue :
+                for (CFAbstractAnalysis.FieldInitialValue<Value> fieldInitialValue :
                         store.getAnalysis().getFieldInitialValues()) {
                     if (fieldInitialValue.initializer != null) {
                         store.addInitializedField(fieldInitialValue.fieldDecl.getField());
@@ -178,10 +184,10 @@ public abstract class InitializationAbstractVisitor<
         if (nodeKind != Tree.Kind.INTERFACE && nodeKind != Tree.Kind.ANNOTATION_TYPE) {
             // See GenericAnnotatedTypeFactory.performFlowAnalysis for why we use
             // the regular exit store of the class here.
-            InitializationStore store = atypeFactory.getRegularExitStore(tree);
+            Store store = atypeFactory.getRegularExitStore(tree);
             if (store != null) {
                 // Add field values for fields with an initializer.
-                for (FieldInitialValue<CFValue> fieldInitialValue :
+                for (CFAbstractAnalysis.FieldInitialValue<Value> fieldInitialValue :
                         store.getAnalysis().getFieldInitialValues()) {
                     if (fieldInitialValue.initializer != null) {
                         store.addInitializedField(fieldInitialValue.fieldDecl.getField());
@@ -212,7 +218,7 @@ public abstract class InitializationAbstractVisitor<
             // Check that all fields have been initialized at the end of the constructor.
             boolean isStatic = false;
 
-            InitializationStore store = atypeFactory.getRegularExitStore(tree);
+            Store store = atypeFactory.getRegularExitStore(tree);
             List<? extends AnnotationMirror> receiverAnnotations = getAllReceiverAnnotations(tree);
             checkFieldsInitialized(tree, isStatic, store, receiverAnnotations);
         }
@@ -307,7 +313,7 @@ public abstract class InitializationAbstractVisitor<
     protected void checkFieldsInitialized(
             Tree tree,
             boolean staticFields,
-            InitializationStore initExitStore,
+            Store initExitStore,
             List<? extends AnnotationMirror> receiverAnnotations) {
         // If the store is null, then the constructor cannot terminate successfully
         if (initExitStore == null) {

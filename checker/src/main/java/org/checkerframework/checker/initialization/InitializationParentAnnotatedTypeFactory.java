@@ -23,9 +23,8 @@ import org.checkerframework.checker.initialization.qual.UnderInitialization;
 import org.checkerframework.checker.initialization.qual.UnknownInitialization;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.common.basetype.BaseTypeChecker;
-import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.flow.CFAbstractStore;
-import org.checkerframework.framework.flow.CFValue;
+import org.checkerframework.framework.flow.CFAbstractValue;
 import org.checkerframework.framework.qual.Unused;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedArrayType;
@@ -70,12 +69,15 @@ import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Types;
 
 /**
- * Superclass for {@link InitializationFieldAccessAnnotatedTypeFactory} and {@link
- * InitializationAnnotatedTypeFactory} to contain common functionality.
+ * Superclass for {@link InitializationFieldAccessAbstractAnnotatedTypeFactory} and {@link
+ * InitializationAbstractAnnotatedTypeFactory} to contain common functionality.
  */
-public abstract class InitializationParentAnnotatedTypeFactory
-        extends GenericAnnotatedTypeFactory<
-                CFValue, InitializationStore, InitializationTransfer, InitializationAnalysis> {
+public abstract class InitializationParentAnnotatedTypeFactory<
+                Value extends CFAbstractValue<Value>,
+                Store extends InitializationAbstractStore<Value, Store>,
+                Transfer extends InitializationAbstractTransfer<Value, Store, Transfer>,
+                Analysis extends InitializationAbstractAnalysis<Value, Store, Transfer>>
+        extends GenericAnnotatedTypeFactory<Value, Store, Transfer, Analysis> {
 
     /** {@link UnknownInitialization}. */
     protected final AnnotationMirror UNKNOWN_INITIALIZATION;
@@ -204,12 +206,6 @@ public abstract class InitializationParentAnnotatedTypeFactory
         return result;
     }
 
-    @Override
-    public InitializationTransfer createFlowTransferFunction(
-            CFAbstractAnalysis<CFValue, InitializationStore, InitializationTransfer> analysis) {
-        return new InitializationTransfer((InitializationAnalysis) analysis);
-    }
-
     /**
      * Returns {@code true}. Initialization cannot be undone, i.e., an @Initialized object always
      * stays @Initialized, an @UnderInitialization(A) object always stays @UnderInitialization(A)
@@ -312,7 +308,7 @@ public abstract class InitializationParentAnnotatedTypeFactory
         //  - otherwise, this is @UnderInitialization(CurrentClass) as
         //    there might still be subclasses that need initialization.
         if (areAllFieldsInitializedOnly(enclosingClass)) {
-            InitializationStore store = getStoreBefore(tree);
+            Store store = getStoreBefore(tree);
             if (store != null
                     && getUninitializedFields(store, path, false, Collections.emptyList())
                             .isEmpty()) {
@@ -435,7 +431,7 @@ public abstract class InitializationParentAnnotatedTypeFactory
      * <p>I.e., this method returns all fields that have not been assigned, without considering
      * fields that may be considered initialized by the target checker even though they have not
      * been explicitly assigned. See {@link
-     * InitializationAnnotatedTypeFactory#getUninitializedFields( InitializationStore,
+     * InitializationAbstractAnnotatedTypeFactory#getUninitializedFields(InitializationAbstractStore,
      * CFAbstractStore, TreePath, boolean, Collection)} for a method that does take the target
      * checker into account.
      *
@@ -446,7 +442,7 @@ public abstract class InitializationParentAnnotatedTypeFactory
      * @return the fields that are not yet initialized in a given store
      */
     public List<VariableTree> getUninitializedFields(
-            InitializationStore store,
+            Store store,
             TreePath path,
             boolean isStatic,
             Collection<? extends AnnotationMirror> receiverAnnotations) {
@@ -474,7 +470,7 @@ public abstract class InitializationParentAnnotatedTypeFactory
      * @param path the current path; used to compute the current class
      * @return the fields that are initialized in the given store
      */
-    public List<VariableTree> getInitializedFields(InitializationStore store, TreePath path) {
+    public List<VariableTree> getInitializedFields(Store store, TreePath path) {
         // TODO: Instead of passing the TreePath around, can we use
         // getCurrentClassTree?
         ClassTree currentClass = TreePathUtil.enclosingClass(path);
@@ -705,7 +701,9 @@ public abstract class InitializationParentAnnotatedTypeFactory
          *
          * @param atypeFactory this factory
          */
-        public CommitmentTypeAnnotator(InitializationParentAnnotatedTypeFactory atypeFactory) {
+        public CommitmentTypeAnnotator(
+                InitializationParentAnnotatedTypeFactory<Value, Store, Transfer, Analysis>
+                        atypeFactory) {
             super(atypeFactory);
         }
 
@@ -735,7 +733,8 @@ public abstract class InitializationParentAnnotatedTypeFactory
          * @param initializationAnnotatedTypeFactory this factory
          */
         public CommitmentTreeAnnotator(
-                InitializationParentAnnotatedTypeFactory initializationAnnotatedTypeFactory) {
+                InitializationParentAnnotatedTypeFactory<Value, Store, Transfer, Analysis>
+                        initializationAnnotatedTypeFactory) {
             super(initializationAnnotatedTypeFactory);
         }
 
