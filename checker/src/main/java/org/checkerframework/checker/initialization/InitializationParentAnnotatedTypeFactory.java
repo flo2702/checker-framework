@@ -464,6 +464,19 @@ public abstract class InitializationParentAnnotatedTypeFactory<
     }
 
     /**
+     * Returns the fields that are initialized in the store before a given tree.
+     *
+     * @param tree a tree
+     * @param path the current path; used to compute the current class
+     * @return the fields that are initialized in the store before a given tree, or {@code null} if
+     *     no such store exists.
+     */
+    public List<VariableTree> getInitializedFieldsBefore(Tree tree, TreePath path) {
+        Store store = getStoreBefore(tree);
+        return store == null ? null : getInitializedFields(store, path);
+    }
+
+    /**
      * Returns the fields that are initialized in the given store.
      *
      * @param store a store
