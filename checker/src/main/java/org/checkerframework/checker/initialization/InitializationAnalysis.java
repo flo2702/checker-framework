@@ -2,18 +2,15 @@ package org.checkerframework.checker.initialization;
 
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.common.basetype.BaseTypeChecker;
-import org.checkerframework.framework.flow.CFAbstractAnalysis;
 import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.javacutil.AnnotationMirrorSet;
 
 import javax.lang.model.type.TypeMirror;
 
-/**
- * The analysis class for the initialization type system (serves as factory for the transfer
- * function, stores, and abstract values.
- */
+/** The default analysis class used by the freedom-before-commitment type system. */
 public class InitializationAnalysis
-        extends CFAbstractAnalysis<CFValue, InitializationStore, InitializationTransfer> {
+        extends InitializationAbstractAnalysis<
+                CFValue, InitializationStore, InitializationTransfer> {
 
     /**
      * Creates a new {@code InitializationAnalysis}.
