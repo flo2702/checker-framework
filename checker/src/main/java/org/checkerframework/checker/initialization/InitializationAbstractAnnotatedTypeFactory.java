@@ -3,7 +3,6 @@ package org.checkerframework.checker.initialization;
 import com.sun.source.tree.ClassTree;
 import com.sun.source.tree.MethodTree;
 import com.sun.source.tree.Tree;
-import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
 import com.sun.tools.javac.code.Type;
 import com.sun.tools.javac.tree.JCTree;
@@ -12,11 +11,11 @@ import org.checkerframework.checker.initialization.qual.HoldsForDefaultValue;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.common.basetype.BaseTypeChecker;
 import org.checkerframework.dataflow.analysis.TransferResult;
-import org.checkerframework.dataflow.cfg.node.ClassNameNode;
-import org.checkerframework.dataflow.cfg.node.FieldAccessNode;
-import org.checkerframework.dataflow.cfg.node.ImplicitThisNode;
-import org.checkerframework.dataflow.cfg.node.Node;
 import org.checkerframework.dataflow.cfg.node.ReturnNode;
+import org.checkerframework.dataflow.expression.ClassName;
+import org.checkerframework.dataflow.expression.FieldAccess;
+import org.checkerframework.dataflow.expression.JavaExpression;
+import org.checkerframework.dataflow.expression.ThisReference;
 import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.flow.CFAbstractValue;
 import org.checkerframework.framework.qual.MonotonicQualifier;
@@ -29,7 +28,6 @@ import org.checkerframework.framework.util.AnnotatedTypes;
 import org.checkerframework.javacutil.BugInCF;
 import org.checkerframework.javacutil.ElementUtils;
 import org.checkerframework.javacutil.TreePathUtil;
-import org.checkerframework.javacutil.TreeUtils;
 import org.plumelib.util.IPair;
 
 import java.lang.annotation.Annotation;
@@ -120,7 +118,7 @@ public abstract class InitializationAbstractAnnotatedTypeFactory<
     /**
      * {@inheritDoc}
      *
-     * <p>This implementaiton also takes the target checker into account.
+     * <p>This implementation also takes the target checker into account.
      *
      * @see #getUninitializedFields(InitializationAbstractStore, TreePath, boolean, Collection)
      */
@@ -197,14 +195,15 @@ public abstract class InitializationAbstractAnnotatedTypeFactory<
      * @param receiverAnnotations the annotations on the receiver
      * @return the fields that are not yet initialized in a given store
      */
-    public List<VariableTree> getUninitializedFields(
+    public List<VariableElement> getUninitializedFields(
             Store initStore,
             CFAbstractStore<?, ?> targetStore,
             TreePath path,
             boolean isStatic,
             Collection<? extends AnnotationMirror> receiverAnnotations) {
-        List<VariableTree> uninitializedFields =
-                super.getUninitializedFields(initStore, path, isStatic, receiverAnnotations);
+        List<VariableElement> uninitializedFields =
+                getUninitializedFields(initStore, path, isStatic, receiverAnnotations);
+        ClassTree currentClass = TreePathUtil.enclosingClass(path);
 
         GenericAnnotatedTypeFactory<?, ?, ?, ?> factory =
                 checker.getTypeFactoryOfSubcheckerOrNull(
@@ -223,20 +222,16 @@ public abstract class InitializationAbstractAnnotatedTypeFactory<
 
         // Filter out fields which are initialized according to subchecker
         uninitializedFields.removeIf(
-                var -> {
-                    ClassTree enclosingClass = TreePathUtil.enclosingClass(getPath(var));
-                    Node receiver;
-                    if (ElementUtils.isStatic(TreeUtils.elementFromDeclaration(var))) {
-                        receiver = new ClassNameNode(enclosingClass);
+                field -> {
+                    JavaExpression receiver;
+                    if (ElementUtils.isStatic(field)) {
+                        receiver = new ClassName(((JCTree) currentClass).type);
                     } else {
-                        receiver =
-                                new ImplicitThisNode(
-                                        TreeUtils.elementFromDeclaration(enclosingClass).asType());
+                        receiver = new ThisReference(((JCTree) currentClass).type);
                     }
-                    VariableElement varElement = TreeUtils.elementFromDeclaration(var);
-                    FieldAccessNode fa = new FieldAccessNode(var, varElement, receiver);
-                    CFAbstractValue<?> value = targetStore.getValue(fa);
-                    return isInitialized(factory, value, varElement);
+                    FieldAccess fa = new FieldAccess(receiver, field);
+                    CFAbstractValue<?> value = targetStore.getFieldValue(fa);
+                    return isInitialized(factory, value, field);
                 });
 
         return uninitializedFields;

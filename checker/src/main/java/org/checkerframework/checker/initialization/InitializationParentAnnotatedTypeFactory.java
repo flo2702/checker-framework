@@ -66,6 +66,7 @@ import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.ElementFilter;
 import javax.lang.model.util.Types;
 
 /**
@@ -364,13 +365,12 @@ public abstract class InitializationParentAnnotatedTypeFactory<
      * @return whether {@code field} is unused given {@code receiverAnnos}
      */
     protected boolean isUnused(
-            VariableTree field, Collection<? extends AnnotationMirror> receiverAnnos) {
+            VariableElement field, Collection<? extends AnnotationMirror> receiverAnnos) {
         if (receiverAnnos.isEmpty()) {
             return false;
         }
 
-        AnnotationMirror unused =
-                getDeclAnnotation(TreeUtils.elementFromDeclaration(field), Unused.class);
+        AnnotationMirror unused = getDeclAnnotation(field, Unused.class);
         if (unused == null) {
             return false;
         }
@@ -441,26 +441,40 @@ public abstract class InitializationParentAnnotatedTypeFactory<
      * @param receiverAnnotations the annotations on the receiver
      * @return the fields that are not yet initialized in a given store
      */
-    public List<VariableTree> getUninitializedFields(
+    public List<VariableElement> getUninitializedFields(
             Store store,
             TreePath path,
             boolean isStatic,
             Collection<? extends AnnotationMirror> receiverAnnotations) {
-        ClassTree currentClass = TreePathUtil.enclosingClass(path);
-        List<VariableTree> fields = InitializationChecker.getAllFields(currentClass);
-        List<VariableTree> uninit = new ArrayList<>();
-        for (VariableTree field : fields) {
+        List<VariableElement> fields = getPossiblyUninitializedFields(path);
+        List<VariableElement> uninit = new ArrayList<>();
+        for (VariableElement field : fields) {
             if (isUnused(field, receiverAnnotations)) {
                 continue; // don't consider unused fields
             }
-            VariableElement fieldElem = TreeUtils.elementFromDeclaration(field);
-            if (ElementUtils.isStatic(fieldElem) == isStatic) {
-                if (!store.isFieldInitialized(fieldElem)) {
+            if (ElementUtils.isStatic(field) == isStatic) {
+                if (!store.isFieldInitialized(field)) {
                     uninit.add(field);
                 }
             }
         }
         return uninit;
+    }
+
+    /**
+     * Returns a list of all fields that may be uninitialized and should be checked by the {@link
+     * #getUninitializedFields(InitializationAbstractStore, TreePath, boolean, Collection)} method.
+     *
+     * <p>The default implementation returns the list of all fields in the current class, but not in
+     * superclasses.
+     *
+     * @param path the current path, used to determine the current class
+     * @return a list of all fields that may be uninitialized.
+     */
+    protected List<VariableElement> getPossiblyUninitializedFields(TreePath path) {
+        ClassTree currentClass = TreePathUtil.enclosingClass(path);
+        return ElementFilter.fieldsIn(
+                TypesUtils.getTypeElement(((JCTree) currentClass).type).getEnclosedElements());
     }
 
     /**

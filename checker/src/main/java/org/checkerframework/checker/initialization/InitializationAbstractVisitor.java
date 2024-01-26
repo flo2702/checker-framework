@@ -333,7 +333,7 @@ public abstract class InitializationAbstractVisitor<
                         ((InitializationChecker) checker).getTargetCheckerClass());
         // The target checker's store corresponding to initExitStore
         CFAbstractStore<?, ?> targetExitStore = targetFactory.getRegularExitStore(tree);
-        List<VariableTree> uninitializedFields =
+        List<VariableElement> uninitializedFields =
                 atypeFactory.getUninitializedFields(
                         initExitStore,
                         targetExitStore,
@@ -356,20 +356,19 @@ public abstract class InitializationAbstractVisitor<
                                 : "initialization.fields.uninitialized");
 
         // Remove fields with a relevant @SuppressWarnings annotation
-        uninitializedFields.removeIf(
-                f -> checker.shouldSuppressWarnings(TreeUtils.elementFromDeclaration(f), errorMsg));
+        uninitializedFields.removeIf(f -> checker.shouldSuppressWarnings(f, errorMsg));
 
         if (!uninitializedFields.isEmpty()) {
             if (errorAtField) {
                 // Issue each error at the relevant field
-                for (VariableTree f : uninitializedFields) {
-                    checker.reportError(f, errorMsg, f.getName());
+                for (VariableElement f : uninitializedFields) {
+                    checker.reportError(f, errorMsg, f.getSimpleName());
                 }
             } else {
                 // Issue all the errors at the relevant constructor
                 StringJoiner fieldsString = new StringJoiner(", ");
-                for (VariableTree f : uninitializedFields) {
-                    fieldsString.add(f.getName());
+                for (VariableElement f : uninitializedFields) {
+                    fieldsString.add(f.getSimpleName());
                 }
                 checker.reportError(tree, errorMsg, fieldsString);
             }
