@@ -89,6 +89,21 @@ public abstract class InitializationAbstractVisitor<
     }
 
     @Override
+    public Void visitMethod(MethodTree tree, Void p) {
+        if (TreeUtils.isAnonymousConstructor(tree)) {
+            // The initialization checker must also check anonymous constructors
+            AnnotatedExecutableType methodType = atypeFactory.getAnnotatedType(tree).deepCopy();
+            MethodTree preMT = methodTree;
+            methodTree = tree;
+            ExecutableElement methodElement = TreeUtils.elementFromDeclaration(tree);
+            checkConstructorResult(methodType, methodElement);
+            methodTree = preMT;
+        }
+
+        return super.visitMethod(tree, p);
+    }
+
+    @Override
     protected void checkConstructorInvocation(
             AnnotatedDeclaredType dt, AnnotatedExecutableType constructor, NewClassTree src) {
         // Receiver annotations for constructors are forbidden, therefore no check is necessary.
@@ -98,7 +113,26 @@ public abstract class InitializationAbstractVisitor<
     @Override
     protected void checkConstructorResult(
             AnnotatedExecutableType constructorType, ExecutableElement constructorElement) {
-        // Nothing to check
+        Collection<? extends AnnotationMirror> returnTypeAnnotations =
+                AnnotationUtils.getExplicitAnnotationsOnConstructorResult(methodTree);
+        // check for invalid constructor return type
+        for (Class<? extends Annotation> c : atypeFactory.getSupportedTypeQualifiers()) {
+            for (AnnotationMirror a : returnTypeAnnotations) {
+                if (atypeFactory.areSameByClass(a, c)) {
+                    checker.reportError(
+                            methodTree, COMMITMENT_INVALID_CONSTRUCTOR_RETURN_TYPE, methodTree);
+                    break;
+                }
+            }
+        }
+
+        // Check that all fields have been initialized at the end of the constructor.
+        boolean isStatic = false;
+
+        Store store = atypeFactory.getRegularExitStore(methodTree);
+        List<? extends AnnotationMirror> receiverAnnotations =
+                getAllReceiverAnnotations(methodTree);
+        checkFieldsInitialized(methodTree, isStatic, store, receiverAnnotations);
     }
 
     @Override
@@ -198,31 +232,6 @@ public abstract class InitializationAbstractVisitor<
             List<AnnotationMirror> receiverAnnotations = Collections.emptyList();
             checkFieldsInitialized(tree, true, store, receiverAnnotations);
         }
-    }
-
-    @Override
-    public Void visitMethod(MethodTree tree, Void p) {
-        if (TreeUtils.isConstructor(tree)) {
-            Collection<? extends AnnotationMirror> returnTypeAnnotations =
-                    AnnotationUtils.getExplicitAnnotationsOnConstructorResult(tree);
-            // check for invalid constructor return type
-            for (Class<? extends Annotation> c : atypeFactory.getSupportedTypeQualifiers()) {
-                for (AnnotationMirror a : returnTypeAnnotations) {
-                    if (atypeFactory.areSameByClass(a, c)) {
-                        checker.reportError(tree, COMMITMENT_INVALID_CONSTRUCTOR_RETURN_TYPE, tree);
-                        break;
-                    }
-                }
-            }
-
-            // Check that all fields have been initialized at the end of the constructor.
-            boolean isStatic = false;
-
-            Store store = atypeFactory.getRegularExitStore(tree);
-            List<? extends AnnotationMirror> receiverAnnotations = getAllReceiverAnnotations(tree);
-            checkFieldsInitialized(tree, isStatic, store, receiverAnnotations);
-        }
-        return super.visitMethod(tree, p);
     }
 
     /**
