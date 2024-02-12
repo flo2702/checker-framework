@@ -11,7 +11,6 @@ import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.flow.CFValue;
 import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
-import org.checkerframework.framework.util.AnnotatedTypes;
 import org.plumelib.util.ToStringComparator;
 
 import java.util.HashSet;
@@ -157,6 +156,12 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
     protected boolean isDeclaredInitialized(FieldAccess fieldAccess) {
         InitializationParentAnnotatedTypeFactory atypeFactory =
                 (InitializationParentAnnotatedTypeFactory) analysis.getTypeFactory();
+
+        AnnotatedTypeMirror declField = atypeFactory.getAnnotatedType(fieldAccess.getField());
+        if (!declField.hasAnnotation(atypeFactory.INITIALIZED)) {
+            return false;
+        }
+
         AnnotatedTypeMirror receiverType;
         if (thisValue != null
                 && thisValue.getUnderlyingType().getKind() != TypeKind.ERROR
@@ -177,13 +182,12 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
             receiverType = null;
         }
 
-        // We must use AnnotatedTypes.asMemberOf instead of
-        // factory.getAnnotatedTypeLhs
-        // to soundly handle @NotOnlyInitialized.
-        AnnotatedTypeMirror declaredType =
-                AnnotatedTypes.asMemberOf(
-                        atypeFactory.types, atypeFactory, receiverType, fieldAccess.getField());
-        return declaredType.hasAnnotation(atypeFactory.INITIALIZED);
+        if (receiverType != null) {
+            return receiverType.hasAnnotation(atypeFactory.INITIALIZED);
+        } else {
+            // The field is static and INITIALIZED, so there is nothing else to check.
+            return true;
+        }
     }
 
     @Override
