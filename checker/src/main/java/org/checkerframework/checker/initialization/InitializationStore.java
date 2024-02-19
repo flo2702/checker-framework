@@ -9,17 +9,14 @@ import org.checkerframework.dataflow.expression.JavaExpression;
 import org.checkerframework.dataflow.expression.ThisReference;
 import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.flow.CFValue;
-import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
 import org.plumelib.util.ToStringComparator;
 
 import java.util.HashSet;
 import java.util.Set;
 
-import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeKind;
 
 /**
  * A store that extends {@code CFAbstractStore} and additionally tracks which fields of the 'self'
@@ -154,40 +151,43 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
      *     viewpoint adaption for {@link NotOnlyInitialized})
      */
     protected boolean isDeclaredInitialized(FieldAccess fieldAccess) {
-        InitializationParentAnnotatedTypeFactory atypeFactory =
-                (InitializationParentAnnotatedTypeFactory) analysis.getTypeFactory();
+        return true;
+        /*
+               InitializationParentAnnotatedTypeFactory atypeFactory =
+                       (InitializationParentAnnotatedTypeFactory) analysis.getTypeFactory();
 
-        AnnotatedTypeMirror declField = atypeFactory.getAnnotatedType(fieldAccess.getField());
-        if (!declField.hasAnnotation(atypeFactory.INITIALIZED)) {
-            return false;
-        }
+               AnnotatedTypeMirror declField = atypeFactory.getAnnotatedType(fieldAccess.getField());
+               if (!declField.hasAnnotation(atypeFactory.INITIALIZED)) {
+                   return false;
+               }
 
-        AnnotatedTypeMirror receiverType;
-        if (thisValue != null
-                && thisValue.getUnderlyingType().getKind() != TypeKind.ERROR
-                && thisValue.getUnderlyingType().getKind() != TypeKind.NULL) {
-            receiverType =
-                    AnnotatedTypeMirror.createType(
-                            thisValue.getUnderlyingType(), atypeFactory, false);
-            for (AnnotationMirror anno : thisValue.getAnnotations()) {
-                receiverType.replaceAnnotation(anno);
-            }
-        } else if (!fieldAccess.isStatic()) {
-            receiverType =
-                    AnnotatedTypeMirror.createType(
-                                    fieldAccess.getReceiver().getType(), atypeFactory, false)
-                            .getErased();
-            receiverType.addAnnotations(atypeFactory.getQualifierHierarchy().getTopAnnotations());
-        } else {
-            receiverType = null;
-        }
+               AnnotatedTypeMirror receiverType;
+               if (thisValue != null
+                       && thisValue.getUnderlyingType().getKind() != TypeKind.ERROR
+                       && thisValue.getUnderlyingType().getKind() != TypeKind.NULL) {
+                   receiverType =
+                           AnnotatedTypeMirror.createType(
+                                   thisValue.getUnderlyingType(), atypeFactory, false);
+                   for (AnnotationMirror anno : thisValue.getAnnotations()) {
+                       receiverType.replaceAnnotation(anno);
+                   }
+               } else if (!fieldAccess.isStatic()) {
+                   receiverType =
+                           AnnotatedTypeMirror.createType(
+                                           fieldAccess.getReceiver().getType(), atypeFactory, false)
+                                   .getErased();
+                   receiverType.addAnnotations(atypeFactory.getQualifierHierarchy().getTopAnnotations());
+               } else {
+                   receiverType = null;
+               }
 
-        if (receiverType != null) {
-            return receiverType.hasAnnotation(atypeFactory.INITIALIZED);
-        } else {
-            // The field is static and INITIALIZED, so there is nothing else to check.
-            return true;
-        }
+               if (receiverType != null) {
+                   return receiverType.hasAnnotation(atypeFactory.INITIALIZED);
+               } else {
+                   // The field is static and INITIALIZED, so there is nothing else to check.
+                   return true;
+               }
+        */
     }
 
     @Override
