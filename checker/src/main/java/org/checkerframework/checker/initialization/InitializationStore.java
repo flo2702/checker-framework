@@ -1,7 +1,6 @@
 package org.checkerframework.checker.initialization;
 
 import org.checkerframework.checker.initialization.qual.Initialized;
-import org.checkerframework.checker.initialization.qual.NotOnlyInitialized;
 import org.checkerframework.dataflow.cfg.visualize.CFGVisualizer;
 import org.checkerframework.dataflow.expression.ClassName;
 import org.checkerframework.dataflow.expression.FieldAccess;
@@ -9,17 +8,14 @@ import org.checkerframework.dataflow.expression.JavaExpression;
 import org.checkerframework.dataflow.expression.ThisReference;
 import org.checkerframework.framework.flow.CFAbstractStore;
 import org.checkerframework.framework.flow.CFValue;
-import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.GenericAnnotatedTypeFactory;
 import org.plumelib.util.ToStringComparator;
 
 import java.util.HashSet;
 import java.util.Set;
 
-import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeKind;
 
 /**
  * A store that extends {@code CFAbstractStore} and additionally tracks which fields of the 'self'
@@ -138,56 +134,14 @@ public class InitializationStore extends CFAbstractStore<CFValue, Initialization
             FieldAccess fieldAccess,
             GenericAnnotatedTypeFactory<CFValue, InitializationStore, ?, ?> atypeFactory,
             CFValue value) {
-        if (isDeclaredInitialized(fieldAccess)) {
+        // Keep values of fields declared as @Initialized in the store.
+        // We get the annotation on the field directly instead of asking the type factory
+        // to avoid treating @NotOnlyInitialized fields as @Initialized.
+        if (fieldAccess.getField().getAnnotation(Initialized.class) != null) {
             return value;
         }
 
         return super.newFieldValueAfterMethodCall(fieldAccess, atypeFactory, value);
-    }
-
-    /**
-     * Determine whether the given field is declared as {@link Initialized} (taking into account
-     * viewpoint adaption for {@link NotOnlyInitialized}).
-     *
-     * @param fieldAccess the field to check
-     * @return whether the given field is declared as {@link Initialized} (taking into account
-     *     viewpoint adaption for {@link NotOnlyInitialized})
-     */
-    protected boolean isDeclaredInitialized(FieldAccess fieldAccess) {
-        InitializationParentAnnotatedTypeFactory atypeFactory =
-                (InitializationParentAnnotatedTypeFactory) analysis.getTypeFactory();
-
-        AnnotatedTypeMirror declField = atypeFactory.getAnnotatedType(fieldAccess.getField());
-        if (!declField.hasAnnotation(atypeFactory.INITIALIZED)) {
-            return false;
-        }
-
-        AnnotatedTypeMirror receiverType;
-        if (thisValue != null
-                && thisValue.getUnderlyingType().getKind() != TypeKind.ERROR
-                && thisValue.getUnderlyingType().getKind() != TypeKind.NULL) {
-            receiverType =
-                    AnnotatedTypeMirror.createType(
-                            thisValue.getUnderlyingType(), atypeFactory, false);
-            for (AnnotationMirror anno : thisValue.getAnnotations()) {
-                receiverType.replaceAnnotation(anno);
-            }
-        } else if (!fieldAccess.isStatic()) {
-            receiverType =
-                    AnnotatedTypeMirror.createType(
-                                    fieldAccess.getReceiver().getType(), atypeFactory, false)
-                            .getErased();
-            receiverType.addAnnotations(atypeFactory.getQualifierHierarchy().getTopAnnotations());
-        } else {
-            receiverType = null;
-        }
-
-        if (receiverType != null) {
-            return receiverType.hasAnnotation(atypeFactory.INITIALIZED);
-        } else {
-            // The field is static and INITIALIZED, so there is nothing else to check.
-            return true;
-        }
     }
 
     @Override
