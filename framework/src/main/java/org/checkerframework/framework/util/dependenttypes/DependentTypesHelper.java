@@ -108,7 +108,7 @@ import javax.lang.model.type.TypeMirror;
  * rather than every time the expression string is parsed. (The expression string is parsed multiple
  * times because annotated types are created multiple times.)
  *
- * @implNote <strong>CAUTION! This version's behaviour differs from the standard checker framework implementation!</strong>
+ * NOTE: <strong>CAUTION! This version's behaviour differs from the standard checker framework implementation!</strong>
  *           <p>
  *           The standard implementation considers annotation fields for dependent analysis/viewpoint
  *           adaptation only if they are annotated with @JavaExpression and are of type {@code String[]}.
