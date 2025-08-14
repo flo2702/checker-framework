@@ -13,7 +13,25 @@ import com.sun.source.tree.Tree;
 import com.sun.source.tree.VariableTree;
 import com.sun.source.util.TreePath;
 import com.sun.tools.javac.tree.JCTree;
-
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import javax.annotation.processing.ProcessingEnvironment;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
+import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.TypeKind;
+import javax.lang.model.type.TypeMirror;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.cfg.node.Node;
 import org.checkerframework.dataflow.expression.FormalParameter;
@@ -44,27 +62,6 @@ import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
 import org.checkerframework.javacutil.trees.DetachedVarSymbol;
 import org.plumelib.util.CollectionsPlume;
-
-import java.lang.annotation.Annotation;
-import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
-
-import javax.annotation.processing.ProcessingEnvironment;
-import javax.lang.model.element.AnnotationMirror;
-import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.TypeElement;
-import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.TypeKind;
-import javax.lang.model.type.TypeMirror;
 
 /**
  * A class that helps checkers use qualifiers that are represented by annotations with Java
@@ -193,8 +190,10 @@ public class DependentTypesHelper {
         Method[] methods = clazz.getMethods();
         List<ExecutableElement> elements = new ArrayList<>();
         for (Method method : methods) {
+            org.checkerframework.framework.qual.JavaExpression javaExpressionAnno =
+                method.getAnnotation(org.checkerframework.framework.qual.JavaExpression.class);
             if (method.getDeclaringClass().equals(clazz)
-                    && method.getReturnType() == String.class) {
+                    && (javaExpressionAnno != null || method.getReturnType() == String.class)) {
                 elements.add(
                         TreeUtils.getMethod(
                                 clazz, method.getName(), method.getParameterCount(), env));
@@ -849,23 +848,34 @@ public class DependentTypesHelper {
             return null;
         }
 
-        Map<ExecutableElement, JavaExpression> newElements = new HashMap<>();
+        Map<ExecutableElement, List<JavaExpression>> newElements = new HashMap<>();
         for (ExecutableElement element : getListOfExpressionElements(anno)) {
-            String expression = AnnotationUtils.getElementValue(anno, element, String.class);
-            JavaExpression result;
-            if (shouldPassThroughExpression(expression)) {
-                result = new PassThroughExpression(objectTM, expression);
+            List<String> expressionStrings;
+            if (anno.getElementValues().get(element).getValue() instanceof String) {
+                expressionStrings = Collections.singletonList(AnnotationUtils.getElementValue(anno, element, String.class));
             } else {
-                try {
-                    result = stringToJavaExpr.toJavaExpression(expression);
-                } catch (JavaExpressionParseException e) {
-                    result = createError(expression, e);
-                }
+                expressionStrings = AnnotationUtils.getElementValueArray(
+                        anno, element, String.class, Collections.emptyList());
             }
 
-            if (result != null) {
-                result = transform(result);
-                newElements.put(element, result);
+            List<JavaExpression> javaExprs = new ArrayList<>(expressionStrings.size());
+            newElements.put(element, javaExprs);
+            for (String expression : expressionStrings) {
+                JavaExpression result;
+                if (shouldPassThroughExpression(expression)) {
+                    result = new PassThroughExpression(objectTM, expression);
+                } else {
+                    try {
+                        result = stringToJavaExpr.toJavaExpression(expression);
+                    } catch (JavaExpressionParseException e) {
+                        result = createError(expression, e);
+                    }
+                }
+
+                if (result != null) {
+                    result = transform(result);
+                    javaExprs.add(result);
+                }
             }
         }
         return buildAnnotation(anno, newElements);
@@ -917,14 +927,21 @@ public class DependentTypesHelper {
      */
     protected AnnotationMirror buildAnnotation(
             AnnotationMirror originalAnno,
-            Map<ExecutableElement, JavaExpression> elementMap) {
+            Map<ExecutableElement, List<JavaExpression>> elementMap) {
         AnnotationBuilder builder =
                 new AnnotationBuilder(
                         atypeFactory.getProcessingEnv(),
                         AnnotationUtils.annotationName(originalAnno));
         builder.copyElementValuesFromAnnotation(originalAnno, elementMap.keySet());
-        for (Map.Entry<ExecutableElement, JavaExpression> entry : elementMap.entrySet()) {
-            builder.setValue(entry.getKey().getSimpleName(), entry.getValue().toString());
+        for (Map.Entry<ExecutableElement, List<JavaExpression>> entry : elementMap.entrySet()) {
+            TypeMirror expectedType = entry.getKey().getReturnType();
+            if (expectedType.getKind() == TypeKind.ARRAY) {
+                List<String> strings =
+                        CollectionsPlume.mapList(JavaExpression::toString, entry.getValue());
+                builder.setValue(entry.getKey(), strings);
+            } else {
+                builder.setValue(entry.getKey().getSimpleName(), entry.getValue().getFirst().toString());
+            }
         }
         return builder.build();
     }
@@ -1106,9 +1123,17 @@ public class DependentTypesHelper {
         List<DependentTypesError> errors = new ArrayList<>();
 
         for (ExecutableElement element : getListOfExpressionElements(am)) {
-            String value = AnnotationUtils.getElementValue(am, element, String.class);
-            if (DependentTypesError.isExpressionError(value)) {
-                errors.add(DependentTypesError.unparse(value));
+            List<String> value;
+            if (am.getElementValues().get(element).getValue() instanceof String) {
+                value = Collections.singletonList(AnnotationUtils.getElementValue(am, element, String.class));
+            } else {
+                value = AnnotationUtils.getElementValueArray(
+                        am, element, String.class, Collections.emptyList());
+            }
+            for (String v : value) {
+                if (DependentTypesError.isExpressionError(v)) {
+                    errors.add(DependentTypesError.unparse(v));
+                }
             }
         }
         return errors;
