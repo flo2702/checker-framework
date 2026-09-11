@@ -786,7 +786,7 @@ def createCloneTask(taskName, url, directory, extraArgs = []) {
                     executable 'git'
                     args = ['pull', '-q']
                     ignoreExitValue = true
-                    timeout = 60000 // 60 seconds
+                    timeout = Duration.ofSeconds(60)
                 }
             } else {
                 try {
