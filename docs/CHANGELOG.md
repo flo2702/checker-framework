@@ -3,6 +3,17 @@ Version 3.49.5-eisop2 (June ?, 2026)
 
 **User-visible changes:**
 
+`-AcheckCastElementType` is documented as requiring that "parameterized type
+arguments and array elements are the same" in a cast, but only the type-argument
+half was implemented. Array components are now required to be invariant too, in
+array casts and in `instanceof` binding patterns. This closes an unsoundness:
+array components are mutable and their qualifiers are not reified, so a cast
+cannot check them and two differently-qualified references can alias one array,
+allowing a value to be written through one and read back at the other's
+qualifier. `instanceof` binding patterns are now checked under this option at
+all; the Nullness Checker verifies their component types and type arguments
+while accounting for the runtime null check that `instanceof` itself performs.
+
 Fixed a bug where a `@DefaultQualifier` on a package could be lost for deeper subpackages.
 This happened when an intervening package shadowed it -- set a default for the same
 location and qualifier hierarchy -- and that shadowing default did not itself apply to
@@ -994,8 +1005,8 @@ eisop#1299, eisop#1315, eisop#1564, eisop#1592, eisop#1642, eisop#1653,
 eisop#1735, eisop#1801, eisop#1818, eisop#1819, eisop#1861, eisop#1862,
 eisop#1863, eisop#1865, eisop#1887, eisop#1965, eisop#1986, eisop#1987,
 eisop#1990, eisop#1991, eisop#2009, eisop#2020, eisop#2021, eisop#2032,
-eisop#2037, eisop#2047, eisop#2048, eisop#2052, eisop#2056, eisop#2059,
-eisop#2061, eisop#2064, typetools#399, typetools#3203.
+eisop#2037, eisop#2047, eisop#2048, eisop#2050, eisop#2052, eisop#2056,
+eisop#2059, eisop#2061, eisop#2064, typetools#399, typetools#3203.
 
 
 Version 3.49.5-eisop1 (April 26, 2026)
