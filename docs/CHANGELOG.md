@@ -668,6 +668,13 @@ which `BaseTypeChecker` implements with a cache.
 
 **Implementation details:**
 
+The jtreg tests that verify which annotations the Checker Framework writes into
+bytecode now run on JDK 25 and later. They used `com.sun.tools.classfile`, which
+JDK 25 removed; there are now parallel suites written against the `java.lang.classfile`
+API standardized in JDK 24, selected by a `@requires jdk.version.major` guard, so each
+JDK runs exactly one of the two. The `com.sun.tools.classfile` suites remain for JDK 24
+and earlier.
+
 `SourceChecker.printOrStoreMessage` no longer has the two `protected` overloads
 that took no suggested fixes (the four-argument form, and the five-argument form
 taking a `StackTraceElement[]`). The framework now routes all diagnostics
@@ -1070,6 +1077,7 @@ eisop#949,
 eisop#1015,
 eisop#1059,
 eisop#1074,
+eisop#1198,
 eisop#1244,
 eisop#1292,
 eisop#1299,
@@ -1113,6 +1121,7 @@ eisop#2081,
 eisop#2089,
 typetools#399,
 typetools#3203.
+
 
 Version 3.49.5-eisop1 (April 26, 2026)
 --------------------------------------
