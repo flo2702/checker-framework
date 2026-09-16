@@ -5,7 +5,6 @@
  * @requires jdk.version.major <= 24
  * @compile ../PersistUtil.java Driver.java ReferenceInfoUtil.java Fields.java
  * @run main Driver Fields
- * @ignore This fails for Java 11. See Issue 2816.
  */
 
 public class Fields {
@@ -159,7 +158,10 @@ public class Fields {
                 type = "FIELD",
                 genericLocation = {3, 0, 2, 0}),
 
-        // in front of the wildcard (?)
+        // In front of the wildcard (?) itself, as opposed to its bound.  Each hierarchy's bottom
+        // qualifier appears here: the wildcard's own type is its lower bound, which defaults to
+        // the bottom.  For KeyFor, java.util's package-info defines KeyForBottom as the default
+        // qualifier for lower bounds, which propagates to the wildcard's lower bound.
         @TADescription(
                 annotation = "org/checkerframework/checker/nullness/qual/NonNull",
                 type = "FIELD",
@@ -169,7 +171,7 @@ public class Fields {
                 type = "FIELD",
                 genericLocation = {3, 0}),
         @TADescription(
-                annotation = "org/checkerframework/checker/nullness/qual/UnknownKeyFor",
+                annotation = "org/checkerframework/checker/nullness/qual/KeyForBottom",
                 type = "FIELD",
                 genericLocation = {3, 0}),
     })
@@ -189,7 +191,10 @@ public class Fields {
                 annotation = "org/checkerframework/checker/nullness/qual/UnknownKeyFor",
                 type = "FIELD"),
 
-        // in front of the wildcard (?)
+        // In front of the wildcard (?) itself, as opposed to its bound.  Each hierarchy's bottom
+        // qualifier appears here: the wildcard's own type is its lower bound, which defaults to
+        // the bottom.  For KeyFor, java.util's package-info defines KeyForBottom as the default
+        // qualifier for lower bounds, which propagates to the wildcard's lower bound.
         @TADescription(
                 annotation = "org/checkerframework/checker/nullness/qual/NonNull",
                 type = "FIELD",
@@ -199,7 +204,7 @@ public class Fields {
                 type = "FIELD",
                 genericLocation = {3, 0}),
         @TADescription(
-                annotation = "org/checkerframework/checker/nullness/qual/UnknownKeyFor",
+                annotation = "org/checkerframework/checker/nullness/qual/KeyForBottom",
                 type = "FIELD",
                 genericLocation = {3, 0}),
 
