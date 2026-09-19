@@ -671,6 +671,12 @@ public abstract class SourceChecker extends AbstractTypeProcessor implements Opt
     /** The supported values for the {@code -Amode} option. */
     private @MonotonicNonNull Set<String> supportedModes;
 
+    /**
+     * True if {@link #init} reported an error. This checker is not initialized, so it must not
+     * process anything; the error it reported already fails the compilation.
+     */
+    private boolean initFailed = false;
+
     /** The value of {@code -AassumeAssertions}, set by {@link #getAssumeAssertions()}. */
     private @MonotonicNonNull AssumeAssertions assumeAssertions;
 
@@ -801,6 +807,23 @@ public abstract class SourceChecker extends AbstractTypeProcessor implements Opt
         // Sets processing enviroment and other related fields.
         setProcessingEnvironment(unwrappedEnv);
 
+        // Everything that can fail because of what the user wrote on the command line runs here,
+        // where an error is reported as a compiler error.  javac calls init() itself, so an
+        // exception thrown out of it is reported as "An annotation processor threw an uncaught
+        // exception", with a stack trace, rather than as a diagnostic.
+        try {
+            initOptions();
+        } catch (RuntimeException | Error t) {
+            initFailed = true;
+            logThrowable("SourceChecker.init", t, null);
+        }
+    }
+
+    /**
+     * Reads the command-line options that {@link #init} acts on. Called by {@link #init}, which
+     * reports a {@link UserError} thrown here as a compiler error.
+     */
+    private void initOptions() {
         // Keep in sync with check in checker-framework/build.gradle .
         int jreVersion = SystemUtil.jreVersion;
         List<Integer> supportedJres = Arrays.asList(8, 11, 17, 21, 25, 27, 28);
@@ -990,9 +1013,10 @@ public abstract class SourceChecker extends AbstractTypeProcessor implements Opt
      *
      * <p>This runs before the options of {@code -Amode} are added, so a deprecated option written
      * on the command line takes precedence over a mode, exactly as {@code -AassumeAssertions} does.
-     * It runs from {@link #init}, before a {@link UserError} would be reported as a compiler error
-     * rather than propagate out of the processor, so it never throws; {@link
-     * #validateAssumeAssertionsOption} reports every way these options can be inconsistent.
+     * It only maps one spelling to the other and never throws. {@link #getOptionsNoSubcheckers} is
+     * recomputed on every call, so this runs many times per compilation, whereas {@link
+     * #validateAssumeAssertionsOption} runs once from {@link #initChecker} and is where every way
+     * these options can be inconsistent is reported.
      *
      * @param activeOptions the active options, to which an {@code -AassumeAssertions} value is
      *     added
@@ -1234,6 +1258,9 @@ public abstract class SourceChecker extends AbstractTypeProcessor implements Opt
      */
     @Override
     public void typeProcessingStart() {
+        if (initFailed) {
+            return;
+        }
         try {
             super.typeProcessingStart();
             initChecker();
@@ -1254,14 +1281,8 @@ public abstract class SourceChecker extends AbstractTypeProcessor implements Opt
                         Diagnostic.Kind.NOTE, "Checker Framework " + getCheckerVersion());
                 printedVersion = true;
             }
-        } catch (UserError ce) {
-            logUserError(ce);
-        } catch (TypeSystemError ce) {
-            logTypeSystemError(ce);
-        } catch (BugInCF ce) {
-            logBugInCF(ce);
-        } catch (Throwable t) {
-            logBugInCF(wrapThrowableAsBugInCF("SourceChecker.typeProcessingStart", t, null));
+        } catch (RuntimeException | Error t) {
+            logThrowable("SourceChecker.typeProcessingStart", t, null);
         }
     }
 
@@ -1479,6 +1500,10 @@ public abstract class SourceChecker extends AbstractTypeProcessor implements Opt
      */
     @Override
     public void typeProcess(TypeElement e, TreePath p) {
+        if (initFailed) {
+            // typeProcessingStart did not run, so this checker has no visitor.
+            return;
+        }
         if (messageStore != null && parentChecker == null) {
             messageStore.clear();
         }
@@ -1673,14 +1698,8 @@ public abstract class SourceChecker extends AbstractTypeProcessor implements Opt
         try {
             visitor.visit(p);
             warnUnneededSuppressions();
-        } catch (UserError ce) {
-            logUserError(ce);
-        } catch (TypeSystemError ce) {
-            logTypeSystemError(ce);
-        } catch (BugInCF ce) {
-            logBugInCF(ce);
-        } catch (Throwable t) {
-            logBugInCF(wrapThrowableAsBugInCF("SourceChecker.visitDeclaration", t, p));
+        } catch (RuntimeException | Error t) {
+            logThrowable("SourceChecker.visitDeclaration", t, p);
         } finally {
             // Also add possibly deferred diagnostics, which will get published back in
             // AbstractTypeProcessor.
@@ -3980,6 +3999,38 @@ public abstract class SourceChecker extends AbstractTypeProcessor implements Opt
         }
 
         printMessage(msg.toString());
+    }
+
+    /**
+     * Reports {@code t}, thrown by {@code methodName}, as a compiler diagnostic rather than letting
+     * it propagate out of the annotation processor.
+     *
+     * @param methodName the name of the method that threw {@code t}
+     * @param t the throwable that {@code methodName} threw
+     * @param p the path to the tree being processed, or null if none is being processed
+     */
+    private void logThrowable(String methodName, Throwable t, @Nullable TreePath p) {
+        if (t instanceof UserError) {
+            logUserError((UserError) t);
+        } else if (t instanceof TypeSystemError) {
+            logTypeSystemError((TypeSystemError) t);
+        } else if (t instanceof BugInCF) {
+            logBugInCF((BugInCF) t);
+        } else {
+            logBugInCF(wrapThrowableAsBugInCF(methodName, t, p));
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>Reports the throwable as a compiler diagnostic. {@link #typeProcessingOver()} is
+     * overridable, and five checkers override it, so {@link AbstractTypeProcessor} wrapping the
+     * call is what puts their work under this handler.
+     */
+    @Override
+    protected void handleProcessingError(String methodName, Throwable t) {
+        logThrowable("SourceChecker." + methodName, t, null);
     }
 
     /**
