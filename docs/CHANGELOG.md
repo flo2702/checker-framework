@@ -13,6 +13,19 @@ without an argument, or with one that is not a regular expression, was reported 
 "An annotation processor threw an uncaught exception", followed by a stack trace.
 An error from a checker's `typeProcessingOver` is now reported the same way.
 
+A diagnostic reported on a tree that the CFG synthesized for a conversion now points at the
+construct the conversion came from, rather than at the first character of the file.
+
+The method invocations that the CFG synthesizes for boxing, unboxing, enhanced for loops and
+try-with-resources are now type-checked.  Previously a type system's declaration of
+`Integer.valueOf`, `Integer.intValue`, `Iterable.iterator` or `close` was enforced for an
+explicit call and ignored for the conversion that desugars to it, so a type system could not
+constrain which values may be converted.
+
+The Fenum Checker now preserves a fake enum across boxing and unboxing.  The wrapper classes'
+`valueOf` and `xxxValue` methods are annotated `@PolyFenum`, so a `@Fenum` value can be boxed
+and unboxed without laundering it into a different fake enum.
+
 Every continuous integration run now attaches the jars it built to the run, so
 the latest development version, or a proposed fix, can be tried out without
 building it.  See the "Development jars without building" section of the manual.
