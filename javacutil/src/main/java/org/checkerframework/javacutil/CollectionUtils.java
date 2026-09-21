@@ -2,7 +2,6 @@ package org.checkerframework.javacutil;
 
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.checker.nullness.qual.PolyNull;
-import org.plumelib.util.DeepCopyable;
 import org.plumelib.util.UtilPlume;
 
 import java.util.Collection;
@@ -17,9 +16,9 @@ public class CollectionUtils {
         throw new Error("Do not instantiate");
     }
 
-    ///
-    /// Deprecated utility methods
-    ///
+    //
+    // Deprecated utility methods
+    //
 
     /**
      * Creates a LRU cache.
@@ -58,7 +57,8 @@ public class CollectionUtils {
         "nullness" // generics problem
     })
     @Deprecated // 2023-06-02
-    public static <T extends @Nullable Object, C extends @Nullable Collection<T>> @PolyNull C cloneElements(@PolyNull C orig) {
+    public static <T extends @Nullable Object, C extends @Nullable Collection<T>>
+            @PolyNull C cloneElements(@PolyNull C orig) {
         if (orig == null) {
             return null;
         }
@@ -82,7 +82,7 @@ public class CollectionUtils {
      * @deprecated use org.plumelib.util.CollectionsPlume.cloneElements
      */
     @Deprecated // 2023-06-02
-    @SuppressWarnings({"nullness", "signedness"}) // generics problem with clone
+    @SuppressWarnings("signedness") // generics problem with clone
     public static <K, V, M extends @Nullable Map<K, V>> @PolyNull M cloneElements(
             @PolyNull M orig) {
         return cloneElements(orig, true);
@@ -100,7 +100,7 @@ public class CollectionUtils {
      * @deprecated use org.plumelib.util.CollectionsPlume.cloneValues
      */
     @Deprecated // 2023-06-02
-    @SuppressWarnings({"nullness", "signedness"}) // generics problem with clone
+    @SuppressWarnings("signedness") // generics problem with clone
     public static <K, V, M extends @Nullable Map<K, V>> @PolyNull M cloneValues(@PolyNull M orig) {
         return cloneElements(orig, false);
     }
@@ -146,7 +146,8 @@ public class CollectionUtils {
      */
     @Deprecated // 2023-06-02
     @SuppressWarnings({"signedness", "nullness:argument"}) // problem with clone()
-    public static <T extends @Nullable DeepCopyable<T>, C extends @Nullable Collection<T>> @PolyNull C deepCopy(@PolyNull C orig) {
+    public static <T extends @Nullable DeepCopyable<T>, C extends @Nullable Collection<T>>
+            @PolyNull C deepCopy(@PolyNull C orig) {
         if (orig == null) {
             return null;
         }
@@ -206,7 +207,8 @@ public class CollectionUtils {
      */
     @Deprecated // 2023-06-02
     @SuppressWarnings({"nullness", "signedness"}) // generics problem with clone
-    public static <K, V extends @Nullable DeepCopyable<V>, M extends @Nullable Map<K, V>> @PolyNull M deepCopyValues(@PolyNull M orig) {
+    public static <K, V extends @Nullable DeepCopyable<V>, M extends @Nullable Map<K, V>>
+            @PolyNull M deepCopyValues(@PolyNull M orig) {
         if (orig == null) {
             return null;
         }

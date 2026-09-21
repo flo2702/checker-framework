@@ -2,7 +2,7 @@ package org.checkerframework.dataflow.analysis;
 
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.dataflow.cfg.node.ReturnNode;
-import org.plumelib.util.IPair;
+import org.checkerframework.javacutil.Pair;
 
 import java.util.List;
 
@@ -12,7 +12,7 @@ import java.util.List;
  *
  * @param <V> the abstract value type to be tracked by the analysis
  * @param <S> the store type used in the analysis
- * @param <T> the forward transfer function type that is used to approximated runtime behavior
+ * @param <T> the forward transfer function type that is used to approximate run-time behavior
  */
 public interface ForwardAnalysis<
                 V extends AbstractValue<V>,
@@ -27,5 +27,5 @@ public interface ForwardAnalysis<
      *
      * @return the transfer results for each return node in the CFG
      */
-    List<IPair<ReturnNode, @Nullable TransferResult<V, S>>> getReturnStatementStores();
+    List<Pair<ReturnNode, @Nullable TransferResult<V, S>>> getReturnStatementStores();
 }

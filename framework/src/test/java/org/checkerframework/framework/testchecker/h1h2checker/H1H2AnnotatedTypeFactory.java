@@ -34,6 +34,7 @@ public class H1H2AnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
      *
      * @param checker the checker
      */
+    @SuppressWarnings("this-escape")
     public H1H2AnnotatedTypeFactory(BaseTypeChecker checker) {
         super(checker);
         this.postInit();
@@ -58,10 +59,9 @@ public class H1H2AnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
     }
 
     @Override
-    protected void addComputedTypeAnnotations(
-            Tree tree, AnnotatedTypeMirror type, boolean iUseFlow) {
-        super.addComputedTypeAnnotations(tree, type, iUseFlow);
-        if (tree.getKind() == Tree.Kind.VARIABLE
+    protected void addComputedTypeAnnotations(Tree tree, AnnotatedTypeMirror type) {
+        super.addComputedTypeAnnotations(tree, type);
+        if (tree instanceof VariableTree
                 && ((VariableTree) tree).getName().toString().contains("addH1S2")) {
             type.replaceAnnotation(H1S2);
         }

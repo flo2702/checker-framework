@@ -74,8 +74,9 @@ public class AinferTestAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
     private final AnnotationMirror SIBLING1 =
             new AnnotationBuilder(processingEnv, AinferSibling1.class).build();
 
-    private final AnnotationMirror TREAT_AS_SIBLING1 =
-            new AnnotationBuilder(processingEnv, AinferTreatAsSibling1.class).build();
+    // NO-AFU
+    // private final AnnotationMirror TREAT_AS_SIBLING1 =
+    //        new AnnotationBuilder(processingEnv, AinferTreatAsSibling1.class).build();
 
     /** The AinferSiblingWithFields.value field/element. */
     private final ExecutableElement siblingWithFieldsValueElement =
@@ -90,6 +91,7 @@ public class AinferTestAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
      *
      * @param checker the checker
      */
+    @SuppressWarnings("this-escape")
     public AinferTestAnnotatedTypeFactory(BaseTypeChecker checker) {
         super(checker);
         // Support a declaration annotation that has the same meaning as @Sibling1, to test that the
@@ -124,7 +126,7 @@ public class AinferTestAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
                 new AinferTestTreeAnnotator(this));
     }
 
-    protected class AinferTestTreeAnnotator extends TreeAnnotator {
+    protected static class AinferTestTreeAnnotator extends TreeAnnotator {
 
         /**
          * Create a new AinferTestTreeAnnotator.
@@ -222,7 +224,7 @@ public class AinferTestAnnotatedTypeFactory extends BaseAnnotatedTypeFactory {
 
         @Override
         public AnnotationMirrorSet getBottomAnnotations() {
-            return new AnnotationMirrorSet(BOTTOM);
+            return AnnotationMirrorSet.singleton(BOTTOM);
         }
 
         @Override

@@ -18,9 +18,9 @@ import org.checkerframework.framework.type.AnnotatedTypeMirror;
 import org.checkerframework.framework.type.AnnotatedTypeMirror.AnnotatedExecutableType;
 import org.checkerframework.javacutil.AnnotationMirrorSet;
 import org.checkerframework.javacutil.BugInCF;
+import org.checkerframework.javacutil.Pair;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypesUtils;
-import org.plumelib.util.IPair;
 
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.ExecutableElement;
@@ -79,7 +79,7 @@ public class SignednessVisitor extends BaseTypeVisitor<SignednessAnnotatedTypeFa
         ExpressionTree leftOp = tree.getLeftOperand();
         ExpressionTree rightOp = tree.getRightOperand();
 
-        IPair<AnnotatedTypeMirror, AnnotatedTypeMirror> argTypes =
+        Pair<AnnotatedTypeMirror, AnnotatedTypeMirror> argTypes =
                 atypeFactory.binaryTreeArgTypes(tree);
         AnnotatedTypeMirror leftOpType = argTypes.first;
         AnnotatedTypeMirror rightOpType = argTypes.second;
@@ -172,8 +172,8 @@ public class SignednessVisitor extends BaseTypeVisitor<SignednessAnnotatedTypeFa
                     }
                     break;
                 }
-                // Other plus binary trees should be handled in the default case.
-                // fall through
+            // Other plus binary trees should be handled in the default case.
+            // fall through
             default:
                 if (leftOpType.hasEffectiveAnnotation(Unsigned.class)
                         && rightOpType.hasEffectiveAnnotation(Signed.class)) {
@@ -192,7 +192,7 @@ public class SignednessVisitor extends BaseTypeVisitor<SignednessAnnotatedTypeFa
     // Ensure that method annotations are not written on methods they don't apply to.
     // Copied from InterningVisitor
     @Override
-    public Void visitMethod(MethodTree tree, Void p) {
+    public void processMethodTree(String className, MethodTree tree) {
         ExecutableElement methElt = TreeUtils.elementFromDeclaration(tree);
         boolean hasEqualsMethodAnno =
                 atypeFactory.getDeclAnnotation(methElt, EqualsMethod.class) != null;
@@ -202,7 +202,7 @@ public class SignednessVisitor extends BaseTypeVisitor<SignednessAnnotatedTypeFa
                     tree, "invalid.method.annotation", "@EqualsMethod", "1 or 2", methElt, params);
         }
 
-        return super.visitMethod(tree, p);
+        super.processMethodTree(className, tree);
     }
 
     @Override
@@ -288,7 +288,7 @@ public class SignednessVisitor extends BaseTypeVisitor<SignednessAnnotatedTypeFa
         ExpressionTree var = tree.getVariable();
         ExpressionTree expr = tree.getExpression();
 
-        IPair<AnnotatedTypeMirror, AnnotatedTypeMirror> argTypes =
+        Pair<AnnotatedTypeMirror, AnnotatedTypeMirror> argTypes =
                 atypeFactory.compoundAssignmentTreeArgTypes(tree);
         AnnotatedTypeMirror varType = argTypes.first;
         AnnotatedTypeMirror exprType = argTypes.second;
@@ -354,8 +354,8 @@ public class SignednessVisitor extends BaseTypeVisitor<SignednessAnnotatedTypeFa
                     }
                     break;
                 }
-                // Other plus binary trees should be handled in the default case.
-                // fall through
+            // Other plus binary trees should be handled in the default case.
+            // fall through
             default:
                 if (varType.hasAnnotation(Unsigned.class) && exprType.hasAnnotation(Signed.class)) {
                     checker.reportError(
@@ -389,7 +389,7 @@ public class SignednessVisitor extends BaseTypeVisitor<SignednessAnnotatedTypeFa
 
     @Override
     protected AnnotationMirrorSet getExceptionParameterLowerBoundAnnotations() {
-        return new AnnotationMirrorSet(atypeFactory.SIGNED);
+        return atypeFactory.SIGNED_SINGLETON;
     }
 
     @Override

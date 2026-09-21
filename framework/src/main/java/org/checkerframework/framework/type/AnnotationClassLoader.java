@@ -36,6 +36,7 @@ import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
@@ -130,7 +131,10 @@ public class AnnotationClassLoader implements Closeable {
      *
      * @param checker a {@link BaseTypeChecker} or its subclass
      */
-    @SuppressWarnings("signature") // TODO: reduce use of string manipulation
+    @SuppressWarnings({
+        "signature", // TODO: reduce use of string manipulation
+        "this-escape"
+    })
     public AnnotationClassLoader(BaseTypeChecker checker) {
         this.checker = checker;
         processingEnv = checker.getProcessingEnvironment();
@@ -404,7 +408,11 @@ public class AnnotationClassLoader implements Closeable {
         URL jarURL = null;
 
         try {
-            jarURL = new URI("jar:file:" + absolutePathToJarFile + "!/").toURL();
+            String normalizedPath = absolutePathToJarFile.replace("\\", "/");
+            String osName = System.getProperty("os.name").toString().toLowerCase(Locale.ENGLISH);
+            String prefix = osName.startsWith("windows") ? "jar:file:///" : "jar:file:";
+
+            jarURL = new URI(prefix + normalizedPath + "!/").toURL();
         } catch (MalformedURLException | URISyntaxException e) {
             processingEnv
                     .getMessager()
@@ -513,6 +521,7 @@ public class AnnotationClassLoader implements Closeable {
      * Loads the set of annotation classes in the qual directory of a checker shipped with the
      * Checker Framework.
      */
+    @SuppressWarnings("this-escape")
     private void loadBundledAnnotationClasses() {
         // retrieve the fully qualified class names of the annotations
         Set<@BinaryName String> annotationNames;
@@ -548,7 +557,6 @@ public class AnnotationClassLoader implements Closeable {
                 throw new BugInCF(
                         "AnnotationClassLoader: cannot open the Jar file " + resourceURL.getFile());
             }
-
         } else if (resourceURL != null && resourceURL.getProtocol().contentEquals("file")) {
             // If the checker class file is found within the file system itself within some
             // directory (usually development build directories), then process the package as a file

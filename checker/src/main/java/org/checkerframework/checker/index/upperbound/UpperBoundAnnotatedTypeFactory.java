@@ -67,9 +67,9 @@ import org.checkerframework.framework.util.dependenttypes.DependentTypesHelper;
 import org.checkerframework.javacutil.AnnotationBuilder;
 import org.checkerframework.javacutil.AnnotationMirrorSet;
 import org.checkerframework.javacutil.AnnotationUtils;
+import org.checkerframework.javacutil.Pair;
 import org.checkerframework.javacutil.TreeUtils;
 import org.checkerframework.javacutil.TypeSystemError;
-import org.plumelib.util.IPair;
 
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
@@ -125,18 +125,21 @@ public class UpperBoundAnnotatedTypeFactory extends BaseAnnotatedTypeFactoryForI
             AnnotationBuilder.fromClass(elements, PolyUpperBound.class);
 
     /** The @{@link UpperBoundLiteral}(-1) annotation. */
+    @SuppressWarnings("this-escape")
     public final AnnotationMirror NEGATIVEONE =
             new AnnotationBuilder(getProcessingEnv(), UpperBoundLiteral.class)
                     .setValue("value", -1)
                     .build();
 
     /** The @{@link UpperBoundLiteral}(0) annotation. */
+    @SuppressWarnings("this-escape")
     public final AnnotationMirror ZERO =
             new AnnotationBuilder(getProcessingEnv(), UpperBoundLiteral.class)
                     .setValue("value", 0)
                     .build();
 
     /** The @{@link UpperBoundLiteral}(1) annotation. */
+    @SuppressWarnings("this-escape")
     public final AnnotationMirror ONE =
             new AnnotationBuilder(getProcessingEnv(), UpperBoundLiteral.class)
                     .setValue("value", 1)
@@ -162,6 +165,7 @@ public class UpperBoundAnnotatedTypeFactory extends BaseAnnotatedTypeFactoryForI
     private final IndexMethodIdentifier imf;
 
     /** Create a new UpperBoundAnnotatedTypeFactory. */
+    @SuppressWarnings("this-escape")
     public UpperBoundAnnotatedTypeFactory(BaseTypeChecker checker) {
         super(checker);
 
@@ -255,12 +259,12 @@ public class UpperBoundAnnotatedTypeFactory extends BaseAnnotatedTypeFactoryForI
     }
 
     @Override
-    public void addComputedTypeAnnotations(Tree tree, AnnotatedTypeMirror type, boolean iUseFlow) {
-        super.addComputedTypeAnnotations(tree, type, iUseFlow);
+    protected void addComputedTypeAnnotations(Tree tree, AnnotatedTypeMirror type) {
+        super.addComputedTypeAnnotations(tree, type);
         // If dataflow shouldn't be used to compute this type, then do not use the result from
         // the Value Checker, because dataflow is used to compute that type.  (Without this,
         // "int i = 1; --i;" fails.)
-        if (iUseFlow
+        if (getUseFlow()
                 && tree != null
                 && !ajavaTypes.isParsing()
                 && TreeUtils.isExpressionTree(tree)) {
@@ -666,6 +670,10 @@ public class UpperBoundAnnotatedTypeFactory extends BaseAnnotatedTypeFactoryForI
 
         @Override
         public Void visitBinary(BinaryTree tree, AnnotatedTypeMirror type) {
+            // This implementation does NOT call getAnnotatedType on the left or right operands.
+            // Doing so would lead to re-examination of subexpressions many times (which is too
+            // slow).
+
             // A few small rules for addition/subtraction by 0/1, etc.
             if (TreeUtils.isStringConcatenation(tree)) {
                 type.addAnnotation(UNKNOWN);
@@ -898,7 +906,7 @@ public class UpperBoundAnnotatedTypeFactory extends BaseAnnotatedTypeFactoryForI
 
             ExpressionTree seqTree = getLengthSequenceTree(seqLenTree);
 
-            if (randTree.getKind() == Tree.Kind.METHOD_INVOCATION && seqTree != null) {
+            if (randTree instanceof MethodInvocationTree && seqTree != null) {
 
                 MethodInvocationTree mitree = (MethodInvocationTree) randTree;
 
@@ -999,7 +1007,7 @@ public class UpperBoundAnnotatedTypeFactory extends BaseAnnotatedTypeFactoryForI
             Tree tree, TreePath treePath, List<String> lessThanExpressions) {
         UBQualifier ubQualifier = null;
         for (String expression : lessThanExpressions) {
-            IPair<JavaExpression, String> exprAndOffset;
+            Pair<JavaExpression, String> exprAndOffset;
             try {
                 exprAndOffset =
                         getExpressionAndOffsetFromJavaExpressionString(expression, treePath);

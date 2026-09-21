@@ -54,7 +54,7 @@ public class I18nFormatterLubGlbChecker extends I18nFormatterChecker {
          *
          * @param checker checker
          */
-        public I18nFormatterLubGlbAnnotatedTypeFactory(BaseTypeChecker checker) {
+        I18nFormatterLubGlbAnnotatedTypeFactory(BaseTypeChecker checker) {
             super(checker);
             postInit();
         }
@@ -133,9 +133,6 @@ public class I18nFormatterLubGlbChecker extends I18nFormatterChecker {
         AnnotationMirror i18nFormatDateAnno = treeUtil.categoriesToFormatAnnotation(cc);
         cc[0] = I18nConversionCategory.NUMBER;
         AnnotationMirror i18nFormatNumberAnno = treeUtil.categoriesToFormatAnnotation(cc);
-
-        QualifierHierarchy qh =
-                ((BaseTypeVisitor<?>) visitor).getTypeFactory().getQualifierHierarchy();
 
         // ** GLB tests **
 

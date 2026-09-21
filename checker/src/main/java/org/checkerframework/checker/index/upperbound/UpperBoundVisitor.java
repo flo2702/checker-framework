@@ -31,9 +31,9 @@ import org.checkerframework.framework.util.JavaExpressionParseUtil.JavaExpressio
 import org.checkerframework.framework.util.StringToJavaExpression;
 import org.checkerframework.javacutil.AnnotationUtils;
 import org.checkerframework.javacutil.ElementUtils;
+import org.checkerframework.javacutil.Pair;
 import org.checkerframework.javacutil.TreePathUtil;
 import org.checkerframework.javacutil.TreeUtils;
-import org.plumelib.util.IPair;
 
 import java.util.Collections;
 import java.util.List;
@@ -319,7 +319,7 @@ public class UpperBoundVisitor extends BaseTypeVisitor<UpperBoundAnnotatedTypeFa
      * @return true if the assignment is legal based on special Upper Bound rules
      */
     private boolean relaxedCommonAssignment(AnnotatedTypeMirror varType, ExpressionTree valueExp) {
-        if (valueExp.getKind() == Tree.Kind.NEW_ARRAY && varType.getKind() == TypeKind.ARRAY) {
+        if (valueExp instanceof NewArrayTree && varType.getKind() == TypeKind.ARRAY) {
             List<? extends ExpressionTree> expressions =
                     ((NewArrayTree) valueExp).getInitializers();
             if (expressions == null || expressions.isEmpty()) {
@@ -355,16 +355,16 @@ public class UpperBoundVisitor extends BaseTypeVisitor<UpperBoundAnnotatedTypeFa
      * <p>This is useful for expressions like "n+1", for which {@link #parseJavaExpressionString}
      * returns null because the whole expression is not a receiver.
      */
-    static @Nullable IPair<JavaExpression, String> getExpressionAndOffsetFromJavaExpressionString(
+    static @Nullable Pair<JavaExpression, String> getExpressionAndOffsetFromJavaExpressionString(
             String s, UpperBoundAnnotatedTypeFactory atypeFactory, TreePath currentPath) {
 
-        IPair<String, String> p = AnnotatedTypeFactory.getExpressionAndOffset(s);
+        Pair<String, String> p = AnnotatedTypeFactory.getExpressionAndOffset(s);
 
         JavaExpression je = parseJavaExpressionString(p.first, atypeFactory, currentPath);
         if (je == null) {
             return null;
         }
-        return IPair.of(je, p.second);
+        return Pair.of(je, p.second);
     }
 
     /**
