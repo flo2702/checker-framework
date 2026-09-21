@@ -3,6 +3,10 @@ Version 3.49.5-eisop2 (June ?, 2026)
 
 **User-visible changes:**
 
+A binary stub file is no longer packaged after the `.astub` file it was generated from is
+renamed or deleted.  The stale `.bin.gz` shipped in the jar and was read in preference to the
+text stub that no longer existed, so the removed annotations kept being applied.
+
 A checker that resolves a tree from `postAnalyze` no longer poisons the tree-path cache.
 `AnnotatedTypeFactory.getPath` caches a failed lookup, and `postAnalyze` ran with the visitor
 tree path of whatever the visitor last set rather than of the code being analyzed.
