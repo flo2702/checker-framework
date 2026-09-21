@@ -718,6 +718,11 @@ defaults, and only the latter was cached. Both now use the new
 `SourceChecker.isElementAnnotatedForThisCheckerOrUpstreamChecker(Element)`,
 which `BaseTypeChecker` implements with a cache.
 
+New command-line option `-AignoreDeadCode` skips checking dead (unreachable) code: literal-condition
+branches such as `if (false)`, and code that dataflow determines can never be reached (such as a
+catch block for an exception type the try block can never throw). This option is not enabled by
+default, since dead code might become reachable after a future edit.
+
 Type argument inference no longer fails on an inexact method reference to a
 value-returning method that is passed where a functional interface whose method
 returns `void` is expected, so that the returned value is discarded.  It reported
@@ -1132,6 +1137,7 @@ eisop#104,
 eisop#386,
 eisop#433,
 eisop#622,
+eisop#627,
 eisop#737,
 eisop#778,
 eisop#786,
