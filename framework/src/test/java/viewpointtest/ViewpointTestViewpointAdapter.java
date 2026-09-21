@@ -9,7 +9,6 @@ import org.checkerframework.javacutil.AnnotationUtils;
 
 import javax.lang.model.element.AnnotationMirror;
 
-import viewpointtest.quals.A;
 import viewpointtest.quals.C;
 import viewpointtest.quals.Lost;
 import viewpointtest.quals.PolyVP;
@@ -31,9 +30,6 @@ public class ViewpointTestViewpointAdapter extends AbstractViewpointAdapter {
     /** The {@link Lost} annotation. */
     private final AnnotationMirror LOST;
 
-    /** The {@link A} annotation. */
-    private final AnnotationMirror A;
-
     /** The {@link C} annotation. */
     private final AnnotationMirror C;
 
@@ -50,7 +46,6 @@ public class ViewpointTestViewpointAdapter extends AbstractViewpointAdapter {
                 AnnotationBuilder.fromClass(
                         atypeFactory.getElementUtils(), ReceiverDependentQual.class);
         LOST = ((ViewpointTestAnnotatedTypeFactory) atypeFactory).LOST;
-        A = AnnotationBuilder.fromClass(atypeFactory.getElementUtils(), A.class);
         C = AnnotationBuilder.fromClass(atypeFactory.getElementUtils(), C.class);
     }
 
