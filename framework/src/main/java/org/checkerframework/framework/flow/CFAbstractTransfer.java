@@ -563,6 +563,10 @@ public abstract class CFAbstractTransfer<
         TypeElement classEle = TreeUtils.elementFromDeclaration(classTree);
         boolean isInitializedReceiver =
                 !isConstructor && !isNotFullyInitializedReceiver(methodTree);
+        AnnotatedTypeMirror receiverType =
+                (isInitializedReceiver && !isStaticMethod && methodTree.getBody() != null)
+                        ? analysis.getTypeFactory().getSelfType(methodTree.getBody())
+                        : null;
         for (FieldInitialValue<V> fieldInitialValue : analysis.getFieldInitialValues()) {
             VariableElement varEle = fieldInitialValue.fieldDecl.getField();
             boolean isStaticField = ElementUtils.isStatic(varEle);
@@ -596,9 +600,7 @@ public abstract class CFAbstractTransfer<
                 }
             } else if (isInitializedReceiver) {
                 V value;
-                if (!isStaticMethod && !isStaticField) {
-                    AnnotatedTypeMirror receiverType =
-                            analysis.getTypeFactory().getSelfType(methodTree.getBody());
+                if (!isStaticField && receiverType != null) {
                     AnnotatedTypeMirror adaptedType =
                             AnnotatedTypes.asMemberOf(
                                     analysis.getTypes(),
